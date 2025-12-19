@@ -9,6 +9,8 @@ pnpm-debug.log*
 /dist/
 /build/
 /out/
+# Vite-built docs site (generated)
+docs/site/
 
 # Env
 .env

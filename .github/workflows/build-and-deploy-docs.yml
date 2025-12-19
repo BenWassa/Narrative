@@ -1,4 +1,4 @@
-name: Build and commit docs site
+name: Build and deploy site to GitHub Pages
 
 on:
   push:
@@ -6,12 +6,14 @@ on:
   workflow_dispatch:
 
 jobs:
-  build:
+  deploy:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
     steps:
       - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
 
       - name: Use Node.js
         uses: actions/setup-node@v4
@@ -24,11 +26,10 @@ jobs:
       - name: Build site
         run: npm run build
 
-      - name: Commit and push built site
-        uses: EndBug/add-and-commit@v9
+      - name: Upload built site artifact
+        uses: actions/upload-pages-artifact@v1
         with:
-          author_name: github-actions[bot]
-          author_email: 41898282+github-actions[bot]@users.noreply.github.com
-          message: 'chore(ci): build site and commit to docs/site [skip ci]'
-          add: 'docs/site'
-          push: true
+          path: ./docs/site
+
+      - name: Deploy to GitHub Pages
+        uses: actions/deploy-pages@v1
