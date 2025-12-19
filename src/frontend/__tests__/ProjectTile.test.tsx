@@ -15,19 +15,28 @@ describe('ProjectTile', () => {
 
     const project = { projectName: 'Test', rootPath: '/tmp/test' };
 
-    const { container } = render(<ProjectTile project={project} onOpen={onOpen} onSetCover={onSetCover} />);
+    const { container } = render(
+      <ProjectTile project={project} onOpen={onOpen} onSetCover={onSetCover} />,
+    );
 
     expect(container).toMatchSnapshot();
-    expect(screen.getByText('Test')).toBeInTheDocument();
+    const openButton = screen.getByRole('button', { name: /Open project Test/i });
+    expect(openButton).toHaveTextContent('Test');
   });
 
   it('renders an image when coverUrl is present', () => {
     const onOpen = vi.fn();
     const onSetCover = vi.fn();
 
-    const project = { projectName: 'Test', rootPath: '/tmp/test', coverUrl: 'https://picsum.photos/200/100' };
+    const project = {
+      projectName: 'Test',
+      rootPath: '/tmp/test',
+      coverUrl: 'https://picsum.photos/200/100',
+    };
 
-    const { container } = render(<ProjectTile project={project} onOpen={onOpen} onSetCover={onSetCover} />);
+    const { container } = render(
+      <ProjectTile project={project} onOpen={onOpen} onSetCover={onSetCover} />,
+    );
 
     expect(container).toMatchSnapshot();
     expect(screen.getByAltText('Test')).toBeInTheDocument();

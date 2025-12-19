@@ -1,0 +1,87 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`ProjectTile > renders an image when coverUrl is present 1`] = `
+<div>
+  <div
+    class="relative rounded-lg overflow-hidden border border-gray-800 bg-gray-950"
+  >
+    <button
+      aria-label="Open project Test"
+      class="w-full h-36 block text-left"
+    >
+      <img
+        alt="Test"
+        class="w-full h-36 object-cover"
+        src="https://picsum.photos/200/100"
+      />
+    </button>
+    <div
+      class="p-3 flex items-center justify-between"
+    >
+      <div
+        class="text-sm font-medium truncate"
+      >
+        Test
+      </div>
+      <div
+        class="flex items-center gap-2"
+      >
+        <input
+          accept="image/*"
+          class="hidden"
+          type="file"
+        />
+        <button
+          class="text-xs text-gray-400 hover:text-gray-200"
+          type="button"
+        >
+          Change cover
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+`;
+
+exports[`ProjectTile > renders with a fallback gradient when no coverUrl 1`] = `
+<div>
+  <div
+    class="relative rounded-lg overflow-hidden border border-gray-800 bg-gray-950"
+  >
+    <button
+      aria-label="Open project Test"
+      class="w-full h-36 block text-left"
+    >
+      <div
+        class="w-full h-36 bg-gradient-to-br from-gray-800 to-gray-900 flex items-center justify-center text-sm text-gray-400"
+      >
+        Test
+      </div>
+    </button>
+    <div
+      class="p-3 flex items-center justify-between"
+    >
+      <div
+        class="text-sm font-medium truncate"
+      >
+        Test
+      </div>
+      <div
+        class="flex items-center gap-2"
+      >
+        <input
+          accept="image/*"
+          class="hidden"
+          type="file"
+        />
+        <button
+          class="text-xs text-gray-400 hover:text-gray-200"
+          type="button"
+        >
+          Change cover
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+`;

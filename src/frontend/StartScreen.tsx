@@ -39,7 +39,11 @@ export default function StartScreen({
 
             <div className="flex items-center gap-3">
               {onRunDemo && (
-                <button onClick={onRunDemo} className="text-sm text-gray-300 hover:text-gray-100" aria-label="Run demo">
+                <button
+                  onClick={onRunDemo}
+                  className="text-sm text-gray-300 hover:text-gray-100"
+                  aria-label="Run demo"
+                >
                   Demo
                 </button>
               )}
@@ -73,7 +77,12 @@ export default function StartScreen({
                   <h3 className="text-xs text-gray-400 uppercase mb-2">{group.label}</h3>
                   <div className="grid grid-cols-2 gap-3">
                     {group.projects.map(p => (
-                      <ProjectTile key={p.rootPath} project={p} onOpen={onOpenProject} onSetCover={onSetCover} />
+                      <ProjectTile
+                        key={p.rootPath}
+                        project={p}
+                        onOpen={onOpenProject}
+                        onSetCover={onSetCover}
+                      />
                     ))}
                   </div>
                 </div>
