@@ -20,6 +20,26 @@ jobs:
         run: npm run lint
       - name: Run tests
         run: npm test
+      - name: Check for unused exports (ts-prune)
+        run: |
+          echo "Checking for unused exports with ts-prune..."
+          if npx ts-prune -p tsconfig.json | grep -q .; then
+            echo "Found unused exports. Run 'npx ts-prune -p tsconfig.json' locally to inspect."
+            npx ts-prune -p tsconfig.json
+            exit 1
+          fi
+
+      - name: Check for unused dependencies (depcheck)
+        run: |
+          echo "Running depcheck to find unused dependencies..."
+          # depcheck exits 0 even when it finds unused deps, so inspect JSON output
+          if npx depcheck --json | grep -q '"dependencies": {}' ; then
+            echo "No unused dependencies found."
+          else
+            echo "Potential unused dependencies detected:";
+            npx depcheck
+            exit 1
+          fi
 
   deploy:
     needs: preflight
