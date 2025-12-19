@@ -193,31 +193,78 @@ export default function OnboardingModal({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg shadow-lg max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+    <div className="fixed inset-0 bg-black/60 flex items-start justify-center z-50 pt-12">
+      <div className="bg-white rounded-xl shadow-2xl max-w-5xl w-full mx-6 max-h-[88vh] overflow-y-auto">
         {/* Header */}
-        <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex justify-between items-center">
-          <h2 className="text-xl font-bold text-gray-900">
-            {step === 'folder-select' && 'Import Trip'}
-            {step === 'preview' && 'Review Folder Structure'}
-            {step === 'dry-run' && 'Dry-Run Preview'}
-            {step === 'apply' && 'Applying Changes...'}
-            {step === 'complete' && 'Import Complete'}
-          </h2>
-          {step !== 'apply' && (
-            <button
-              onClick={onClose}
-              // Increase contrast for the close control so it is readable on white
-              className="text-gray-600 hover:text-gray-800"
-              aria-label="Close"
+        <div className="sticky top-0 bg-white border-b border-gray-200 px-8 py-6 flex flex-col gap-3">
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-2xl font-extrabold text-gray-900">
+                {step === 'folder-select' && 'Import Trip'}
+                {step === 'preview' && 'Review Folder Structure'}
+                {step === 'dry-run' && 'Dry-Run Preview'}
+                {step === 'apply' && 'Applying Changes...'}
+                {step === 'complete' && 'Import Complete'}
+              </h2>
+              <p className="text-sm text-gray-500 mt-1">
+                Quickly map folders into days and preview changes before applying.
+              </p>
+            </div>
+            <div className="flex items-center gap-3">
+              {step !== 'apply' && (
+                <button
+                  onClick={onClose}
+                  className="text-gray-600 hover:text-gray-800 rounded-md px-2 py-1"
+                  aria-label="Close"
+                >
+                  <X size={20} />
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* Step indicator */}
+          <div className="flex items-center gap-2 text-xs text-gray-500">
+            <div
+              className={`px-2 py-1 rounded ${
+                step === 'folder-select' ? 'bg-blue-50 text-blue-600' : 'bg-gray-50'
+              }`}
             >
-              <X size={24} />
-            </button>
-          )}
+              Folder
+            </div>
+            <div
+              className={`px-2 py-1 rounded ${
+                step === 'preview' ? 'bg-blue-50 text-blue-600' : 'bg-gray-50'
+              }`}
+            >
+              Preview
+            </div>
+            <div
+              className={`px-2 py-1 rounded ${
+                step === 'dry-run' ? 'bg-blue-50 text-blue-600' : 'bg-gray-50'
+              }`}
+            >
+              Dry-run
+            </div>
+            <div
+              className={`px-2 py-1 rounded ${
+                step === 'apply' ? 'bg-blue-50 text-blue-600' : 'bg-gray-50'
+              }`}
+            >
+              Apply
+            </div>
+            <div
+              className={`px-2 py-1 rounded ${
+                step === 'complete' ? 'bg-blue-50 text-blue-600' : 'bg-gray-50'
+              }`}
+            >
+              Complete
+            </div>
+          </div>
         </div>
 
         {/* Content */}
-        <div className="px-6 py-6">
+        <div className="px-8 py-6">
           {error && (
             <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg flex gap-2 text-red-800">
               <AlertCircle size={20} className="flex-shrink-0 mt-0.5" />
@@ -227,7 +274,7 @@ export default function OnboardingModal({
 
           {/* Step 1: Folder Selection */}
           {step === 'folder-select' && (
-            <div className="space-y-4">
+            <div className="space-y-6">
               {recentProjects.length > 0 && (
                 <div className="space-y-3 rounded-lg border border-gray-200 bg-gray-50 p-4">
                   <div>
@@ -295,7 +342,7 @@ export default function OnboardingModal({
                     type="date"
                     value={tripStart}
                     onChange={e => setTripStart(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900"
+                    className="w-full px-4 py-3 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder:text-gray-500 text-gray-900 shadow-sm"
                     disabled={loading}
                   />
                 </div>
@@ -307,7 +354,7 @@ export default function OnboardingModal({
                     type="date"
                     value={tripEnd}
                     onChange={e => setTripEnd(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900"
+                    className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 shadow-sm"
                     disabled={loading}
                   />
                 </div>

@@ -580,143 +580,145 @@ export default function PhotoOrganizer() {
 
   return (
     <div className="h-screen flex flex-col bg-gray-950 text-gray-100">
-      {/* Header */}
-      <header className="border-b border-gray-800 bg-gray-900">
-        <div className="flex items-center justify-between px-6 py-3">
-          <div className="flex items-center gap-4">
-            <Camera className="w-6 h-6 text-blue-400" />
-            <div>
-              {/* Ensure the project name has high contrast against the header */}
-              <h1 className="text-lg font-semibold text-gray-100">{projectName}</h1>
-              <p className="text-xs text-gray-400">
-                {stats.sorted} sorted · {stats.unsorted} inbox · {stats.favorites} favorites
-              </p>
+      {/* Header - hidden while StartScreen is visible */}
+      {!(showWelcome && !projectRootPath) && (
+        <header className="border-b border-gray-800 bg-gray-900">
+          <div className="flex items-center justify-between px-6 py-3">
+            <div className="flex items-center gap-4">
+              <Camera className="w-6 h-6 text-blue-400" />
+              <div>
+                {/* Ensure the project name has high contrast against the header */}
+                <h1 className="text-lg font-semibold text-gray-100">{projectName}</h1>
+                <p className="text-xs text-gray-400">
+                  {stats.sorted} sorted · {stats.unsorted} inbox · {stats.favorites} favorites
+                </p>
+              </div>
             </div>
-          </div>
 
-          <div className="flex items-center gap-2">
-            <div className="relative">
-              <button
-                onClick={() => setShowProjectMenu(prev => !prev)}
-                className="px-3 py-1 bg-gray-800 hover:bg-gray-700 rounded text-sm font-medium flex items-center gap-1"
-                title="Open recent projects"
-                aria-expanded={showProjectMenu}
-              >
-                Projects
-                <ChevronDown className="w-4 h-4" />
-              </button>
-              {showProjectMenu && (
-                <div className="absolute right-0 mt-2 w-72 rounded-lg border border-gray-800 bg-gray-900 shadow-xl z-20">
-                  <div className="px-3 py-2 text-xs uppercase tracking-wide text-gray-400 border-b border-gray-800">
-                    Recent Projects
-                  </div>
-                  {recentProjects.length === 0 ? (
-                    <div className="px-3 py-3 text-sm text-gray-400">No recent projects yet.</div>
-                  ) : (
-                    <div className="max-h-64 overflow-y-auto">
-                      {recentProjects.map(project => (
-                        <button
-                          key={project.rootPath}
-                          onClick={() => {
-                            setShowProjectMenu(false);
-                            loadProject(project.rootPath);
-                          }}
-                          className="w-full text-left px-3 py-2 hover:bg-gray-800"
-                        >
-                          <div className="text-sm text-gray-100">{project.projectName}</div>
-                          <div className="text-xs text-gray-500 truncate">{project.rootPath}</div>
-                        </button>
-                      ))}
+            <div className="flex items-center gap-2">
+              <div className="relative">
+                <button
+                  onClick={() => setShowProjectMenu(prev => !prev)}
+                  className="px-3 py-1 bg-gray-800 hover:bg-gray-700 rounded text-sm font-medium flex items-center gap-1"
+                  title="Open recent projects"
+                  aria-expanded={showProjectMenu}
+                >
+                  Projects
+                  <ChevronDown className="w-4 h-4" />
+                </button>
+                {showProjectMenu && (
+                  <div className="absolute right-0 mt-2 w-72 rounded-lg border border-gray-800 bg-gray-900 shadow-xl z-20">
+                    <div className="px-3 py-2 text-xs uppercase tracking-wide text-gray-400 border-b border-gray-800">
+                      Recent Projects
                     </div>
-                  )}
-                  <div className="border-t border-gray-800">
-                    <button
-                      onClick={() => {
-                        setShowProjectMenu(false);
-                        setShowOpenProject(true);
-                      }}
-                      className="w-full text-left px-3 py-2 text-sm text-blue-300 hover:bg-gray-800"
-                    >
-                      Open Project…
-                    </button>
+                    {recentProjects.length === 0 ? (
+                      <div className="px-3 py-3 text-sm text-gray-400">No recent projects yet.</div>
+                    ) : (
+                      <div className="max-h-64 overflow-y-auto">
+                        {recentProjects.map(project => (
+                          <button
+                            key={project.rootPath}
+                            onClick={() => {
+                              setShowProjectMenu(false);
+                              loadProject(project.rootPath);
+                            }}
+                            className="w-full text-left px-3 py-2 hover:bg-gray-800"
+                          >
+                            <div className="text-sm text-gray-100">{project.projectName}</div>
+                            <div className="text-xs text-gray-500 truncate">{project.rootPath}</div>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                    <div className="border-t border-gray-800">
+                      <button
+                        onClick={() => {
+                          setShowProjectMenu(false);
+                          setShowOpenProject(true);
+                        }}
+                        className="w-full text-left px-3 py-2 text-sm text-blue-300 hover:bg-gray-800"
+                      >
+                        Open Project…
+                      </button>
+                    </div>
                   </div>
-                </div>
-              )}
+                )}
+              </div>
+              <button
+                onClick={() => {
+                  setProjectError(null);
+                  setShowOnboarding(true);
+                }}
+                className="px-3 py-1 bg-blue-600 hover:bg-blue-700 rounded text-sm font-medium flex items-center gap-1"
+                title="Import existing trip folder"
+                disabled={loadingProject}
+              >
+                {loadingProject ? (
+                  <Loader className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Download className="w-4 h-4" />
+                )}
+                Import Trip
+              </button>
+              <button
+                onClick={undo}
+                disabled={historyIndex <= 0}
+                className="p-2 hover:bg-gray-800 rounded disabled:opacity-30"
+                title="Undo (Cmd+Z)"
+              >
+                <Undo2 className="w-4 h-4" />
+              </button>
+              <button
+                onClick={redo}
+                disabled={historyIndex >= history.length - 1}
+                className="p-2 hover:bg-gray-800 rounded disabled:opacity-30"
+                title="Redo (Cmd+Shift+Z)"
+              >
+                <Redo2 className="w-4 h-4" />
+              </button>
+              <button
+                onClick={() => setShowHelp(true)}
+                className="p-2 hover:bg-gray-800 rounded"
+                title="Show shortcuts (?)"
+              >
+                ?
+              </button>
             </div>
-            <button
-              onClick={() => {
-                setProjectError(null);
-                setShowOnboarding(true);
-              }}
-              className="px-3 py-1 bg-blue-600 hover:bg-blue-700 rounded text-sm font-medium flex items-center gap-1"
-              title="Import existing trip folder"
-              disabled={loadingProject}
-            >
-              {loadingProject ? (
-                <Loader className="w-4 h-4 animate-spin" />
-              ) : (
-                <Download className="w-4 h-4" />
-              )}
-              Import Trip
-            </button>
-            <button
-              onClick={undo}
-              disabled={historyIndex <= 0}
-              className="p-2 hover:bg-gray-800 rounded disabled:opacity-30"
-              title="Undo (Cmd+Z)"
-            >
-              <Undo2 className="w-4 h-4" />
-            </button>
-            <button
-              onClick={redo}
-              disabled={historyIndex >= history.length - 1}
-              className="p-2 hover:bg-gray-800 rounded disabled:opacity-30"
-              title="Redo (Cmd+Shift+Z)"
-            >
-              <Redo2 className="w-4 h-4" />
-            </button>
-            <button
-              onClick={() => setShowHelp(true)}
-              className="p-2 hover:bg-gray-800 rounded"
-              title="Show shortcuts (?)"
-            >
-              ?
-            </button>
           </div>
-        </div>
 
-        {/* View Tabs */}
-        <div className="flex gap-1 px-6 pb-2">
-          {[
-            { id: 'inbox', label: 'Inbox', count: stats.unsorted },
-            { id: 'days', label: 'Days', count: days.length },
-            { id: 'favorites', label: 'Favorites', count: stats.favorites },
-            { id: 'archive', label: 'Archive', count: stats.archived },
-            { id: 'review', label: 'Review', count: stats.sorted },
-          ].map(view => (
-            <button
-              key={view.id}
-              onClick={() => {
-                setCurrentView(view.id);
-                setSelectedDay(null);
-              }}
-              className={`px-4 py-2 rounded-t text-sm font-medium transition-colors ${
-                currentView === view.id
-                  ? 'bg-gray-950 text-blue-400'
-                  : 'text-gray-400 hover:text-gray-200'
-              }`}
-            >
-              {view.label}{' '}
-              {view.count > 0 && <span className="text-xs opacity-60">({view.count})</span>}
-            </button>
-          ))}
-        </div>
-        {projectError && (
-          <div className="mx-6 mb-3 rounded-lg border border-red-800 bg-red-950/60 px-4 py-3 text-sm text-red-200">
-            {projectError}
+          {/* View Tabs */}
+          <div className="flex gap-1 px-6 pb-2">
+            {[
+              { id: 'inbox', label: 'Inbox', count: stats.unsorted },
+              { id: 'days', label: 'Days', count: days.length },
+              { id: 'favorites', label: 'Favorites', count: stats.favorites },
+              { id: 'archive', label: 'Archive', count: stats.archived },
+              { id: 'review', label: 'Review', count: stats.sorted },
+            ].map(view => (
+              <button
+                key={view.id}
+                onClick={() => {
+                  setCurrentView(view.id);
+                  setSelectedDay(null);
+                }}
+                className={`px-4 py-2 rounded-t text-sm font-medium transition-colors ${
+                  currentView === view.id
+                    ? 'bg-gray-950 text-blue-400'
+                    : 'text-gray-400 hover:text-gray-200'
+                }`}
+              >
+                {view.label}{' '}
+                {view.count > 0 && <span className="text-xs opacity-60">({view.count})</span>}
+              </button>
+            ))}
           </div>
-        )}
-      </header>
+          {projectError && (
+            <div className="mx-6 mb-3 rounded-lg border border-red-800 bg-red-950/60 px-4 py-3 text-sm text-red-200">
+              {projectError}
+            </div>
+          )}
+        </header>
+      )}
 
       {/* Main Content */}
       <div className="flex-1 flex overflow-hidden">
