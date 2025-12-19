@@ -121,7 +121,13 @@ export default function PhotoOrganizer() {
     setRecentProjects(prev => {
       const filtered = prev.filter(project => project.rootPath !== nextProject.rootPath);
       const updated = [nextProject, ...filtered].slice(0, 5);
-      localStorage.setItem(RECENT_PROJECTS_KEY, JSON.stringify(updated));
+      try {
+        localStorage.setItem(RECENT_PROJECTS_KEY, JSON.stringify(updated));
+      } catch (err) {
+        // Don't let localStorage failures block the app
+        // eslint-disable-next-line no-console
+        console.warn('Failed to persist recent projects', err);
+      }
       return updated;
     });
   }, []);
@@ -151,7 +157,13 @@ export default function PhotoOrganizer() {
         // Hide the welcome view when a project is successfully loaded
         setShowWelcome(false);
         setShowOpenProject(false);
-        localStorage.setItem(ACTIVE_PROJECT_KEY, rootPath);
+        try {
+          localStorage.setItem(ACTIVE_PROJECT_KEY, rootPath);
+        } catch (err) {
+          // Best-effort only — proceed even if persistence fails
+          // eslint-disable-next-line no-console
+          console.warn('Failed to persist active project', err);
+        }
         if (options?.addRecent !== false) {
           updateRecentProjects({
             projectName: state.projectName || deriveProjectName(rootPath),
@@ -161,7 +173,12 @@ export default function PhotoOrganizer() {
         }
       } catch (err) {
         setProjectError(err instanceof Error ? err.message : 'Failed to load project');
-        localStorage.removeItem(ACTIVE_PROJECT_KEY);
+        try {
+          localStorage.removeItem(ACTIVE_PROJECT_KEY);
+        } catch (err) {
+          // eslint-disable-next-line no-console
+          console.warn('Failed to remove active project from storage', err);
+        }
         // Show the welcome page so the user can try other options
         setShowWelcome(true);
       } finally {
@@ -172,14 +189,24 @@ export default function PhotoOrganizer() {
   );
 
   useEffect(() => {
-    const storedRecentsRaw = localStorage.getItem(RECENT_PROJECTS_KEY);
-    if (storedRecentsRaw) {
-      try {
-        const parsed = JSON.parse(storedRecentsRaw) as RecentProject[];
-        setRecentProjects(Array.isArray(parsed) ? parsed : []);
-      } catch {
-        setRecentProjects([]);
+    try {
+      const storedRecentsRaw = localStorage.getItem(RECENT_PROJECTS_KEY);
+      if (storedRecentsRaw) {
+        try {
+          const parsed = JSON.parse(storedRecentsRaw) as RecentProject[];
+          setRecentProjects(Array.isArray(parsed) ? parsed : []);
+        } catch (err) {
+          // Bad JSON — reset recents
+          // eslint-disable-next-line no-console
+          console.warn('Failed to parse recent projects from storage', err);
+          setRecentProjects([]);
+        }
       }
+    } catch (err) {
+      // Accessing storage can throw in some environments (e.g. privacy modes)
+      // eslint-disable-next-line no-console
+      console.warn('Failed to read recent projects from storage', err);
+      setRecentProjects([]);
     }
 
     // Show a friendly welcome page on first load
@@ -189,7 +216,12 @@ export default function PhotoOrganizer() {
   const setRecentProjectCover = useCallback((rootPath: string, coverUrl: string) => {
     setRecentProjects(prev => {
       const updated = prev.map(p => (p.rootPath === rootPath ? { ...p, coverUrl } : p));
-      localStorage.setItem(RECENT_PROJECTS_KEY, JSON.stringify(updated));
+      try {
+        localStorage.setItem(RECENT_PROJECTS_KEY, JSON.stringify(updated));
+      } catch (err) {
+        // eslint-disable-next-line no-console
+        console.warn('Failed to persist recent project cover', err);
+      }
       return updated;
     });
   }, []);
@@ -373,7 +405,13 @@ export default function PhotoOrganizer() {
         setSelectedDay(null);
         setShowOnboarding(false);
         setOpenProjectPath('');
-        localStorage.setItem(ACTIVE_PROJECT_KEY, state.rootPath);
+        try {
+          localStorage.setItem(ACTIVE_PROJECT_KEY, state.rootPath);
+        } catch (err) {
+          // Best-effort only
+          // eslint-disable-next-line no-console
+          console.warn('Failed to persist active project', err);
+        }
         updateRecentProjects({
           projectName: nextProjectName,
           rootPath: state.rootPath,

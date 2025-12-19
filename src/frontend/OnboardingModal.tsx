@@ -85,6 +85,7 @@ export default function OnboardingModal({
   const [tripEnd, setTripEnd] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const fileInputRef = React.useRef<HTMLInputElement | null>(null);
 
   // Step 1: Handle folder selection
   const handleFolderSelect = useCallback(async () => {
@@ -322,7 +323,28 @@ export default function OnboardingModal({
                     className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder:text-gray-600 text-gray-900"
                     disabled={loading}
                   />
+                  <input
+                    ref={el => (fileInputRef.current = el)}
+                    type="file"
+                    webkitdirectory="true"
+                    directory="true"
+                    mozdirectory="true"
+                    className="hidden"
+                    onChange={e => {
+                      const files = e.currentTarget.files;
+                      if (!files || files.length === 0) return;
+                      // Derive selected folder from webkitRelativePath if available
+                      const first = files[0] as File & { webkitRelativePath?: string };
+                      const rel = first.webkitRelativePath;
+                      const folder = rel ? rel.split('/')[0] : first.name;
+                      setRootPath(folder);
+                      // reset to allow reselecting same folder
+                      e.currentTarget.value = '';
+                    }}
+                  />
+
                   <button
+                    onClick={() => fileInputRef.current?.click()}
                     className="px-4 py-2 bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 flex items-center gap-2"
                     disabled={loading}
                     aria-disabled={loading}

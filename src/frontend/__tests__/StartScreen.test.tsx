@@ -60,4 +60,36 @@ describe('StartScreen', () => {
 
     expect(onSetCover).toHaveBeenCalledWith('/tmp/alpha', 'blob://fake');
   });
+
+  it('renders a divider and groups projects by date', () => {
+    const onCreate = vi.fn();
+    const onOpen = vi.fn();
+    const onSetCover = vi.fn();
+
+    const now = Date.now();
+    const oneDay = 1000 * 60 * 60 * 24;
+
+    const recents = [
+      { projectName: 'Alpha', rootPath: '/tmp/alpha', coverUrl: undefined, lastOpened: now },
+      { projectName: 'Beta', rootPath: '/tmp/beta', coverUrl: undefined, lastOpened: now - oneDay },
+    ];
+
+    const { container } = render(
+      <StartScreen
+        isOpen={true}
+        onClose={() => {}}
+        onCreateComplete={onCreate}
+        onOpenProject={onOpen}
+        onSetCover={onSetCover}
+        recentProjects={recents}
+      />,
+    );
+
+    // Divider exists between new project and recents
+    const divider = container.querySelector('div[aria-hidden]');
+    expect(divider).toBeInTheDocument();
+
+    expect(screen.getByText(/Today/i)).toBeInTheDocument();
+    expect(screen.getByText(/Yesterday/i)).toBeInTheDocument();
+  });
 });

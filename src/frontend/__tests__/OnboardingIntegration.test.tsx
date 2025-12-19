@@ -315,6 +315,29 @@ describe('Onboarding Modal Components', () => {
     expect(nextButton).toHaveAttribute('disabled');
   });
 
+  it('browse button updates folder path when selecting a folder', async () => {
+    const onClose = () => {};
+    const onComplete = () => {};
+
+    const { getByText, getByPlaceholderText, container } = render(
+      <OnboardingModal isOpen={true} onClose={onClose} onComplete={onComplete} />,
+    );
+
+    const fileInput = container.querySelector('input[type="file"]') as HTMLInputElement;
+    expect(fileInput).toBeInTheDocument();
+
+    const file = new File(['x'], 'photo.jpg', { type: 'image/jpeg' });
+    // set webkitRelativePath on the file (jsdom supports it via property assignment)
+    // @ts-ignore
+    file.webkitRelativePath = 'my-trip/photo.jpg';
+
+    await fireEvent.change(fileInput, { target: { files: [file] } });
+
+    const pathInput = getByPlaceholderText('/Users/you/trips/iceland') as HTMLInputElement;
+    // After selecting a folder, the rootPath should equal the folder name we derived
+    expect(pathInput.value).toBe('my-trip');
+  });
+
   it('allows optional trip dates', () => {
     const onClose = () => {};
     const onComplete = () => {};

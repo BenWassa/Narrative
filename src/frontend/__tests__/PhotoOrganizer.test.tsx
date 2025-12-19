@@ -92,3 +92,23 @@ test('shift-click selects a contiguous range', async () => {
   const selected = container.querySelectorAll('.ring-4');
   expect(selected.length).toBeGreaterThanOrEqual(4);
 });
+
+test('handles localStorage failures gracefully when updating recents', async () => {
+  // make setItem throw to simulate quota or storage errors
+  const origSet = localStorage.setItem;
+  // @ts-ignore - intentionally override for test
+  localStorage.setItem = () => {
+    throw new Error('Quota exceeded');
+  };
+
+  try {
+    render(<PhotoOrganizer />);
+    const projectButton = await screen.findByRole('button', { name: /Test Trip/i });
+    fireEvent.click(projectButton);
+
+    const heading = await screen.findByRole('heading', { level: 1 });
+    expect(heading).toHaveTextContent('Test Trip');
+  } finally {
+    localStorage.setItem = origSet;
+  }
+});
