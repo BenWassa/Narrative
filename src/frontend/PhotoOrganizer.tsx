@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Camera, ChevronLeft, ChevronRight, Star, Archive, Calendar, Heart, Undo2, Redo2, Grid3x3, Maximize2, X, FolderOpen, Settings } from 'lucide-react';
 
 // Sample photo data
@@ -44,6 +44,7 @@ export default function PhotoOrganizer() {
   const [selectedPhotos, setSelectedPhotos] = useState(new Set());
   const [focusedPhoto, setFocusedPhoto] = useState(null);
   const [lastSelectedIndex, setLastSelectedIndex] = useState(null);
+  const lastSelectedIndexRef = useRef(null);
   const [fullscreenPhoto, setFullscreenPhoto] = useState(null);
   const [selectedDay, setSelectedDay] = useState(null);
   const [history, setHistory] = useState([]);
@@ -180,6 +181,7 @@ export default function PhotoOrganizer() {
           setFocusedPhoto(nextId);
           setSelectedPhotos(new Set([nextId]));
           setLastSelectedIndex(currentIndex + 1);
+          lastSelectedIndexRef.current = currentIndex + 1;
         }
         return;
       }
@@ -200,6 +202,7 @@ export default function PhotoOrganizer() {
           setFocusedPhoto(prevId);
           setSelectedPhotos(new Set([prevId]));
           setLastSelectedIndex(currentIndex - 1);
+          lastSelectedIndexRef.current = currentIndex - 1;
         }
       } else if (e.key === 'Enter' || e.key === ' ') {
         e.preventDefault();
@@ -211,6 +214,7 @@ export default function PhotoOrganizer() {
           setSelectedPhotos(new Set());
           setFocusedPhoto(null);
           setLastSelectedIndex(null);
+          lastSelectedIndexRef.current = null;
         }
       } else if (e.key === 'f') {
         const targets = selectedPhotos.size > 0 ? Array.from(selectedPhotos) : [primaryId];
@@ -240,14 +244,15 @@ export default function PhotoOrganizer() {
 
   // Selection helpers
   const handleSelectPhoto = useCallback((e, photoId, index) => {
-    // Shift-range selection
-    if (e.shiftKey && lastSelectedIndex !== null && lastSelectedIndex !== undefined) {
-      const start = Math.min(lastSelectedIndex, index);
-      const end = Math.max(lastSelectedIndex, index);
+    // Shift-range selection (use ref for synchronous access)
+    if (e.shiftKey && lastSelectedIndexRef.current !== null && lastSelectedIndexRef.current !== undefined) {
+      const start = Math.min(lastSelectedIndexRef.current, index);
+      const end = Math.max(lastSelectedIndexRef.current, index);
       const rangeIds = filteredPhotos.slice(start, end + 1).map(p => p.id);
       setSelectedPhotos(new Set(rangeIds));
       setFocusedPhoto(photoId);
       setLastSelectedIndex(index);
+      lastSelectedIndexRef.current = index;
       return;
     }
 
@@ -259,6 +264,7 @@ export default function PhotoOrganizer() {
       setSelectedPhotos(next);
       setFocusedPhoto(photoId);
       setLastSelectedIndex(index);
+      lastSelectedIndexRef.current = index;
       return;
     }
 
@@ -266,6 +272,7 @@ export default function PhotoOrganizer() {
     setSelectedPhotos(new Set([photoId]));
     setFocusedPhoto(photoId);
     setLastSelectedIndex(index);
+    lastSelectedIndexRef.current = index;
   }, [selectedPhotos, lastSelectedIndex, filteredPhotos]);
 
   return (
@@ -392,6 +399,7 @@ export default function PhotoOrganizer() {
                       setSelectedPhotos(new Set([photo.id]));
                       setFocusedPhoto(photo.id);
                     }}
+                    data-testid={`photo-${photo.id}`}
                     className={`relative group cursor-pointer rounded-lg overflow-hidden transition-all ${
                       selectedPhotos.has(photo.id)
                         ? 'ring-4 ring-blue-500 scale-105'
