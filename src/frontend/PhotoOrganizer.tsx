@@ -387,7 +387,8 @@ export default function PhotoOrganizer() {
           <div className="flex items-center gap-4">
             <Camera className="w-6 h-6 text-blue-400" />
             <div>
-              <h1 className="text-lg font-semibold">{projectName}</h1>
+              {/* Ensure the project name has high contrast against the header */}
+              <h1 className="text-lg font-semibold text-gray-100">{projectName}</h1>
               <p className="text-xs text-gray-400">
                 {stats.sorted} sorted · {stats.unsorted} inbox · {stats.favorites} favorites
               </p>

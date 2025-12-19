@@ -15,35 +15,47 @@ The onboarding flow enables users to import an existing trip folder, automatical
 Detection attempts to parse folder names into a day number using the following regex patterns, in order:
 
 #### Pattern 1: Explicit Day Prefix (Highest Confidence)
+
 ```
 /^(?:day|d)[\s_-]?(\d{1,2})(?:\D|$)/i
 ```
+
 Matches: `Day 1`, `D01`, `day_2`, `Day-3`, `D1 Iceland`, etc.
+
 - Extracted day: 1–31
 - Confidence: HIGH
 
 #### Pattern 2: ISO Date (Date Known)
+
 ```
 /(\d{4})-(\d{2})-(\d{2})/
 ```
+
 Matches: `2024-03-15`, `2024_03_15` (if underscores normalized), etc.
+
 - Extracted day: calculated from trip start date (user provides or detect min date)
 - Confidence: HIGH (if trip dates known)
 - Fallback: If trip dates not known, store date and ask user to confirm
 
 #### Pattern 3: Numeric Prefix (Ambiguous)
+
 ```
 /^(\d{1,2})[\s_-]/
 ```
+
 Matches: `1 Iceland`, `02_Reykjavik`, `3-Hiking`, etc.
+
 - Extracted day: 1–31
 - Confidence: MEDIUM (could be photo numbering, could be day numbering)
 
 #### Pattern 4: Timestamp Aggregation (Lowest Confidence)
+
 ```
 /(\d{10,13})|(\d{4}(?:\d{2}){2})/
 ```
+
 Matches: Unix timestamps, ISO dates without dashes
+
 - Extract timestamp → round to day boundary
 - Group photos by day, infer folder day from median timestamp
 - Confidence: LOW (requires photo data; only as fallback)
@@ -79,17 +91,18 @@ SPECIAL CASES:
 
 ```typescript
 interface FolderMapping {
-  folder: string;              // Folder name (e.g., "Day 1")
-  folderPath: string;          // Absolute or relative path
-  detectedDay: number | null;  // Extracted day number (1–31)
+  folder: string; // Folder name (e.g., "Day 1")
+  folderPath: string; // Absolute or relative path
+  detectedDay: number | null; // Extracted day number (1–31)
   confidence: 'high' | 'medium' | 'low' | 'undetected';
-  patternMatched: string;      // e.g., 'day_prefix', 'iso_date', 'numeric_prefix', 'timestamp_agg'
-  suggestedName: string;       // e.g., "Day 01" (normalized format)
-  manual: boolean;             // User manually edited
-  photoCount: number;          // Number of photos in folder
-  dateRange?: {                // If extractable from photos or folder name
-    start: string;             // ISO date string
-    end: string;               // ISO date string
+  patternMatched: string; // e.g., 'day_prefix', 'iso_date', 'numeric_prefix', 'timestamp_agg'
+  suggestedName: string; // e.g., "Day 01" (normalized format)
+  manual: boolean; // User manually edited
+  photoCount: number; // Number of photos in folder
+  dateRange?: {
+    // If extractable from photos or folder name
+    start: string; // ISO date string
+    end: string; // ISO date string
   };
 }
 ```
@@ -98,14 +111,14 @@ interface FolderMapping {
 
 ```typescript
 interface OnboardingState {
-  projectName: string;         // User input or default from folder name
-  rootPath: string;            // Selected folder path
-  mappings: FolderMapping[];   // Detection results (editable)
-  tripStart?: string;          // ISO date, helps with date parsing
-  tripEnd?: string;            // ISO date, helps with date parsing
-  dryRunMode: boolean;         // When true, show preview only
-  applyInProgress: boolean;    // Loading state during apply
-  error?: string;              // Error message if detection failed
+  projectName: string; // User input or default from folder name
+  rootPath: string; // Selected folder path
+  mappings: FolderMapping[]; // Detection results (editable)
+  tripStart?: string; // ISO date, helps with date parsing
+  tripEnd?: string; // ISO date, helps with date parsing
+  dryRunMode: boolean; // When true, show preview only
+  applyInProgress: boolean; // Loading state during apply
+  error?: string; // Error message if detection failed
 }
 ```
 
@@ -116,15 +129,15 @@ interface FolderMapManifest {
   version: '1.0';
   projectName: string;
   rootPath: string;
-  createdAt: string;           // ISO timestamp
-  appliedAt: string;           // ISO timestamp (when mappings were applied)
-  tripStart?: string;          // ISO date
-  tripEnd?: string;            // ISO date
-  mappings: FolderMapping[];   // Final applied mappings
+  createdAt: string; // ISO timestamp
+  appliedAt: string; // ISO timestamp (when mappings were applied)
+  tripStart?: string; // ISO date
+  tripEnd?: string; // ISO date
+  mappings: FolderMapping[]; // Final applied mappings
   changes: {
-    renamed: { from: string, to: string }[];
-    moved: { from: string, to: string }[];
-    created: { folder: string, day: number }[];
+    renamed: { from: string; to: string }[];
+    moved: { from: string; to: string }[];
+    created: { folder: string; day: number }[];
     skipped: string[];
   };
 }
@@ -137,9 +150,11 @@ interface FolderMapManifest {
 ### 3.1 Onboarding Modal (Full Flow)
 
 #### Step 1: Folder Selection
+
 **Triggered by:** "Import Trip" button in header (or "New Project" on empty state)
 
 **UI:**
+
 - Modal title: "Import Existing Trip"
 - Project name field (text input, prefilled with folder name or "New Project")
 - Folder picker (native file dialog or custom tree)
@@ -147,6 +162,7 @@ interface FolderMapManifest {
 - "Cancel" and "Next >" buttons
 
 **Validation:**
+
 - Folder must exist and be readable
 - Folder must not be empty
 - Project name must be 1–100 characters
@@ -154,9 +170,11 @@ interface FolderMapManifest {
 ---
 
 #### Step 2: Detection & Preview (Editable Table)
+
 **Triggered by:** User clicks "Next >" from Step 1
 
 **UI:**
+
 ```
 ┌─────────────────────────────────────────────────────────────────┐
 │ Import Trip: Iceland Trip 2024                                 │
@@ -180,6 +198,7 @@ interface FolderMapManifest {
 ```
 
 **Behavior:**
+
 - Table rows are editable: clicking on "Detected Day" input allows typing a new value
 - Toggling "Skip" removes folder from apply list (visual: gray out row)
 - Toggling "Map" includes folder in apply list (visual: highlight row)
@@ -189,9 +208,11 @@ interface FolderMapManifest {
 ---
 
 #### Step 3: Dry-Run Preview (Optional)
+
 **Triggered by:** User checks "Dry-run" and clicks "Apply"
 
 **UI:**
+
 ```
 ┌─────────────────────────────────────────────────────────────────┐
 │ Dry-Run Preview: Iceland Trip 2024                             │
@@ -217,6 +238,7 @@ interface FolderMapManifest {
 ```
 
 **Behavior:**
+
 - Summary is read-only (no further edits)
 - User must confirm by clicking "Apply for Real"
 - Cancel returns to Step 2 with edits preserved
@@ -224,9 +246,11 @@ interface FolderMapManifest {
 ---
 
 #### Step 4: Apply & Complete
+
 **Triggered by:** User clicks "Apply for Real" (or "Apply" if dry-run OFF)
 
 **UI:**
+
 ```
 ┌─────────────────────────────────────────────────────────────────┐
 │ Applying... Iceland Trip 2024                                  │
@@ -238,6 +262,7 @@ interface FolderMapManifest {
 ```
 
 **After completion:**
+
 ```
 ┌─────────────────────────────────────────────────────────────────┐
 │ ✓ Import Complete: Iceland Trip 2024                           │
@@ -256,6 +281,7 @@ interface FolderMapManifest {
 ```
 
 **Behavior:**
+
 - Modal closes and app loads the new project
 - Undo/redo state is initialized with the pre-apply snapshot
 - User sees "Days" view showing the 3 new day folders
@@ -278,6 +304,7 @@ interface FolderMapManifest {
 ## 4. Storage & Persistence Strategy
 
 ### 4.1 Metadata File Location
+
 ```
 project_root/
   _meta/
@@ -288,6 +315,7 @@ project_root/
 ### 4.2 Metadata File Format
 
 **`_meta/folder_map.json`** (persisted, immutable after creation):
+
 ```json
 {
   "version": "1.0",
@@ -329,6 +357,7 @@ project_root/
 ### 4.3 Undo Transaction
 
 When user applies mappings:
+
 1. Create `_meta/undo_snapshot.json` with pre-apply filesystem state (list of all files + folder structure)
 2. Execute apply operation (move, rename, create folders)
 3. If error occurs → rollback using snapshot
@@ -340,16 +369,19 @@ When user applies mappings:
 ## 5. Error Handling
 
 ### 5.1 Detection Phase Errors
+
 - **No folders found:** Offer to create folder structure or cancel
 - **No photos found:** Warn user but allow proceed (in case photos are moved later)
 - **Permission denied:** Show error and ask for different folder
 
 ### 5.2 Apply Phase Errors
+
 - **File in use:** Skip that file, continue with others, show summary at end
 - **Disk space:** Show warning, ask to free space, offer pause/resume
 - **Filesystem collision:** If folder already exists with same name, prompt to merge or rename
 
 ### 5.3 Undo Phase Errors
+
 - **Snapshot corrupted:** Show error, allow manual recovery
 - **Snapshot expired:** Inform user, offer alternative workflows
 
@@ -358,29 +390,28 @@ When user applies mappings:
 ## 6. Implementation Notes
 
 ### Backend Service Signature
+
 ```typescript
 // Detect folder structure from root path
 async function detectFolderStructure(
   rootPath: string,
   photos?: Photo[],
-  tripStart?: string
-): Promise<FolderMapping[]>
+  tripStart?: string,
+): Promise<FolderMapping[]>;
 
 // Apply mappings to filesystem
 async function applyFolderMappings(
   rootPath: string,
   mappings: FolderMapping[],
-  dryRun?: boolean
-): Promise<{ summary: string; changes: object; snapshot: object }>
+  dryRun?: boolean,
+): Promise<{ summary: string; changes: object; snapshot: object }>;
 
 // Undo mappings using snapshot
-async function undoFolderMappings(
-  rootPath: string,
-  snapshot: object
-): Promise<{ summary: string }>
+async function undoFolderMappings(rootPath: string, snapshot: object): Promise<{ summary: string }>;
 ```
 
 ### Frontend Component Responsibilities
+
 1. Manage onboarding flow state (step, editable mappings, dry-run flag)
 2. Display modal with interactive editing
 3. Call backend detect → preview → apply functions
@@ -388,6 +419,7 @@ async function undoFolderMappings(
 5. Add undo transaction to history
 
 ### Next Steps (Phase 2–3)
+
 1. Create `src/frontend/OnboardingModal.tsx` (React component with steps 1–4)
 2. Create `src/services/folderDetectionService.ts` (heuristics + backend integration)
 3. Implement detection algorithm with regex patterns

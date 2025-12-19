@@ -196,7 +196,8 @@ export default function OnboardingModal({
           {step !== 'apply' && (
             <button
               onClick={onClose}
-              className="text-gray-400 hover:text-gray-600"
+              // Increase contrast for the close control so it is readable on white
+              className="text-gray-600 hover:text-gray-800"
               aria-label="Close"
             >
               <X size={24} />
@@ -223,7 +224,7 @@ export default function OnboardingModal({
                   value={projectName}
                   onChange={e => setProjectName(e.target.value)}
                   placeholder="e.g., Iceland Trip 2024"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder:text-gray-600 text-gray-900"
                   disabled={loading}
                 />
               </div>
@@ -236,12 +237,13 @@ export default function OnboardingModal({
                     value={rootPath}
                     onChange={e => setRootPath(e.target.value)}
                     placeholder="/Users/you/trips/iceland"
-                    className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder:text-gray-600 text-gray-900"
                     disabled={loading}
                   />
                   <button
                     className="px-4 py-2 bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 flex items-center gap-2"
                     disabled={loading}
+                    aria-disabled={loading}
                   >
                     <FolderOpen size={18} />
                     Browse
@@ -258,7 +260,7 @@ export default function OnboardingModal({
                     type="date"
                     value={tripStart}
                     onChange={e => setTripStart(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900"
                     disabled={loading}
                   />
                 </div>
@@ -270,7 +272,7 @@ export default function OnboardingModal({
                     type="date"
                     value={tripEnd}
                     onChange={e => setTripEnd(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900"
                     disabled={loading}
                   />
                 </div>
@@ -321,7 +323,7 @@ export default function OnboardingModal({
                             value={mapping.detectedDay ?? ''}
                             onChange={e => handleMappingChange(idx, 'detectedDay', e.target.value)}
                             disabled={mapping.skip}
-                            className="w-12 px-2 py-1 border border-gray-300 rounded text-center focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            className="w-12 px-2 py-1 border border-gray-300 rounded text-center focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900"
                             placeholder="—"
                           />
                         </td>
@@ -452,7 +454,8 @@ export default function OnboardingModal({
                 <button
                   onClick={handleFolderSelect}
                   disabled={loading || !rootPath.trim() || !projectName.trim()}
-                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium disabled:bg-gray-400 flex items-center gap-2"
+                  aria-disabled={loading || !rootPath.trim() || !projectName.trim()}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium disabled:bg-gray-200 disabled:text-gray-500 disabled:cursor-not-allowed flex items-center gap-2"
                 >
                   {loading ? (
                     <Loader size={18} className="animate-spin" />
@@ -483,7 +486,8 @@ export default function OnboardingModal({
                     }
                   }}
                   disabled={loading || mappings.every(m => m.skip)}
-                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium disabled:bg-gray-400 flex items-center gap-2"
+                  aria-disabled={loading || mappings.every(m => m.skip)}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium disabled:bg-gray-200 disabled:text-gray-500 disabled:cursor-not-allowed flex items-center gap-2"
                 >
                   {loading ? (
                     <Loader size={18} className="animate-spin" />
@@ -511,7 +515,8 @@ export default function OnboardingModal({
                     handleApply();
                   }}
                   disabled={loading}
-                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium disabled:bg-gray-400 flex items-center gap-2"
+                  aria-disabled={loading}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium disabled:bg-gray-200 disabled:text-gray-500 disabled:cursor-not-allowed flex items-center gap-2"
                 >
                   {loading ? (
                     <Loader size={18} className="animate-spin" />
