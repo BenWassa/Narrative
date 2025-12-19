@@ -1,0 +1,16 @@
+# Generated builds / outputs
+docs/site/
+dist/
+build/
+node_modules/
+coverage/
+.vitest/
+
+# Generated metadata or runtime dirs
+_meta/
+*.log
+.DS_Store
+
+# Optional: vendor / temporary files
+index.html
+docs/site/assets/

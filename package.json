@@ -6,8 +6,8 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "format": "prettier --write .",
-    "lint": "prettier --check .",
+    "format": "prettier --write \"src/**/*.{ts,tsx,js,jsx,css,md,html}\" \"README.md\" \"docs/**/*.md\" \"docs/index.html\"",
+    "lint": "prettier --check \"src/**/*.{ts,tsx,js,jsx,css,md,html}\" \"README.md\" \"docs/**/*.md\" \"docs/index.html\"",
     "test": "vitest --run",
     "test:watch": "vitest --watch",
     "test:coverage": "vitest --coverage"
