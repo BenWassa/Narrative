@@ -12,11 +12,7 @@ import {
   Download,
   Loader,
 } from 'lucide-react';
-import OnboardingModal, {
-  FolderMapping,
-  OnboardingState,
-  RecentProject,
-} from './OnboardingModal';
+import OnboardingModal, { FolderMapping, OnboardingState, RecentProject } from './OnboardingModal';
 import { detectFolderStructure, generateDryRunSummary } from '../services/folderDetectionService';
 import {
   initProject,
