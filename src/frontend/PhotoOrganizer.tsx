@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
+import safeLocalStorage from './utils/safeLocalStorage';
 import {
   Camera,
   ChevronDown,
@@ -121,13 +122,7 @@ export default function PhotoOrganizer() {
     setRecentProjects(prev => {
       const filtered = prev.filter(project => project.rootPath !== nextProject.rootPath);
       const updated = [nextProject, ...filtered].slice(0, 5);
-      try {
-        localStorage.setItem(RECENT_PROJECTS_KEY, JSON.stringify(updated));
-      } catch (err) {
-        // Don't let localStorage failures block the app
-        // eslint-disable-next-line no-console
-        console.warn('Failed to persist recent projects', err);
-      }
+      safeLocalStorage.set(RECENT_PROJECTS_KEY, JSON.stringify(updated));
       return updated;
     });
   }, []);
@@ -157,13 +152,7 @@ export default function PhotoOrganizer() {
         // Hide the welcome view when a project is successfully loaded
         setShowWelcome(false);
         setShowOpenProject(false);
-        try {
-          localStorage.setItem(ACTIVE_PROJECT_KEY, rootPath);
-        } catch (err) {
-          // Best-effort only — proceed even if persistence fails
-          // eslint-disable-next-line no-console
-          console.warn('Failed to persist active project', err);
-        }
+        safeLocalStorage.set(ACTIVE_PROJECT_KEY, rootPath);
         if (options?.addRecent !== false) {
           updateRecentProjects({
             projectName: state.projectName || deriveProjectName(rootPath),
@@ -173,12 +162,7 @@ export default function PhotoOrganizer() {
         }
       } catch (err) {
         setProjectError(err instanceof Error ? err.message : 'Failed to load project');
-        try {
-          localStorage.removeItem(ACTIVE_PROJECT_KEY);
-        } catch (err) {
-          // eslint-disable-next-line no-console
-          console.warn('Failed to remove active project from storage', err);
-        }
+        safeLocalStorage.remove(ACTIVE_PROJECT_KEY);
         // Show the welcome page so the user can try other options
         setShowWelcome(true);
       } finally {
@@ -190,7 +174,7 @@ export default function PhotoOrganizer() {
 
   useEffect(() => {
     try {
-      const storedRecentsRaw = localStorage.getItem(RECENT_PROJECTS_KEY);
+      const storedRecentsRaw = safeLocalStorage.get(RECENT_PROJECTS_KEY);
       if (storedRecentsRaw) {
         try {
           const parsed = JSON.parse(storedRecentsRaw) as RecentProject[];
@@ -203,9 +187,7 @@ export default function PhotoOrganizer() {
         }
       }
     } catch (err) {
-      // Accessing storage can throw in some environments (e.g. privacy modes)
-      // eslint-disable-next-line no-console
-      console.warn('Failed to read recent projects from storage', err);
+      // fallback — ensure recents is empty
       setRecentProjects([]);
     }
 
@@ -216,12 +198,7 @@ export default function PhotoOrganizer() {
   const setRecentProjectCover = useCallback((rootPath: string, coverUrl: string) => {
     setRecentProjects(prev => {
       const updated = prev.map(p => (p.rootPath === rootPath ? { ...p, coverUrl } : p));
-      try {
-        localStorage.setItem(RECENT_PROJECTS_KEY, JSON.stringify(updated));
-      } catch (err) {
-        // eslint-disable-next-line no-console
-        console.warn('Failed to persist recent project cover', err);
-      }
+      safeLocalStorage.set(RECENT_PROJECTS_KEY, JSON.stringify(updated));
       return updated;
     });
   }, []);
@@ -405,13 +382,7 @@ export default function PhotoOrganizer() {
         setSelectedDay(null);
         setShowOnboarding(false);
         setOpenProjectPath('');
-        try {
-          localStorage.setItem(ACTIVE_PROJECT_KEY, state.rootPath);
-        } catch (err) {
-          // Best-effort only
-          // eslint-disable-next-line no-console
-          console.warn('Failed to persist active project', err);
-        }
+        safeLocalStorage.set(ACTIVE_PROJECT_KEY, state.rootPath);
         updateRecentProjects({
           projectName: nextProjectName,
           rootPath: state.rootPath,
