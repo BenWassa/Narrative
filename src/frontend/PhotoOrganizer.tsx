@@ -13,7 +13,7 @@ import {
   Loader,
 } from 'lucide-react';
 import OnboardingModal, { FolderMapping, OnboardingState, RecentProject } from './OnboardingModal';
-import WelcomeView from './WelcomeView';
+import StartScreen from './StartScreen';
 import { detectFolderStructure, generateDryRunSummary } from '../services/folderDetectionService';
 import {
   initProject,
@@ -987,18 +987,12 @@ export default function PhotoOrganizer() {
       )}
 
       {/* Onboarding Modal */}
-      <WelcomeView
+      <StartScreen
         isOpen={showWelcome && !projectRootPath}
-        standalone={true}
         onClose={() => setShowWelcome(false)}
-        onCreateProject={() => {
-          setProjectError(null);
-          setShowOnboarding(true);
-          // keep welcome visible so cancelling onboarding returns to welcome
-        }}
+        onCreateComplete={handleOnboardingComplete}
         onOpenProject={rootPath => {
           setProjectError(null);
-          // Open project dialog or load recent directly; keep welcome visible during any dialog
           loadProject(rootPath);
         }}
         onSetCover={(rootPath, coverUrl) => setRecentProjectCover(rootPath, coverUrl)}
