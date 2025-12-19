@@ -39,10 +39,19 @@ describe('StartScreen', () => {
     const onOpen = vi.fn();
     const onSetCover = vi.fn();
 
-    const recents = [{ projectName: 'Alpha', rootPath: '/tmp/alpha', coverUrl: undefined, lastOpened: Date.now() }];
+    const recents = [
+      { projectName: 'Alpha', rootPath: '/tmp/alpha', coverUrl: undefined, lastOpened: Date.now() },
+    ];
 
     render(
-      <StartScreen isOpen={true} onClose={() => {}} onCreateComplete={onCreate} onOpenProject={onOpen} onSetCover={onSetCover} recentProjects={recents} />,
+      <StartScreen
+        isOpen={true}
+        onClose={() => {}}
+        onCreateComplete={onCreate}
+        onOpenProject={onOpen}
+        onSetCover={onSetCover}
+        recentProjects={recents}
+      />,
     );
 
     const input = document.querySelector('input[type="file"]') as HTMLInputElement;

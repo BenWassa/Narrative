@@ -38,11 +38,19 @@ export default function StartScreen({
 
             <div className="flex items-center gap-3">
               {onRunDemo && (
-                <button onClick={onRunDemo} className="text-sm text-gray-300 hover:text-gray-100" aria-label="Run demo">
+                <button
+                  onClick={onRunDemo}
+                  className="text-sm text-gray-300 hover:text-gray-100"
+                  aria-label="Run demo"
+                >
                   Demo
                 </button>
               )}
-              <button onClick={onClose} className="text-sm text-gray-400 hover:text-gray-200" aria-label="Close welcome">
+              <button
+                onClick={onClose}
+                className="text-sm text-gray-400 hover:text-gray-200"
+                aria-label="Close welcome"
+              >
                 Dismiss
               </button>
             </div>
@@ -61,16 +69,51 @@ export default function StartScreen({
             </button>
 
             {recentProjects.map(p => (
-              <div key={p.rootPath} className="relative rounded-lg overflow-hidden border border-gray-800 bg-gray-950">
-                <button onClick={() => onOpenProject(p.rootPath)} className="w-full h-36 block text-left" aria-label={`Open project ${p.projectName}`}>
-                  {p.coverUrl ? <img src={p.coverUrl} alt={p.projectName} className="w-full h-36 object-cover" /> : <div className="w-full h-36 bg-gradient-to-br from-gray-800 to-gray-900 flex items-center justify-center text-sm text-gray-400">{p.projectName}</div>}
+              <div
+                key={p.rootPath}
+                className="relative rounded-lg overflow-hidden border border-gray-800 bg-gray-950"
+              >
+                <button
+                  onClick={() => onOpenProject(p.rootPath)}
+                  className="w-full h-36 block text-left"
+                  aria-label={`Open project ${p.projectName}`}
+                >
+                  {p.coverUrl ? (
+                    <img
+                      src={p.coverUrl}
+                      alt={p.projectName}
+                      className="w-full h-36 object-cover"
+                    />
+                  ) : (
+                    <div className="w-full h-36 bg-gradient-to-br from-gray-800 to-gray-900 flex items-center justify-center text-sm text-gray-400">
+                      {p.projectName}
+                    </div>
+                  )}
                 </button>
 
                 <div className="p-3 flex items-center justify-between">
                   <div className="text-sm font-medium truncate">{p.projectName}</div>
                   <div className="flex items-center gap-2">
-                    <input ref={el => (fileInputRefs.current[p.rootPath] = el)} type="file" accept="image/*" className="hidden" onChange={e => { const file = e.target.files?.[0]; if (file) { const url = URL.createObjectURL(file); onSetCover(p.rootPath, url); } e.currentTarget.value = ''; }} />
-                    <button onClick={() => fileInputRefs.current[p.rootPath]?.click()} className="text-xs text-gray-400 hover:text-gray-200">Change cover</button>
+                    <input
+                      ref={el => (fileInputRefs.current[p.rootPath] = el)}
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={e => {
+                        const file = e.target.files?.[0];
+                        if (file) {
+                          const url = URL.createObjectURL(file);
+                          onSetCover(p.rootPath, url);
+                        }
+                        e.currentTarget.value = '';
+                      }}
+                    />
+                    <button
+                      onClick={() => fileInputRefs.current[p.rootPath]?.click()}
+                      className="text-xs text-gray-400 hover:text-gray-200"
+                    >
+                      Change cover
+                    </button>
                   </div>
                 </div>
               </div>
