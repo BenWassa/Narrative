@@ -40,6 +40,7 @@ export interface OnboardingState {
 export interface RecentProject {
   projectName: string;
   rootPath: string;
+  coverUrl?: string;
   lastOpened: number;
 }
 

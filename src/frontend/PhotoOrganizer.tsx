@@ -13,6 +13,7 @@ import {
   Loader,
 } from 'lucide-react';
 import OnboardingModal, { FolderMapping, OnboardingState, RecentProject } from './OnboardingModal';
+import WelcomeView from './WelcomeView';
 import { detectFolderStructure, generateDryRunSummary } from '../services/folderDetectionService';
 import {
   initProject,
@@ -65,6 +66,7 @@ export default function PhotoOrganizer() {
   const [historyIndex, setHistoryIndex] = useState(-1);
   const [showHelp, setShowHelp] = useState(false);
   const [showOnboarding, setShowOnboarding] = useState(false);
+  const [showWelcome, setShowWelcome] = useState(false);
   const [projectName, setProjectName] = useState('No Project');
   const [projectRootPath, setProjectRootPath] = useState<string | null>(null);
   const [projectSettings, setProjectSettings] = useState<ProjectSettings>(DEFAULT_SETTINGS);
@@ -146,6 +148,8 @@ export default function PhotoOrganizer() {
         const state = await getState(rootPath);
         setProjectFromState(state);
         setShowOnboarding(false);
+        // Hide the welcome view when a project is successfully loaded
+        setShowWelcome(false);
         setShowOpenProject(false);
         localStorage.setItem(ACTIVE_PROJECT_KEY, rootPath);
         if (options?.addRecent !== false) {
@@ -158,7 +162,8 @@ export default function PhotoOrganizer() {
       } catch (err) {
         setProjectError(err instanceof Error ? err.message : 'Failed to load project');
         localStorage.removeItem(ACTIVE_PROJECT_KEY);
-        setShowOnboarding(true);
+        // Show the welcome page so the user can try other options
+        setShowWelcome(true);
       } finally {
         setLoadingProject(false);
       }
@@ -177,8 +182,17 @@ export default function PhotoOrganizer() {
       }
     }
 
-    setShowOnboarding(true);
+    // Show a friendly welcome page on first load
+    setShowWelcome(true);
   }, [loadProject]);
+
+  const setRecentProjectCover = useCallback((rootPath: string, coverUrl: string) => {
+    setRecentProjects(prev => {
+      const updated = prev.map(p => (p.rootPath === rootPath ? { ...p, coverUrl } : p));
+      localStorage.setItem(RECENT_PROJECTS_KEY, JSON.stringify(updated));
+      return updated;
+    });
+  }, []);
 
   // Get days from photos
   const days = React.useMemo(() => {
@@ -367,15 +381,56 @@ export default function PhotoOrganizer() {
         });
 
         await saveState(state.rootPath, nextState);
+        // Hide the welcome view after successfully creating a project
+        setShowWelcome(false);
       } catch (err) {
         setProjectError(err instanceof Error ? err.message : 'Failed to initialize project');
         setShowOnboarding(true);
+        // If onboarding fails, show the welcome page so users can try other paths
+        setShowWelcome(true);
       } finally {
         setLoadingProject(false);
       }
     },
     [applySuggestedDays, deriveProjectName, updateRecentProjects],
   );
+
+  // Create a small in-memory sample project for quick exploration (no backend calls)
+  const createSampleProject = useCallback(() => {
+    const now = Date.now();
+    const samplePhotos: ProjectPhoto[] = Array.from({ length: 8 }).map((_, i) => ({
+      id: `sample-${i}`,
+      originalName: `IMG_${1000 + i}.jpg`,
+      currentName: `IMG_${1000 + i}.jpg`,
+      timestamp: now - i * 1000 * 60 * 60 * 24,
+      day: i < 4 ? 1 : 2,
+      bucket: null,
+      sequence: null,
+      favorite: false,
+      rating: 0,
+      archived: false,
+      thumbnail: `https://picsum.photos/seed/sample-${i}/400/300`,
+    }));
+
+    const nextProjectName = 'Sample Trip';
+    setPhotos(samplePhotos);
+    setProjectName(nextProjectName);
+    setProjectRootPath('sample://trip');
+    setProjectSettings(DEFAULT_SETTINGS);
+    setHistory([]);
+    setHistoryIndex(-1);
+    setSelectedPhotos(new Set());
+    setFocusedPhoto(null);
+    setLastSelectedIndex(null);
+    lastSelectedIndexRef.current = null;
+    setSelectedDay(null);
+    setShowWelcome(false);
+    updateRecentProjects({
+      projectName: nextProjectName,
+      rootPath: 'sample://trip',
+      lastOpened: Date.now(),
+    });
+  }, [updateRecentProjects]);
 
   // Keyboard shortcuts
   useEffect(() => {
@@ -932,6 +987,24 @@ export default function PhotoOrganizer() {
       )}
 
       {/* Onboarding Modal */}
+      <WelcomeView
+        isOpen={showWelcome && !projectRootPath}
+        standalone={true}
+        onClose={() => setShowWelcome(false)}
+        onCreateProject={() => {
+          setProjectError(null);
+          setShowOnboarding(true);
+          // keep welcome visible so cancelling onboarding returns to welcome
+        }}
+        onOpenProject={rootPath => {
+          setProjectError(null);
+          // Open project dialog or load recent directly; keep welcome visible during any dialog
+          loadProject(rootPath);
+        }}
+        onSetCover={(rootPath, coverUrl) => setRecentProjectCover(rootPath, coverUrl)}
+        onRunDemo={() => createSampleProject()}
+        recentProjects={recentProjects}
+      />
       <OnboardingModal
         isOpen={showOnboarding}
         onClose={() => setShowOnboarding(false)}
