@@ -1,2 +1,286 @@
 # Narrative
-Fast, narrative-driven travel photo organizer. Sort your trip photos by story role (establishing, people, culture, action, mood) with single keystrokes. Day-based organization, reversible operations, slideshow-ready exports. Local-first, offline-only, zero vendor lock-in. Built for photographers who value speed and control.
+
+> Fast, narrative-driven travel photo organizer. Sort your trip photos by story role with single keystrokes.
+
+![Version](https://img.shields.io/badge/version-0.1.0-blue)
+![License](https://img.shields.io/badge/license-MIT-green)
+![Platform](https://img.shields.io/badge/platform-macOS-lightgrey)
+
+Organize 1000+ travel photos in under an hour using keyboard-first MECE categorization, day-based grouping, and slideshow-ready exports. Fully local, completely offline, totally reversible.
+
+---
+
+## Why Narrative?
+
+After a trip, you have hundreds of photos. Some are establishing shots, some are people, some are details. You need them organized by day and ready for a slideshow or video montage.
+
+**Narrative solves this** with a simple workflow:
+1. Select your trip folder
+2. Press A-F to categorize each photo by its story role
+3. Export clean, day-organized folders
+
+No AI guessing. No cloud upload. No complex tagging. Just fast, manual curation with keyboard shortcuts.
+
+---
+
+## Features
+
+### ⚡ Keyboard-First Operation
+- **A-F keys**: Assign story categories instantly
+- **Arrow keys**: Navigate photos
+- **F key**: Toggle favorites
+- **Undo/Redo**: Cmd+Z / Cmd+Shift+Z
+
+### 📖 MECE Story Categories
+- **A** - Establishing (landscapes, wide shots)
+- **B** - People (portraits, groups)
+- **C** - Culture/Detail (local life, close-ups)
+- **D** - Action/Moment (events, activities)
+- **E** - Transition (travel, movement)
+- **F** - Mood/Night (atmosphere, evening)
+- **X** - Archive (unwanted shots)
+
+### 📁 Clean File Organization
+```
+Iceland2024/
+├── 01_DAYS/
+│   ├── D01/
+│   │   ├── D01_A_001__IMG_1234.jpg
+│   │   └── D01_B_002__IMG_1235.jpg
+│   └── D02/
+├── 98_ARCHIVE/
+├── FAV/
+└── _meta/
+```
+
+### 🔒 Local & Safe
+- **No cloud**: Everything stays on your computer
+- **Non-destructive**: Archive instead of delete
+- **Reversible**: Full undo/redo history
+- **Human-readable**: No proprietary formats
+
+---
+
+## Installation
+
+### Prerequisites
+- macOS 10.15 or later
+- 2GB free disk space (for thumbnails)
+
+### Download
+```bash
+# Download latest release
+# (Coming soon - currently in development)
+
+# Or run from source
+git clone https://github.com/yourusername/narrative.git
+cd narrative
+npm install
+npm start
+```
+
+---
+
+## Quick Start
+
+### 1. Create a New Project
+- Launch Narrative
+- Click "Select Trip Folder"
+- Choose your photo folder
+
+### 2. Organize Photos
+- Click a photo or use arrow keys to navigate
+- Press **A-F** to categorize by story role
+- Press **X** to archive unwanted photos
+- Press **F** to mark favorites
+
+### 3. Export for Slideshow
+- Click "Export" in the menu
+- Choose "Slideshow Ready"
+- Select destination folder
+- Import into your video editor
+
+---
+
+## Keyboard Shortcuts
+
+| Key | Action |
+|-----|--------|
+| `A-F` | Assign story category |
+| `X` | Archive photo |
+| `F` | Toggle favorite |
+| `←→` | Navigate photos |
+| `Enter` | Fullscreen view |
+| `Esc` | Close/Deselect |
+| `⌘Z` | Undo |
+| `⌘⇧Z` | Redo |
+| `?` | Show shortcuts |
+
+---
+
+## File Naming Convention
+
+Photos are renamed with a structured format:
+
+```
+D03_A_014__IMG_1234.jpg
+│   │ │    └─ Original filename
+│   │ └────── Sequence number (auto-increment)
+│   └──────── Story category (A-F)
+└──────────── Day number
+```
+
+This creates:
+- **Chronological ordering** by day
+- **Story grouping** by category
+- **Unique identification** via sequence
+- **Traceability** back to original
+
+---
+
+## Use Cases
+
+### 📹 Video Editing
+Export day folders directly into Premiere, Final Cut, or DaVinci Resolve. Photos are pre-sorted by story beat.
+
+### 🎞️ Slideshow Creation
+Favorites view gives you the best shots. Export filtered by rating for quick slideshow assembly.
+
+### 🗂️ Photo Book Design
+Day-organized folders make it easy to structure chapters. MECE categories ensure visual variety.
+
+### 📊 Travel Blogging
+Export favorites with metadata to match photos to blog post sections.
+
+---
+
+## Technical Architecture
+
+### Frontend
+- **React** - UI components
+- **Tailwind CSS** - Styling
+- **Lucide Icons** - Icon library
+
+### Backend
+- **Electron/Tauri** - Desktop wrapper
+- **Node.js** - File operations
+- **exifr** - EXIF metadata parsing
+- **sharp** - Thumbnail generation
+
+### Data Storage
+- **JSON files** - Human-readable state
+- **Local filesystem** - No database needed
+- **Transaction log** - Undo/redo support
+
+---
+
+## Project Structure
+
+```
+narrative/
+├── src/
+│   ├── frontend/        # React app
+│   ├── backend/         # File operations API
+│   └── shared/          # Type definitions
+├── docs/
+│   ├── COMMISSION.md    # Original project brief
+│   ├── BACKEND_SPEC.md  # API documentation
+│   └── DESIGN.md        # Design philosophy
+└── tests/
+```
+
+---
+
+## Development
+
+### Run Locally
+```bash
+npm install
+npm run dev
+```
+
+### Run Tests
+```bash
+npm test
+```
+
+### Build for Production
+```bash
+npm run build
+```
+
+---
+
+## Roadmap
+
+### v0.1 (Current - MVP)
+- [x] UI design and React components
+- [ ] Backend file operations
+- [ ] EXIF parsing
+- [ ] Undo/redo system
+- [ ] Basic export
+
+### v0.2 (Next)
+- [ ] Batch operations
+- [ ] Advanced export options
+- [ ] Video thumbnail support
+- [ ] Performance optimization for 10k+ photos
+
+### v0.3 (Future)
+- [ ] Multi-day batch import
+- [ ] Custom category labels
+- [ ] Export templates
+- [ ] Windows support
+
+---
+
+## Philosophy
+
+### MECE Principle
+**Mutually Exclusive, Collectively Exhaustive** - Every photo belongs to exactly one category. No overlap, no ambiguity, no decision paralysis.
+
+### Local-First
+Your photos never leave your computer. No account, no login, no subscription, no data mining.
+
+### Speed Over Complexity
+One keystroke per photo. No multi-step wizards, no modal dialogs, no form fills.
+
+### Reversibility
+Every operation can be undone. Archive instead of delete. Rename instead of overwrite.
+
+---
+
+## FAQ
+
+**Q: Does this use AI to categorize photos?**  
+A: No. You make every decision. Narrative is a tool for manual curation, not automated guessing.
+
+**Q: Can I sync across devices?**  
+A: Not built-in. Use your own cloud sync (Dropbox, Google Drive) if needed. Narrative works with synced folders.
+
+**Q: What about RAW files?**  
+A: Coming in v0.2. Currently supports JPG, PNG, HEIC.
+
+**Q: Does it modify my original files?**  
+A: It renames and moves them, but never modifies image data. You can always undo.
+
+**Q: Can I customize the categories?**  
+A: Not yet. MECE categories are designed to be universal. Custom labels coming in v0.3.
+
+---
+
+## License
+
+MIT License - see [LICENSE](LICENSE) for details.
+
+---
+
+## Acknowledgments
+
+Built for photographers who value speed, control, and simplicity over automation and complexity.
+
+Inspired by the need for better photo organization tools that respect the filesystem and the user's intelligence.
+
+---
+
+**Built with ❤️ for travel photographers**
