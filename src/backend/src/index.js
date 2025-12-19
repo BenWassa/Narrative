@@ -18,8 +18,8 @@ app.use((err, req, res, next) => {
     error: {
       code: 'INTERNAL_ERROR',
       message: err.message,
-      details: err.stack
-    }
+      details: err.stack,
+    },
   });
 });
 

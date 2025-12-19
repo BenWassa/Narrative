@@ -8,12 +8,12 @@ exports.assignPhoto = (req, res) => {
     .push({
       type: 'ASSIGN',
       rootPath,
-      payload: { photoId, bucket, day }
+      payload: { photoId, bucket, day },
     })
-    .on('finish', (result) => {
+    .on('finish', result => {
       res.json({ success: true, photo: result });
     })
-    .on('failed', (err) => {
+    .on('failed', err => {
       res.status(500).json({ success: false, error: err.message });
     });
 };
@@ -24,12 +24,12 @@ exports.undo = (req, res) => {
     .push({
       type: 'UNDO',
       rootPath,
-      payload: {}
+      payload: {},
     })
-    .on('finish', (photos) => {
+    .on('finish', photos => {
       res.json({ success: true, photos });
     })
-    .on('failed', (err) => {
+    .on('failed', err => {
       res.status(500).json({ success: false, error: err.message });
     });
 };
@@ -38,7 +38,7 @@ exports.toggleFavorite = async (req, res) => {
   const { rootPath, photoId, favorite } = req.body;
   try {
     const state = await stateService.loadState(rootPath);
-    const photo = state.photos.find((p) => p.id === photoId);
+    const photo = state.photos.find(p => p.id === photoId);
     if (photo) {
       photo.favorite = favorite;
       await stateService.saveState(rootPath, state);

@@ -29,9 +29,11 @@ If you'd rather deploy the app at the docs root (e.g., `docs/index.html`), I can
 
 ## Why Narrative?
 
+~
 After a trip, you have hundreds of photos. Some are establishing shots, some are people, some are details. You need them organized by day and ready for a slideshow or video montage.
 
 **Narrative solves this** with a simple workflow:
+
 1. Select your trip folder
 2. Press A-F to categorize each photo by its story role
 3. Export clean, day-organized folders
@@ -43,12 +45,14 @@ No AI guessing. No cloud upload. No complex tagging. Just fast, manual curation 
 ## Features
 
 ### ⚡ Keyboard-First Operation
+
 - **A-F keys**: Assign story categories instantly
 - **Arrow keys**: Navigate photos
 - **F key**: Toggle favorites
 - **Undo/Redo**: Cmd+Z / Cmd+Shift+Z
 
 ### 📖 MECE Story Categories
+
 - **A** - Establishing (landscapes, wide shots)
 - **B** - People (portraits, groups)
 - **C** - Culture/Detail (local life, close-ups)
@@ -58,6 +62,7 @@ No AI guessing. No cloud upload. No complex tagging. Just fast, manual curation 
 - **X** - Archive (unwanted shots)
 
 ### 📁 Clean File Organization
+
 ```
 Iceland2024/
 ├── 01_DAYS/
@@ -71,6 +76,7 @@ Iceland2024/
 ```
 
 ### 🔒 Local & Safe
+
 - **No cloud**: Everything stays on your computer
 - **Non-destructive**: Archive instead of delete
 - **Reversible**: Full undo/redo history
@@ -81,10 +87,12 @@ Iceland2024/
 ## Installation
 
 ### Prerequisites
+
 - macOS 10.15 or later
 - 2GB free disk space (for thumbnails)
 
 ### Download
+
 ```bash
 # Download latest release
 # (Coming soon - currently in development)
@@ -101,17 +109,20 @@ npm start
 ## Quick Start
 
 ### 1. Create a New Project
+
 - Launch Narrative
 - Click "Select Trip Folder"
 - Choose your photo folder
 
 ### 2. Organize Photos
+
 - Click a photo or use arrow keys to navigate
 - Press **A-F** to categorize by story role
 - Press **X** to archive unwanted photos
 - Press **F** to mark favorites
 
 ### 3. Export for Slideshow
+
 - Click "Export" in the menu
 - Choose "Slideshow Ready"
 - Select destination folder
@@ -119,19 +130,51 @@ npm start
 
 ---
 
+## Importing Existing Photo Collections
+
+If you already have photos organized into day-based folders, Narrative can detect and migrate them automatically.
+
+### Auto-Detection Smart Matching
+
+Narrative recognizes common folder naming patterns:
+
+- **Day Prefix**: `Day 1`, `D01`, `day_2`, `D-3`
+- **ISO Dates**: `2024-03-15`, `2024_03_16`
+- **Numeric Prefix**: `1 Iceland`, `02_Reykjavik`
+- **Timestamps**: Auto-groups photos by date if folders aren't named
+
+### Import Workflow
+
+1. Click **Import Trip** button in the header
+2. Select your existing trip folder
+3. Review detected day mappings (fully editable)
+4. Preview what will happen (all folders, renames, moves)
+5. Use **dry-run mode** to preview without making changes
+6. Click **Apply** to migrate your library
+7. Use **Undo** (Cmd+Z) anytime to revert changes
+
+### Safety Features
+
+- **Dry-run preview**: See exactly what will change before applying
+- **Full undo support**: Revert any import with Cmd+Z
+- **Manifest file**: `_meta/folder_map.json` records all changes for reference
+- **No destructive operations**: Original filenames preserved in metadata
+
+---
+
 ## Keyboard Shortcuts
 
-| Key | Action |
-|-----|--------|
-| `A-F` | Assign story category |
-| `X` | Archive photo |
-| `F` | Toggle favorite |
-| `←→` | Navigate photos |
-| `Enter` | Fullscreen view |
-| `Esc` | Close/Deselect |
-| `⌘Z` | Undo |
-| `⌘⇧Z` | Redo |
-| `?` | Show shortcuts |
+| Key     | Action                |
+| ------- | --------------------- |
+| `A-F`   | Assign story category |
+| `X`     | Archive photo         |
+| `F`     | Toggle favorite       |
+| `←→`    | Navigate photos       |
+| `Enter` | Fullscreen view       |
+| `Esc`   | Close/Deselect        |
+| `⌘Z`    | Undo                  |
+| `⌘⇧Z`   | Redo                  |
+| `?`     | Show shortcuts        |
 
 ---
 
@@ -148,6 +191,7 @@ D03_A_014__IMG_1234.jpg
 ```
 
 This creates:
+
 - **Chronological ordering** by day
 - **Story grouping** by category
 - **Unique identification** via sequence
@@ -158,15 +202,19 @@ This creates:
 ## Use Cases
 
 ### 📹 Video Editing
+
 Export day folders directly into Premiere, Final Cut, or DaVinci Resolve. Photos are pre-sorted by story beat.
 
 ### 🎞️ Slideshow Creation
+
 Favorites view gives you the best shots. Export filtered by rating for quick slideshow assembly.
 
 ### 🗂️ Photo Book Design
+
 Day-organized folders make it easy to structure chapters. MECE categories ensure visual variety.
 
 ### 📊 Travel Blogging
+
 Export favorites with metadata to match photos to blog post sections.
 
 ---
@@ -174,17 +222,20 @@ Export favorites with metadata to match photos to blog post sections.
 ## Technical Architecture
 
 ### Frontend
+
 - **React** - UI components
 - **Tailwind CSS** - Styling
 - **Lucide Icons** - Icon library
 
 ### Backend
+
 - **Electron/Tauri** - Desktop wrapper
 - **Node.js** - File operations
 - **exifr** - EXIF metadata parsing
 - **sharp** - Thumbnail generation
 
 ### Data Storage
+
 - **JSON files** - Human-readable state
 - **Local filesystem** - No database needed
 - **Transaction log** - Undo/redo support
@@ -211,17 +262,20 @@ narrative/
 ## Development
 
 ### Run Locally
+
 ```bash
 npm install
 npm run dev
 ```
 
 ### Run Tests
+
 ```bash
 npm test
 ```
 
 ### Build for Production
+
 ```bash
 npm run build
 ```
@@ -231,6 +285,7 @@ npm run build
 ## Roadmap
 
 ### v0.1 (Current - MVP)
+
 - [x] UI design and React components
 - [ ] Backend file operations
 - [ ] EXIF parsing
@@ -238,12 +293,14 @@ npm run build
 - [ ] Basic export
 
 ### v0.2 (Next)
+
 - [ ] Batch operations
 - [ ] Advanced export options
 - [ ] Video thumbnail support
 - [ ] Performance optimization for 10k+ photos
 
 ### v0.3 (Future)
+
 - [ ] Multi-day batch import
 - [ ] Custom category labels
 - [ ] Export templates
@@ -254,15 +311,19 @@ npm run build
 ## Philosophy
 
 ### MECE Principle
+
 **Mutually Exclusive, Collectively Exhaustive** - Every photo belongs to exactly one category. No overlap, no ambiguity, no decision paralysis.
 
 ### Local-First
+
 Your photos never leave your computer. No account, no login, no subscription, no data mining.
 
 ### Speed Over Complexity
+
 One keystroke per photo. No multi-step wizards, no modal dialogs, no form fills.
 
 ### Reversibility
+
 Every operation can be undone. Archive instead of delete. Rename instead of overwrite.
 
 ---

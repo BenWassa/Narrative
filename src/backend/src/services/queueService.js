@@ -16,19 +16,19 @@ const ensureQueue = () => {
           cb(err);
         }
       },
-      { concurrent: 1 }
+      { concurrent: 1 },
     );
   }
   return fileQueue;
 };
 
-const processTask = async (task) => {
+const processTask = async task => {
   const { type, payload, rootPath } = task;
   const state = await stateService.loadState(rootPath);
 
   if (type === 'ASSIGN') {
     const { photoId, bucket, day } = payload;
-    const photo = state.photos.find((p) => p.id === photoId);
+    const photo = state.photos.find(p => p.id === photoId);
     if (!photo) throw new Error('Photo not found');
 
     const oldPath = photo.filePath;
@@ -46,12 +46,9 @@ const processTask = async (task) => {
       await fs.ensureDir(destFolder);
 
       const existing = state.photos.filter(
-        (p) => p.day === day && p.bucket === bucket && p.id !== photoId
+        p => p.day === day && p.bucket === bucket && p.id !== photoId,
       );
-      const maxSeq = existing.reduce(
-        (max, p) => ((p.sequence || 0) > max ? p.sequence : max),
-        0
-      );
+      const maxSeq = existing.reduce((max, p) => ((p.sequence || 0) > max ? p.sequence : max), 0);
       sequence = maxSeq + 1;
 
       const seqStr = String(sequence).padStart(3, '0');
@@ -79,7 +76,7 @@ const processTask = async (task) => {
       type: 'ASSIGN',
       photoId,
       before: beforeState,
-      after: photo
+      after: photo,
     });
 
     return photo;
@@ -90,7 +87,7 @@ const processTask = async (task) => {
     if (!entry) throw new Error('Nothing to undo');
 
     if (entry.type === 'ASSIGN') {
-      const currentPhoto = state.photos.find((p) => p.id === entry.photoId);
+      const currentPhoto = state.photos.find(p => p.id === entry.photoId);
       const prevData = entry.before;
 
       await fs.move(currentPhoto.filePath, prevData.filePath);

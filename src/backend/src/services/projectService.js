@@ -8,7 +8,7 @@ const stateService = require('./stateService');
 
 const SUPPORTED_EXT = ['jpg', 'jpeg', 'png', 'heic', 'webp'];
 
-const initProject = async (rootPath) => {
+const initProject = async rootPath => {
   if (!fs.existsSync(rootPath)) throw new Error('Root path does not exist');
 
   const dirs = ['01_DAYS', '98_ARCHIVE', 'FAV', '99_EXPORTS', '_meta', '_meta/thumbnails'];
@@ -20,7 +20,7 @@ const initProject = async (rootPath) => {
   const files = await glob.glob(pattern, {
     cwd: rootPath,
     absolute: true,
-    ignore: ['**/_meta/**', '**/99_EXPORTS/**']
+    ignore: ['**/_meta/**', '**/99_EXPORTS/**'],
   });
 
   const photos = [];
@@ -33,12 +33,8 @@ const initProject = async (rootPath) => {
       const stats = await fs.stat(filePath);
       let exif = {};
       try {
-        exif = (await exifr.parse(filePath, [
-          'DateTimeOriginal',
-          'Make',
-          'Model',
-          'Orientation'
-        ])) || {};
+        exif =
+          (await exifr.parse(filePath, ['DateTimeOriginal', 'Make', 'Model', 'Orientation'])) || {};
       } catch (e) {
         // Ignore EXIF errors, fall back to file metadata.
       }
@@ -71,8 +67,8 @@ const initProject = async (rootPath) => {
         metadata: {
           camera: `${exif.Make || ''} ${exif.Model || ''}`.trim(),
           width: exif.ExifImageWidth,
-          height: exif.ExifImageHeight
-        }
+          height: exif.ExifImageHeight,
+        },
       });
     } catch (err) {
       console.error(`Skipping file ${filePath}:`, err.message);
@@ -91,10 +87,10 @@ const initProject = async (rootPath) => {
         daysFolder: '01_DAYS',
         archiveFolder: '98_ARCHIVE',
         favoritesFolder: 'FAV',
-        metaFolder: '_meta'
-      }
+        metaFolder: '_meta',
+      },
     },
-    lastModified: Date.now()
+    lastModified: Date.now(),
   };
 
   await stateService.saveState(rootPath, newState);
@@ -103,7 +99,7 @@ const initProject = async (rootPath) => {
 
   return {
     photos: newState.photos,
-    suggestedDays
+    suggestedDays,
   };
 };
 
@@ -112,14 +108,14 @@ async function generateThumbnailsBatch(queue) {
   for (let i = 0; i < queue.length; i += BATCH_SIZE) {
     const batch = queue.slice(i, i + BATCH_SIZE);
     await Promise.all(
-      batch.map((item) =>
+      batch.map(item =>
         sharp(item.src)
           .resize(400, 300, { fit: 'cover' })
           .jpeg({ quality: 70 })
           .rotate()
           .toFile(item.dest)
-          .catch((err) => console.error(`Thumb failed: ${item.src}`, err))
-      )
+          .catch(err => console.error(`Thumb failed: ${item.src}`, err)),
+      ),
     );
   }
 }
@@ -134,7 +130,7 @@ function clusterPhotosByTime(photos) {
 
   days[currentDay] = [];
 
-  photos.forEach((p) => {
+  photos.forEach(p => {
     if (p.timestamp - lastTime > GAP_THRESHOLD) {
       currentDay++;
       days[currentDay] = [];

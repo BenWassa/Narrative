@@ -1,25 +1,43 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { Camera, ChevronLeft, ChevronRight, Star, Archive, Calendar, Heart, Undo2, Redo2, Grid3x3, Maximize2, X, FolderOpen, Settings } from 'lucide-react';
+import {
+  Camera,
+  ChevronLeft,
+  ChevronRight,
+  Star,
+  Archive,
+  Calendar,
+  Heart,
+  Undo2,
+  Redo2,
+  Grid3x3,
+  Maximize2,
+  X,
+  FolderOpen,
+  Settings,
+  Download,
+} from 'lucide-react';
+import OnboardingModal, { FolderMapping } from './OnboardingModal';
+import { detectFolderStructure, generateDryRunSummary } from '../services/folderDetectionService';
 
 // Sample photo data
 const generateSamplePhotos = () => {
   const categories = ['unsorted', 'unsorted', 'unsorted'];
   const days = ['2024-03-15', '2024-03-15', '2024-03-16', '2024-03-16', '2024-03-17'];
   const photos = [];
-  
+
   for (let i = 1; i <= 24; i++) {
     photos.push({
       id: `photo_${i}`,
       originalName: `IMG_${1000 + i}.jpg`,
       currentName: `IMG_${1000 + i}.jpg`,
-      timestamp: new Date(days[i % days.length]).getTime() + (i * 3600000),
+      timestamp: new Date(days[i % days.length]).getTime() + i * 3600000,
       day: null,
       bucket: null,
       sequence: null,
       favorite: false,
       rating: 0,
       archived: false,
-      thumbnail: `https://picsum.photos/seed/${i}/400/300`
+      thumbnail: `https://picsum.photos/seed/${i}/400/300`,
     });
   }
   return photos;
@@ -28,11 +46,16 @@ const generateSamplePhotos = () => {
 const MECE_BUCKETS = [
   { key: 'A', label: 'Establishing', color: 'bg-blue-500', description: 'Wide shots, landscapes' },
   { key: 'B', label: 'People', color: 'bg-purple-500', description: 'Portraits, groups' },
-  { key: 'C', label: 'Culture/Detail', color: 'bg-green-500', description: 'Local life, close-ups' },
+  {
+    key: 'C',
+    label: 'Culture/Detail',
+    color: 'bg-green-500',
+    description: 'Local life, close-ups',
+  },
   { key: 'D', label: 'Action/Moment', color: 'bg-orange-500', description: 'Events, activities' },
   { key: 'E', label: 'Transition', color: 'bg-yellow-500', description: 'Travel, movement' },
   { key: 'F', label: 'Mood/Night', color: 'bg-indigo-500', description: 'Atmosphere, evening' },
-  { key: 'X', label: 'Archive', color: 'bg-gray-500', description: 'Unwanted shots' }
+  { key: 'X', label: 'Archive', color: 'bg-gray-500', description: 'Unwanted shots' },
 ];
 
 const VIEWS = ['inbox', 'days', 'favorites', 'archive', 'review'];
@@ -50,6 +73,7 @@ export default function PhotoOrganizer() {
   const [history, setHistory] = useState([]);
   const [historyIndex, setHistoryIndex] = useState(-1);
   const [showHelp, setShowHelp] = useState(false);
+  const [showOnboarding, setShowOnboarding] = useState(false);
   const [projectName, setProjectName] = useState('Iceland Trip 2024');
 
   // Get days from photos
@@ -88,52 +112,64 @@ export default function PhotoOrganizer() {
   }, [photos, currentView, selectedDay]);
 
   // Save state to history
-  const saveToHistory = useCallback((newPhotos) => {
-    const newHistory = history.slice(0, historyIndex + 1);
-    newHistory.push(JSON.parse(JSON.stringify(photos)));
-    setHistory(newHistory);
-    setHistoryIndex(newHistory.length - 1);
-    setPhotos(newPhotos);
-  }, [history, historyIndex, photos]);
+  const saveToHistory = useCallback(
+    newPhotos => {
+      const newHistory = history.slice(0, historyIndex + 1);
+      newHistory.push(JSON.parse(JSON.stringify(photos)));
+      setHistory(newHistory);
+      setHistoryIndex(newHistory.length - 1);
+      setPhotos(newPhotos);
+    },
+    [history, historyIndex, photos],
+  );
 
   // Assign bucket to one or many photos (accepts id or array of ids)
-  const assignBucket = useCallback((photoIds, bucket, dayNum = null) => {
-    const ids = Array.isArray(photoIds) ? photoIds : [photoIds];
-    // Keep counters per day+bucket to create sequences for bulk operations
-    const counters = {};
-    const newPhotos = photos.map(photo => {
-      if (ids.includes(photo.id)) {
-        const day = dayNum || photo.day || Math.ceil((new Date(photo.timestamp).getDate()) / 1);
-        const key = `${day}_${bucket}`;
-        const existing = photos.filter(p => p.day === day && p.bucket === bucket).length;
-        const next = (counters[key] || existing) + 1;
-        counters[key] = next;
-        const newName = bucket === 'X'
-          ? photo.originalName
-          : `D${String(day).padStart(2, '0')}_${bucket}_${String(next).padStart(3, '0')}__${photo.originalName}`;
+  const assignBucket = useCallback(
+    (photoIds, bucket, dayNum = null) => {
+      const ids = Array.isArray(photoIds) ? photoIds : [photoIds];
+      // Keep counters per day+bucket to create sequences for bulk operations
+      const counters = {};
+      const newPhotos = photos.map(photo => {
+        if (ids.includes(photo.id)) {
+          const day = dayNum || photo.day || Math.ceil(new Date(photo.timestamp).getDate() / 1);
+          const key = `${day}_${bucket}`;
+          const existing = photos.filter(p => p.day === day && p.bucket === bucket).length;
+          const next = (counters[key] || existing) + 1;
+          counters[key] = next;
+          const newName =
+            bucket === 'X'
+              ? photo.originalName
+              : `D${String(day).padStart(2, '0')}_${bucket}_${String(next).padStart(3, '0')}__${
+                  photo.originalName
+                }`;
 
-        return {
-          ...photo,
-          bucket,
-          day,
-          sequence: next,
-          currentName: newName,
-          archived: bucket === 'X'
-        };
-      }
-      return photo;
-    });
-    saveToHistory(newPhotos);
-  }, [photos, saveToHistory]);
+          return {
+            ...photo,
+            bucket,
+            day,
+            sequence: next,
+            currentName: newName,
+            archived: bucket === 'X',
+          };
+        }
+        return photo;
+      });
+      saveToHistory(newPhotos);
+    },
+    [photos, saveToHistory],
+  );
 
   // Toggle favorite for a single or multiple photos
-  const toggleFavorite = useCallback((photoIds) => {
-    const ids = Array.isArray(photoIds) ? photoIds : [photoIds];
-    const newPhotos = photos.map(photo => 
-      ids.includes(photo.id) ? { ...photo, favorite: !photo.favorite } : photo
-    );
-    saveToHistory(newPhotos);
-  }, [photos, saveToHistory]);
+  const toggleFavorite = useCallback(
+    photoIds => {
+      const ids = Array.isArray(photoIds) ? photoIds : [photoIds];
+      const newPhotos = photos.map(photo =>
+        ids.includes(photo.id) ? { ...photo, favorite: !photo.favorite } : photo,
+      );
+      saveToHistory(newPhotos);
+    },
+    [photos, saveToHistory],
+  );
 
   // Undo/Redo
   const undo = useCallback(() => {
@@ -150,9 +186,56 @@ export default function PhotoOrganizer() {
     }
   }, [history, historyIndex]);
 
+  // Onboarding handlers
+  const handleDetect = useCallback(async (rootPath: string): Promise<FolderMapping[]> => {
+    // Simulate folder detection (in real implementation, this would call a backend service)
+    // For now, return a sample detection result
+    const sampleFolders = ['Day 1', 'Day 2', 'Day 3', 'unsorted'];
+    const photoCountMap = new Map([
+      ['Day 1', 42],
+      ['Day 2', 56],
+      ['Day 3', 38],
+      ['unsorted', 12],
+    ]);
+
+    return detectFolderStructure(sampleFolders, { photoCountMap });
+  }, []);
+
+  const handleApply = useCallback(
+    async (
+      mappings: FolderMapping[],
+      dryRun: boolean,
+    ): Promise<{ summary: string; changes: object }> => {
+      // Generate dry-run summary
+      const summary = generateDryRunSummary(mappings);
+
+      if (dryRun) {
+        return { summary, changes: {} };
+      }
+
+      // In a real implementation, this would apply the mappings to the filesystem
+      // For now, we'll just simulate the application
+      // TODO: Integrate with backend service to actually move/rename files
+
+      return { summary, changes: {} };
+    },
+    [],
+  );
+
+  const handleOnboardingComplete = useCallback(state => {
+    // Update project name if provided
+    if (state.projectName) {
+      setProjectName(state.projectName);
+    }
+
+    // In a real implementation, would load the new photos from the imported folder
+    // For now, just close the modal
+    setShowOnboarding(false);
+  }, []);
+
   // Keyboard shortcuts
   useEffect(() => {
-    const handleKeyPress = (e) => {
+    const handleKeyPress = e => {
       if (showHelp) {
         if (e.key === 'Escape' || e.key === '?') {
           setShowHelp(false);
@@ -166,7 +249,8 @@ export default function PhotoOrganizer() {
       }
 
       // Determine primary target (focused photo or if a single selection exists)
-      const primaryId = focusedPhoto || (selectedPhotos.size === 1 ? Array.from(selectedPhotos)[0] : null);
+      const primaryId =
+        focusedPhoto || (selectedPhotos.size === 1 ? Array.from(selectedPhotos)[0] : null);
       if (!primaryId) return;
 
       // MECE bucket assignment
@@ -231,49 +315,69 @@ export default function PhotoOrganizer() {
 
     window.addEventListener('keydown', handleKeyPress);
     return () => window.removeEventListener('keydown', handleKeyPress);
-  }, [selectedPhotos, focusedPhoto, filteredPhotos, assignBucket, toggleFavorite, undo, redo, showHelp, fullscreenPhoto]);
+  }, [
+    selectedPhotos,
+    focusedPhoto,
+    filteredPhotos,
+    assignBucket,
+    toggleFavorite,
+    undo,
+    redo,
+    showHelp,
+    fullscreenPhoto,
+  ]);
 
   // Stats
-  const stats = React.useMemo(() => ({
-    total: photos.length,
-    sorted: photos.filter(p => p.bucket && !p.archived).length,
-    unsorted: photos.filter(p => !p.bucket && !p.archived).length,
-    archived: photos.filter(p => p.archived).length,
-    favorites: photos.filter(p => p.favorite).length
-  }), [photos]);
+  const stats = React.useMemo(
+    () => ({
+      total: photos.length,
+      sorted: photos.filter(p => p.bucket && !p.archived).length,
+      unsorted: photos.filter(p => !p.bucket && !p.archived).length,
+      archived: photos.filter(p => p.archived).length,
+      favorites: photos.filter(p => p.favorite).length,
+    }),
+    [photos],
+  );
 
   // Selection helpers
-  const handleSelectPhoto = useCallback((e, photoId, index) => {
-    // Shift-range selection (use ref for synchronous access)
-    if (e.shiftKey && lastSelectedIndexRef.current !== null && lastSelectedIndexRef.current !== undefined) {
-      const start = Math.min(lastSelectedIndexRef.current, index);
-      const end = Math.max(lastSelectedIndexRef.current, index);
-      const rangeIds = filteredPhotos.slice(start, end + 1).map(p => p.id);
-      setSelectedPhotos(new Set(rangeIds));
+  const handleSelectPhoto = useCallback(
+    (e, photoId, index) => {
+      // Shift-range selection (use ref for synchronous access)
+      if (
+        e.shiftKey &&
+        lastSelectedIndexRef.current !== null &&
+        lastSelectedIndexRef.current !== undefined
+      ) {
+        const start = Math.min(lastSelectedIndexRef.current, index);
+        const end = Math.max(lastSelectedIndexRef.current, index);
+        const rangeIds = filteredPhotos.slice(start, end + 1).map(p => p.id);
+        setSelectedPhotos(new Set(rangeIds));
+        setFocusedPhoto(photoId);
+        setLastSelectedIndex(index);
+        lastSelectedIndexRef.current = index;
+        return;
+      }
+
+      // Cmd/Ctrl to toggle
+      if (e.metaKey || e.ctrlKey) {
+        const next = new Set(selectedPhotos);
+        if (next.has(photoId)) next.delete(photoId);
+        else next.add(photoId);
+        setSelectedPhotos(next);
+        setFocusedPhoto(photoId);
+        setLastSelectedIndex(index);
+        lastSelectedIndexRef.current = index;
+        return;
+      }
+
+      // Regular click: single-select
+      setSelectedPhotos(new Set([photoId]));
       setFocusedPhoto(photoId);
       setLastSelectedIndex(index);
       lastSelectedIndexRef.current = index;
-      return;
-    }
-
-    // Cmd/Ctrl to toggle
-    if (e.metaKey || e.ctrlKey) {
-      const next = new Set(selectedPhotos);
-      if (next.has(photoId)) next.delete(photoId);
-      else next.add(photoId);
-      setSelectedPhotos(next);
-      setFocusedPhoto(photoId);
-      setLastSelectedIndex(index);
-      lastSelectedIndexRef.current = index;
-      return;
-    }
-
-    // Regular click: single-select
-    setSelectedPhotos(new Set([photoId]));
-    setFocusedPhoto(photoId);
-    setLastSelectedIndex(index);
-    lastSelectedIndexRef.current = index;
-  }, [selectedPhotos, lastSelectedIndex, filteredPhotos]);
+    },
+    [selectedPhotos, lastSelectedIndex, filteredPhotos],
+  );
 
   return (
     <div className="h-screen flex flex-col bg-gray-950 text-gray-100">
@@ -289,8 +393,16 @@ export default function PhotoOrganizer() {
               </p>
             </div>
           </div>
-          
+
           <div className="flex items-center gap-2">
+            <button
+              onClick={() => setShowOnboarding(true)}
+              className="px-3 py-1 bg-blue-600 hover:bg-blue-700 rounded text-sm font-medium flex items-center gap-1"
+              title="Import existing trip folder"
+            >
+              <Download className="w-4 h-4" />
+              Import Trip
+            </button>
             <button
               onClick={undo}
               disabled={historyIndex <= 0}
@@ -324,7 +436,7 @@ export default function PhotoOrganizer() {
             { id: 'days', label: 'Days', count: days.length },
             { id: 'favorites', label: 'Favorites', count: stats.favorites },
             { id: 'archive', label: 'Archive', count: stats.archived },
-            { id: 'review', label: 'Review', count: stats.sorted }
+            { id: 'review', label: 'Review', count: stats.sorted },
           ].map(view => (
             <button
               key={view.id}
@@ -338,7 +450,8 @@ export default function PhotoOrganizer() {
                   : 'text-gray-400 hover:text-gray-200'
               }`}
             >
-              {view.label} {view.count > 0 && <span className="text-xs opacity-60">({view.count})</span>}
+              {view.label}{' '}
+              {view.count > 0 && <span className="text-xs opacity-60">({view.count})</span>}
             </button>
           ))}
         </div>
@@ -393,7 +506,7 @@ export default function PhotoOrganizer() {
                 {filteredPhotos.map((photo, idx) => (
                   <div
                     key={photo.id}
-                    onClick={(e) => handleSelectPhoto(e, photo.id, idx)}
+                    onClick={e => handleSelectPhoto(e, photo.id, idx)}
                     onDoubleClick={() => {
                       setFullscreenPhoto(photo.id);
                       setSelectedPhotos(new Set([photo.id]));
@@ -411,7 +524,7 @@ export default function PhotoOrganizer() {
                       alt={photo.currentName}
                       className="w-full aspect-[4/3] object-cover"
                     />
-                    
+
                     {/* Overlay info */}
                     <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity">
                       <div className="absolute bottom-0 left-0 right-0 p-3">
@@ -421,9 +534,11 @@ export default function PhotoOrganizer() {
 
                     {/* Bucket badge */}
                     {photo.bucket && (
-                      <div className={`absolute top-2 left-2 px-2 py-1 rounded text-xs font-bold ${
-                        MECE_BUCKETS.find(b => b.key === photo.bucket)?.color
-                      } text-white shadow-lg`}>
+                      <div
+                        className={`absolute top-2 left-2 px-2 py-1 rounded text-xs font-bold ${
+                          MECE_BUCKETS.find(b => b.key === photo.bucket)?.color
+                        } text-white shadow-lg`}
+                      >
                         {photo.bucket}
                       </div>
                     )}
@@ -486,14 +601,20 @@ export default function PhotoOrganizer() {
                   onClick={() => toggleFavorite(Array.from(selectedPhotos))}
                   className={`w-full px-4 py-2 rounded-lg flex items-center gap-2 transition-colors ${
                     // when single selection, reflect actual favorite state; otherwise neutral
-                    (selectedPhotos.size === 1 && photos.find(p => p.id === Array.from(selectedPhotos)[0])?.favorite)
+                    selectedPhotos.size === 1 &&
+                    photos.find(p => p.id === Array.from(selectedPhotos)[0])?.favorite
                       ? 'bg-yellow-600 hover:bg-yellow-700'
                       : 'bg-gray-800 hover:bg-gray-700'
                   }`}
                 >
-                  <Heart className={`w-4 h-4 ${
-                    (selectedPhotos.size === 1 && photos.find(p => p.id === Array.from(selectedPhotos)[0])?.favorite) ? 'fill-current' : ''
-                  }`} />
+                  <Heart
+                    className={`w-4 h-4 ${
+                      selectedPhotos.size === 1 &&
+                      photos.find(p => p.id === Array.from(selectedPhotos)[0])?.favorite
+                        ? 'fill-current'
+                        : ''
+                    }`}
+                  />
                   Toggle Favorite (F)
                 </button>
               </div>
@@ -511,7 +632,7 @@ export default function PhotoOrganizer() {
           >
             <X className="w-6 h-6" />
           </button>
-          
+
           <img
             src={photos.find(p => p.id === fullscreenPhoto)?.thumbnail}
             alt="Fullscreen"
@@ -603,6 +724,15 @@ export default function PhotoOrganizer() {
           </div>
         </div>
       )}
+
+      {/* Onboarding Modal */}
+      <OnboardingModal
+        isOpen={showOnboarding}
+        onClose={() => setShowOnboarding(false)}
+        onComplete={handleOnboardingComplete}
+        onDetect={handleDetect}
+        onApply={handleApply}
+      />
     </div>
   );
 }

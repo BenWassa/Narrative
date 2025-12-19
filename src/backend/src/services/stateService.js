@@ -3,8 +3,8 @@ const path = require('path');
 
 let cachedState = null;
 
-const getStatePath = (rootPath) => path.join(rootPath, '_meta', 'state.json');
-const getHistoryPath = (rootPath) => path.join(rootPath, '_meta', 'history.jsonl');
+const getStatePath = rootPath => path.join(rootPath, '_meta', 'state.json');
+const getHistoryPath = rootPath => path.join(rootPath, '_meta', 'history.jsonl');
 
 const saveState = async (rootPath, state) => {
   const target = getStatePath(rootPath);
@@ -17,7 +17,7 @@ const saveState = async (rootPath, state) => {
   await fs.rename(temp, target);
 };
 
-const loadState = async (rootPath) => {
+const loadState = async rootPath => {
   if (cachedState && cachedState.rootPath === rootPath) return cachedState;
 
   const target = getStatePath(rootPath);
@@ -33,7 +33,7 @@ const appendHistory = async (rootPath, entry) => {
   await fs.appendFile(target, line);
 };
 
-const getLastHistoryEntry = async (rootPath) => {
+const getLastHistoryEntry = async rootPath => {
   const target = getHistoryPath(rootPath);
   if (!fs.existsSync(target)) return null;
 
@@ -45,7 +45,7 @@ const getLastHistoryEntry = async (rootPath) => {
   return entry;
 };
 
-const popHistory = async (rootPath) => {
+const popHistory = async rootPath => {
   const target = getHistoryPath(rootPath);
   if (!fs.existsSync(target)) return null;
 
