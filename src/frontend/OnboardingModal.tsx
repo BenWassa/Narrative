@@ -37,6 +37,12 @@ export interface OnboardingState {
   error?: string;
 }
 
+export interface RecentProject {
+  projectName: string;
+  rootPath: string;
+  lastOpened: number;
+}
+
 interface OnboardingModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -49,6 +55,8 @@ interface OnboardingModalProps {
     summary: string;
     changes: object;
   }>;
+  recentProjects?: RecentProject[];
+  onSelectRecent?: (rootPath: string) => void;
 }
 
 export default function OnboardingModal({
@@ -57,6 +65,8 @@ export default function OnboardingModal({
   onComplete,
   onDetect,
   onApply,
+  recentProjects = [],
+  onSelectRecent,
 }: OnboardingModalProps) {
   const [step, setStep] = useState<'folder-select' | 'preview' | 'dry-run' | 'apply' | 'complete'>(
     'folder-select',
@@ -217,6 +227,30 @@ export default function OnboardingModal({
           {/* Step 1: Folder Selection */}
           {step === 'folder-select' && (
             <div className="space-y-4">
+              {recentProjects.length > 0 && (
+                <div className="space-y-3 rounded-lg border border-gray-200 bg-gray-50 p-4">
+                  <div>
+                    <p className="text-sm font-medium text-gray-700">Recent Projects</p>
+                    <p className="text-xs text-gray-500">
+                      Pick a recent project or start a new one below.
+                    </p>
+                  </div>
+                  <div className="space-y-2">
+                    {recentProjects.map(project => (
+                      <button
+                        key={project.rootPath}
+                        onClick={() => onSelectRecent?.(project.rootPath)}
+                        className="w-full text-left rounded-lg border border-gray-200 bg-white px-3 py-2 hover:border-blue-300 hover:bg-blue-50"
+                      >
+                        <div className="text-sm font-medium text-gray-900">
+                          {project.projectName}
+                        </div>
+                        <div className="text-xs text-gray-600 truncate">{project.rootPath}</div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">Project Name</label>
                 <input

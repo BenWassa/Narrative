@@ -1,47 +1,31 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   Camera,
-  ChevronLeft,
-  ChevronRight,
+  ChevronDown,
   Star,
-  Archive,
   Calendar,
   Heart,
   Undo2,
   Redo2,
-  Grid3x3,
-  Maximize2,
   X,
   FolderOpen,
-  Settings,
   Download,
+  Loader,
 } from 'lucide-react';
-import OnboardingModal, { FolderMapping } from './OnboardingModal';
+import OnboardingModal, {
+  FolderMapping,
+  OnboardingState,
+  RecentProject,
+} from './OnboardingModal';
 import { detectFolderStructure, generateDryRunSummary } from '../services/folderDetectionService';
-
-// Sample photo data
-const generateSamplePhotos = () => {
-  const categories = ['unsorted', 'unsorted', 'unsorted'];
-  const days = ['2024-03-15', '2024-03-15', '2024-03-16', '2024-03-16', '2024-03-17'];
-  const photos = [];
-
-  for (let i = 1; i <= 24; i++) {
-    photos.push({
-      id: `photo_${i}`,
-      originalName: `IMG_${1000 + i}.jpg`,
-      currentName: `IMG_${1000 + i}.jpg`,
-      timestamp: new Date(days[i % days.length]).getTime() + i * 3600000,
-      day: null,
-      bucket: null,
-      sequence: null,
-      favorite: false,
-      rating: 0,
-      archived: false,
-      thumbnail: `https://picsum.photos/seed/${i}/400/300`,
-    });
-  }
-  return photos;
-};
+import {
+  initProject,
+  getState,
+  saveState,
+  ProjectPhoto,
+  ProjectSettings,
+  ProjectState,
+} from './services/projectService';
 
 const MECE_BUCKETS = [
   { key: 'A', label: 'Establishing', color: 'bg-blue-500', description: 'Wide shots, landscapes' },
@@ -58,23 +42,147 @@ const MECE_BUCKETS = [
   { key: 'X', label: 'Archive', color: 'bg-gray-500', description: 'Unwanted shots' },
 ];
 
-const VIEWS = ['inbox', 'days', 'favorites', 'archive', 'review'];
+const RECENT_PROJECTS_KEY = 'narrative:recentProjects';
+const ACTIVE_PROJECT_KEY = 'narrative:activeProject';
+
+const DEFAULT_SETTINGS: ProjectSettings = {
+  autoDay: true,
+  folderStructure: {
+    daysFolder: '01_DAYS',
+    archiveFolder: '98_ARCHIVE',
+    favoritesFolder: 'FAV',
+    metaFolder: '_meta',
+  },
+};
 
 export default function PhotoOrganizer() {
-  const [photos, setPhotos] = useState(generateSamplePhotos());
+  const [photos, setPhotos] = useState<ProjectPhoto[]>([]);
   const [currentView, setCurrentView] = useState('inbox');
   // Support multi-selection: set of IDs, and a focused photo for keyboard actions
-  const [selectedPhotos, setSelectedPhotos] = useState(new Set());
-  const [focusedPhoto, setFocusedPhoto] = useState(null);
-  const [lastSelectedIndex, setLastSelectedIndex] = useState(null);
-  const lastSelectedIndexRef = useRef(null);
-  const [fullscreenPhoto, setFullscreenPhoto] = useState(null);
-  const [selectedDay, setSelectedDay] = useState(null);
-  const [history, setHistory] = useState([]);
+  const [selectedPhotos, setSelectedPhotos] = useState<Set<string>>(new Set());
+  const [focusedPhoto, setFocusedPhoto] = useState<string | null>(null);
+  const [lastSelectedIndex, setLastSelectedIndex] = useState<number | null>(null);
+  const lastSelectedIndexRef = useRef<number | null>(null);
+  const [fullscreenPhoto, setFullscreenPhoto] = useState<string | null>(null);
+  const [selectedDay, setSelectedDay] = useState<number | null>(null);
+  const [history, setHistory] = useState<ProjectPhoto[][]>([]);
   const [historyIndex, setHistoryIndex] = useState(-1);
   const [showHelp, setShowHelp] = useState(false);
   const [showOnboarding, setShowOnboarding] = useState(false);
-  const [projectName, setProjectName] = useState('Iceland Trip 2024');
+  const [projectName, setProjectName] = useState('No Project');
+  const [projectRootPath, setProjectRootPath] = useState<string | null>(null);
+  const [projectSettings, setProjectSettings] = useState<ProjectSettings>(DEFAULT_SETTINGS);
+  const [recentProjects, setRecentProjects] = useState<RecentProject[]>([]);
+  const [showProjectMenu, setShowProjectMenu] = useState(false);
+  const [showOpenProject, setShowOpenProject] = useState(false);
+  const [openProjectPath, setOpenProjectPath] = useState('');
+  const [projectError, setProjectError] = useState<string | null>(null);
+  const [loadingProject, setLoadingProject] = useState(false);
+
+  const deriveProjectName = useCallback((rootPath: string) => {
+    const parts = rootPath.split(/[/\\]/).filter(Boolean);
+    return parts[parts.length - 1] || 'Untitled Project';
+  }, []);
+
+  const applySuggestedDays = useCallback(
+    (sourcePhotos: ProjectPhoto[], suggestedDays?: Record<string, string[]>) => {
+      if (!suggestedDays) return sourcePhotos;
+      const dayById = new Map<string, number>();
+      Object.entries(suggestedDays).forEach(([day, ids]) => {
+        const dayNum = Number.parseInt(day, 10);
+        if (!Number.isNaN(dayNum)) {
+          ids.forEach(id => dayById.set(id, dayNum));
+        }
+      });
+      return sourcePhotos.map(photo =>
+        dayById.has(photo.id) ? { ...photo, day: dayById.get(photo.id) ?? null } : photo,
+      );
+    },
+    [],
+  );
+
+  const persistState = useCallback(
+    async (nextPhotos: ProjectPhoto[]) => {
+      if (!projectRootPath) return;
+      const state: ProjectState = {
+        projectName,
+        rootPath: projectRootPath,
+        photos: nextPhotos,
+        settings: projectSettings,
+      };
+      try {
+        await saveState(projectRootPath, state);
+      } catch (err) {
+        setProjectError(err instanceof Error ? err.message : 'Failed to save project state');
+      }
+    },
+    [projectName, projectRootPath, projectSettings],
+  );
+
+  const updateRecentProjects = useCallback((nextProject: RecentProject) => {
+    setRecentProjects(prev => {
+      const filtered = prev.filter(project => project.rootPath !== nextProject.rootPath);
+      const updated = [nextProject, ...filtered].slice(0, 5);
+      localStorage.setItem(RECENT_PROJECTS_KEY, JSON.stringify(updated));
+      return updated;
+    });
+  }, []);
+
+  const setProjectFromState = useCallback((state: ProjectState) => {
+    setPhotos(state.photos || []);
+    setProjectName(state.projectName || 'Untitled Project');
+    setProjectRootPath(state.rootPath || null);
+    setProjectSettings(state.settings || DEFAULT_SETTINGS);
+    setHistory([]);
+    setHistoryIndex(-1);
+    setSelectedPhotos(new Set());
+    setFocusedPhoto(null);
+    setLastSelectedIndex(null);
+    lastSelectedIndexRef.current = null;
+    setSelectedDay(null);
+  }, []);
+
+  const loadProject = useCallback(
+    async (rootPath: string, options?: { addRecent?: boolean }) => {
+      setLoadingProject(true);
+      setProjectError(null);
+      try {
+        const state = await getState(rootPath);
+        setProjectFromState(state);
+        setShowOnboarding(false);
+        setShowOpenProject(false);
+        localStorage.setItem(ACTIVE_PROJECT_KEY, rootPath);
+        if (options?.addRecent !== false) {
+          updateRecentProjects({
+            projectName: state.projectName || deriveProjectName(rootPath),
+            rootPath,
+            lastOpened: Date.now(),
+          });
+        }
+      } catch (err) {
+        setProjectError(err instanceof Error ? err.message : 'Failed to load project');
+        localStorage.removeItem(ACTIVE_PROJECT_KEY);
+        setShowOnboarding(true);
+      } finally {
+        setLoadingProject(false);
+      }
+    },
+    [deriveProjectName, setProjectFromState, updateRecentProjects],
+  );
+
+  useEffect(() => {
+    const storedRecentsRaw = localStorage.getItem(RECENT_PROJECTS_KEY);
+    if (storedRecentsRaw) {
+      try {
+        const parsed = JSON.parse(storedRecentsRaw) as RecentProject[];
+        setRecentProjects(Array.isArray(parsed) ? parsed : []);
+      } catch {
+        setRecentProjects([]);
+      }
+    }
+
+    setShowOnboarding(true);
+  }, [loadProject]);
 
   // Get days from photos
   const days = React.useMemo(() => {
@@ -113,14 +221,15 @@ export default function PhotoOrganizer() {
 
   // Save state to history
   const saveToHistory = useCallback(
-    newPhotos => {
+    (newPhotos: ProjectPhoto[]) => {
       const newHistory = history.slice(0, historyIndex + 1);
       newHistory.push(JSON.parse(JSON.stringify(photos)));
       setHistory(newHistory);
       setHistoryIndex(newHistory.length - 1);
       setPhotos(newPhotos);
+      persistState(newPhotos);
     },
-    [history, historyIndex, photos],
+    [history, historyIndex, photos, persistState],
   );
 
   // Assign bucket to one or many photos (accepts id or array of ids)
@@ -174,17 +283,21 @@ export default function PhotoOrganizer() {
   // Undo/Redo
   const undo = useCallback(() => {
     if (historyIndex > 0) {
+      const nextPhotos = history[historyIndex - 1];
       setHistoryIndex(historyIndex - 1);
-      setPhotos(history[historyIndex - 1]);
+      setPhotos(nextPhotos);
+      persistState(nextPhotos);
     }
-  }, [history, historyIndex]);
+  }, [history, historyIndex, persistState]);
 
   const redo = useCallback(() => {
     if (historyIndex < history.length - 1) {
+      const nextPhotos = history[historyIndex + 1];
       setHistoryIndex(historyIndex + 1);
-      setPhotos(history[historyIndex + 1]);
+      setPhotos(nextPhotos);
+      persistState(nextPhotos);
     }
-  }, [history, historyIndex]);
+  }, [history, historyIndex, persistState]);
 
   // Onboarding handlers
   const handleDetect = useCallback(async (rootPath: string): Promise<FolderMapping[]> => {
@@ -222,16 +335,51 @@ export default function PhotoOrganizer() {
     [],
   );
 
-  const handleOnboardingComplete = useCallback(state => {
-    // Update project name if provided
-    if (state.projectName) {
-      setProjectName(state.projectName);
-    }
+  const handleOnboardingComplete = useCallback(
+    async (state: OnboardingState) => {
+      setLoadingProject(true);
+      setProjectError(null);
+      try {
+        const initResult = await initProject(state.rootPath);
+        const hydratedPhotos = applySuggestedDays(initResult.photos, initResult.suggestedDays);
+        const nextProjectName = state.projectName?.trim() || deriveProjectName(state.rootPath);
+        const nextState: ProjectState = {
+          projectName: nextProjectName,
+          rootPath: state.rootPath,
+          photos: hydratedPhotos,
+          settings: DEFAULT_SETTINGS,
+        };
 
-    // In a real implementation, would load the new photos from the imported folder
-    // For now, just close the modal
-    setShowOnboarding(false);
-  }, []);
+        setPhotos(hydratedPhotos);
+        setProjectName(nextProjectName);
+        setProjectRootPath(state.rootPath);
+        setProjectSettings(DEFAULT_SETTINGS);
+        setHistory([]);
+        setHistoryIndex(-1);
+        setSelectedPhotos(new Set());
+        setFocusedPhoto(null);
+        setLastSelectedIndex(null);
+        lastSelectedIndexRef.current = null;
+        setSelectedDay(null);
+        setShowOnboarding(false);
+        setOpenProjectPath('');
+        localStorage.setItem(ACTIVE_PROJECT_KEY, state.rootPath);
+        updateRecentProjects({
+          projectName: nextProjectName,
+          rootPath: state.rootPath,
+          lastOpened: Date.now(),
+        });
+
+        await saveState(state.rootPath, nextState);
+      } catch (err) {
+        setProjectError(err instanceof Error ? err.message : 'Failed to initialize project');
+        setShowOnboarding(true);
+      } finally {
+        setLoadingProject(false);
+      }
+    },
+    [applySuggestedDays, deriveProjectName, updateRecentProjects],
+  );
 
   // Keyboard shortcuts
   useEffect(() => {
@@ -396,12 +544,68 @@ export default function PhotoOrganizer() {
           </div>
 
           <div className="flex items-center gap-2">
+            <div className="relative">
+              <button
+                onClick={() => setShowProjectMenu(prev => !prev)}
+                className="px-3 py-1 bg-gray-800 hover:bg-gray-700 rounded text-sm font-medium flex items-center gap-1"
+                title="Open recent projects"
+                aria-expanded={showProjectMenu}
+              >
+                Projects
+                <ChevronDown className="w-4 h-4" />
+              </button>
+              {showProjectMenu && (
+                <div className="absolute right-0 mt-2 w-72 rounded-lg border border-gray-800 bg-gray-900 shadow-xl z-20">
+                  <div className="px-3 py-2 text-xs uppercase tracking-wide text-gray-400 border-b border-gray-800">
+                    Recent Projects
+                  </div>
+                  {recentProjects.length === 0 ? (
+                    <div className="px-3 py-3 text-sm text-gray-400">No recent projects yet.</div>
+                  ) : (
+                    <div className="max-h-64 overflow-y-auto">
+                      {recentProjects.map(project => (
+                        <button
+                          key={project.rootPath}
+                          onClick={() => {
+                            setShowProjectMenu(false);
+                            loadProject(project.rootPath);
+                          }}
+                          className="w-full text-left px-3 py-2 hover:bg-gray-800"
+                        >
+                          <div className="text-sm text-gray-100">{project.projectName}</div>
+                          <div className="text-xs text-gray-500 truncate">{project.rootPath}</div>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                  <div className="border-t border-gray-800">
+                    <button
+                      onClick={() => {
+                        setShowProjectMenu(false);
+                        setShowOpenProject(true);
+                      }}
+                      className="w-full text-left px-3 py-2 text-sm text-blue-300 hover:bg-gray-800"
+                    >
+                      Open Project…
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
             <button
-              onClick={() => setShowOnboarding(true)}
+              onClick={() => {
+                setProjectError(null);
+                setShowOnboarding(true);
+              }}
               className="px-3 py-1 bg-blue-600 hover:bg-blue-700 rounded text-sm font-medium flex items-center gap-1"
               title="Import existing trip folder"
+              disabled={loadingProject}
             >
-              <Download className="w-4 h-4" />
+              {loadingProject ? (
+                <Loader className="w-4 h-4 animate-spin" />
+              ) : (
+                <Download className="w-4 h-4" />
+              )}
               Import Trip
             </button>
             <button
@@ -456,6 +660,11 @@ export default function PhotoOrganizer() {
             </button>
           ))}
         </div>
+        {projectError && (
+          <div className="mx-6 mb-3 rounded-lg border border-red-800 bg-red-950/60 px-4 py-3 text-sm text-red-200">
+            {projectError}
+          </div>
+        )}
       </header>
 
       {/* Main Content */}
@@ -733,7 +942,57 @@ export default function PhotoOrganizer() {
         onComplete={handleOnboardingComplete}
         onDetect={handleDetect}
         onApply={handleApply}
+        recentProjects={recentProjects}
+        onSelectRecent={rootPath => {
+          setProjectError(null);
+          loadProject(rootPath);
+        }}
       />
+
+      {showOpenProject && (
+        <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-6">
+          <div className="bg-gray-900 rounded-lg max-w-lg w-full overflow-hidden border border-gray-800">
+            <div className="px-5 py-4 border-b border-gray-800 flex items-center justify-between">
+              <h2 className="text-lg font-semibold text-gray-100">Open Project</h2>
+              <button
+                onClick={() => setShowOpenProject(false)}
+                className="p-2 hover:bg-gray-800 rounded"
+                aria-label="Close open project dialog"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="px-5 py-4 space-y-3">
+              <label className="text-sm text-gray-400">Project root path</label>
+              <input
+                type="text"
+                value={openProjectPath}
+                onChange={e => setOpenProjectPath(e.target.value)}
+                placeholder="/Users/you/trips/iceland"
+                className="w-full rounded-lg border border-gray-700 bg-gray-950 px-3 py-2 text-sm text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+            <div className="px-5 py-4 border-t border-gray-800 flex justify-end gap-2">
+              <button
+                onClick={() => setShowOpenProject(false)}
+                className="px-4 py-2 rounded-lg bg-gray-800 text-gray-200 hover:bg-gray-700"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => {
+                  if (!openProjectPath.trim()) return;
+                  loadProject(openProjectPath.trim());
+                }}
+                className="px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-500 disabled:bg-gray-700 disabled:text-gray-400"
+                disabled={!openProjectPath.trim() || loadingProject}
+              >
+                {loadingProject ? 'Opening…' : 'Open'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
