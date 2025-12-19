@@ -1,6 +1,7 @@
-import React, { useRef, useState } from 'react';
+import React, { useState } from 'react';
 import { Camera, Plus } from 'lucide-react';
 import OnboardingModal, { FolderMapping, OnboardingState, RecentProject } from './OnboardingModal';
+import ProjectTile from './ui/ProjectTile';
 
 interface StartScreenProps {
   isOpen: boolean;
@@ -21,7 +22,6 @@ export default function StartScreen({
   onSetCover,
   recentProjects = [],
 }: StartScreenProps) {
-  const fileInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
   const [showOnboarding, setShowOnboarding] = useState(false);
 
   if (!isOpen) return null;
@@ -69,54 +69,12 @@ export default function StartScreen({
             </button>
 
             {recentProjects.map(p => (
-              <div
+              <ProjectTile
                 key={p.rootPath}
-                className="relative rounded-lg overflow-hidden border border-gray-800 bg-gray-950"
-              >
-                <button
-                  onClick={() => onOpenProject(p.rootPath)}
-                  className="w-full h-36 block text-left"
-                  aria-label={`Open project ${p.projectName}`}
-                >
-                  {p.coverUrl ? (
-                    <img
-                      src={p.coverUrl}
-                      alt={p.projectName}
-                      className="w-full h-36 object-cover"
-                    />
-                  ) : (
-                    <div className="w-full h-36 bg-gradient-to-br from-gray-800 to-gray-900 flex items-center justify-center text-sm text-gray-400">
-                      {p.projectName}
-                    </div>
-                  )}
-                </button>
-
-                <div className="p-3 flex items-center justify-between">
-                  <div className="text-sm font-medium truncate">{p.projectName}</div>
-                  <div className="flex items-center gap-2">
-                    <input
-                      ref={el => (fileInputRefs.current[p.rootPath] = el)}
-                      type="file"
-                      accept="image/*"
-                      className="hidden"
-                      onChange={e => {
-                        const file = e.target.files?.[0];
-                        if (file) {
-                          const url = URL.createObjectURL(file);
-                          onSetCover(p.rootPath, url);
-                        }
-                        e.currentTarget.value = '';
-                      }}
-                    />
-                    <button
-                      onClick={() => fileInputRefs.current[p.rootPath]?.click()}
-                      className="text-xs text-gray-400 hover:text-gray-200"
-                    >
-                      Change cover
-                    </button>
-                  </div>
-                </div>
-              </div>
+                project={p}
+                onOpen={onOpenProject}
+                onSetCover={onSetCover}
+              />
             ))}
           </div>
         </div>
