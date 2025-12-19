@@ -1,5 +1,6 @@
 import React from 'react';
-import { render, screen } from '@testing-library/react';
+import { render, screen, fireEvent } from '@testing-library/react';
+import { vi } from 'vitest';
 import OnboardingModal from '../OnboardingModal';
 
 describe('OnboardingModal accessibility (contrast-related helpers)', () => {
@@ -33,5 +34,33 @@ describe('OnboardingModal accessibility (contrast-related helpers)', () => {
     expect(nextBtn).toHaveAttribute('aria-disabled', 'true');
     // ensure our improved disabled class is present
     expect(nextBtn.className).toContain('disabled:bg-gray-200');
+  });
+
+  it('shows numbered step indicator and highlights preview as active after folder selection', async () => {
+    const onDetect = vi.fn(async () => []);
+    render(
+      <OnboardingModal
+        isOpen={true}
+        onClose={() => {}}
+        onComplete={() => {}}
+        onDetect={onDetect}
+        onApply={async () => ({ summary: '', changes: {} })}
+      />,
+    );
+
+    const nameInput = screen.getByPlaceholderText('e.g., Iceland Trip 2024');
+    fireEvent.change(nameInput, { target: { value: 'Test Trip' } });
+
+    const folderInput = screen.getByPlaceholderText('/Users/you/trips/iceland');
+    fireEvent.change(folderInput, { target: { value: '/tmp/test' } });
+
+    const nextBtn = screen.getByRole('button', { name: /Next/i });
+    fireEvent.click(nextBtn);
+
+    // after clicking Next, preview step should be active (aria-current="step")
+    const active = await screen.findByRole('region', { hidden: true }).catch(() => null);
+    const activeBubble = document.querySelector('[aria-current="step"]');
+    expect(activeBubble).toBeTruthy();
+    expect(activeBubble).toHaveTextContent('2');
   });
 });

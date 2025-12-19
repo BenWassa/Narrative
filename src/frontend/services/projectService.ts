@@ -10,6 +10,7 @@ export interface ProjectPhoto {
   rating: number;
   archived: boolean;
   thumbnail: string;
+  fileHandle?: any; // optional FileSystemFileHandle to allow in-place ops
   filePath?: string;
   metadata?: {
     camera?: string;

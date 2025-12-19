@@ -186,6 +186,46 @@ export default function OnboardingModal({
     }
   }, [mappings, onApply]);
 
+  // New: Apply with file system support or zip fallback
+  const handleApplyWithFS = useCallback(
+    async (dirHandle?: any) => {
+      setApplyInProgress(true);
+      setError(null);
+      try {
+        const items = mappings.filter(m => !m.skip).map(m => ({
+          originalName: m.folderPath.split('/').pop() || m.folder,
+          newName: m.suggestedName || m.folder,
+          day: m.detectedDay || 0,
+        }));
+
+        if (dirHandle) {
+          // in-place
+          await import('./services/fileSystemService').then(svc =>
+            svc.applyOrganizationInPlace(dirHandle, items, (done, total) => {
+              // TODO: hook up progress
+            }),
+          );
+        } else {
+          // fallback to zip
+          const { exportAsZip } = await import('./services/fileSystemService');
+          const blob = await exportAsZip(items as any);
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = `${projectName || 'project'}-organized.zip`;
+          a.click();
+        }
+
+        setStep('complete');
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to apply organization');
+      } finally {
+        setApplyInProgress(false);
+      }
+    },
+    [mappings, projectName],
+  );
+
   // Handle completion
   const handleComplete = useCallback(() => {
     onComplete({
@@ -230,46 +270,31 @@ export default function OnboardingModal({
                   <X size={20} />
                 </button>
               )}
+
+              {step === 'apply' && (
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={async () => {
+                      if ('showDirectoryPicker' in window) {
+                        // @ts-ignore
+                        const dirHandle = await (window as any).showDirectoryPicker();
+                        await handleApplyWithFS(dirHandle);
+                      } else {
+                        await handleApplyWithFS(undefined);
+                      }
+                    }}
+                    className="px-3 py-1 bg-sky-600 text-white rounded-md text-sm"
+                  >
+                    Apply and Organize
+                  </button>
+                </div>
+              )}
             </div>
           </div>
 
           {/* Step indicator */}
-          <div className="flex items-center gap-2 text-xs text-gray-500">
-            <div
-              className={`px-2 py-1 rounded ${
-                step === 'folder-select' ? 'bg-blue-50 text-blue-600' : 'bg-gray-50'
-              }`}
-            >
-              Folder
-            </div>
-            <div
-              className={`px-2 py-1 rounded ${
-                step === 'preview' ? 'bg-blue-50 text-blue-600' : 'bg-gray-50'
-              }`}
-            >
-              Preview
-            </div>
-            <div
-              className={`px-2 py-1 rounded ${
-                step === 'dry-run' ? 'bg-blue-50 text-blue-600' : 'bg-gray-50'
-              }`}
-            >
-              Dry-run
-            </div>
-            <div
-              className={`px-2 py-1 rounded ${
-                step === 'apply' ? 'bg-blue-50 text-blue-600' : 'bg-gray-50'
-              }`}
-            >
-              Apply
-            </div>
-            <div
-              className={`px-2 py-1 rounded ${
-                step === 'complete' ? 'bg-blue-50 text-blue-600' : 'bg-gray-50'
-              }`}
-            >
-              Complete
-            </div>
+          <div className="mt-2">
+            <StepIndicator steps={stepList} currentKey={step} />
           </div>
         </div>
 
