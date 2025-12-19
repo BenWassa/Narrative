@@ -8,6 +8,7 @@ import {
   CheckCircle,
   FolderOpen,
 } from 'lucide-react';
+import StepIndicator from './ui/StepIndicator';
 
 // Data structure for folder mapping
 export interface FolderMapping {
@@ -116,6 +117,14 @@ export default function OnboardingModal({
       setLoading(false);
     }
   }, [rootPath, projectName, onDetect]);
+
+  const stepList = [
+    { key: 'folder-select', label: 'Select folder' },
+    { key: 'preview', label: 'Preview' },
+    { key: 'dry-run', label: 'Dry run' },
+    { key: 'apply', label: 'Apply' },
+    { key: 'complete', label: 'Complete' },
+  ];
 
   // Step 2: Handle mapping edits
   const handleMappingChange = useCallback(
