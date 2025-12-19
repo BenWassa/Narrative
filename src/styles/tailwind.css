@@ -1,0 +1,7 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Minimal site styles */
+html,body,#root{height:100%}
+body{background:#0b1220;color:#e6eef8}

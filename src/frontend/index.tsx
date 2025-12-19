@@ -1,8 +1,11 @@
 import React from 'react';
 import { createRoot } from 'react-dom/client';
 import PhotoOrganizer from './PhotoOrganizer';
+import '../styles/tailwind.css';
 
 // Minimal entry; assumes a bundler / dev server will provide an element with id 'root'.
+export default PhotoOrganizer;
+
 const rootEl = document.getElementById('root');
 if (rootEl) {
   createRoot(rootEl).render(
@@ -10,9 +13,4 @@ if (rootEl) {
       <PhotoOrganizer />
     </React.StrictMode>
   );
-} else {
-  // For tests / SSR-like scenarios, export the component
-  // so it can be mounted by the environment.
-  // eslint-disable-next-line import/no-default-export
-  export default PhotoOrganizer;
 }

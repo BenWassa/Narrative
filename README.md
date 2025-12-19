@@ -10,6 +10,23 @@ Organize 1000+ travel photos in under an hour using keyboard-first MECE categori
 
 ---
 
+## Website (GitHub Pages)
+
+There is a lightweight static site in the `docs/` folder suitable for publishing with GitHub Pages (set Pages source to the `docs/` folder on the `main` branch). The site includes an index and links to the backend spec and design notes.
+
+### Frontend demo and publishing
+
+This repo includes a small Vite + React build that outputs a production site to `docs/site/` (so `docs/index.html` can remain a top-level docs landing page). To try locally and publish:
+
+1. Install dependencies: `npm install` (root)
+2. Run dev server: `npm run dev` (open `http://localhost:5173` by default)
+3. Build for production: `npm run build` — the built site will be placed in `docs/site/`
+4. Push to GitHub and ensure GitHub Pages is set to serve from the `docs/` folder on the `main` branch — the app will be available at `/site/` and the docs index will remain at the root of the `docs/` folder.
+
+If you'd rather deploy the app at the docs root (e.g., `docs/index.html`), I can change the Vite output to `docs/` (this will overwrite the current `docs/index.html`).
+
+---
+
 ## Why Narrative?
 
 After a trip, you have hundreds of photos. Some are establishing shots, some are people, some are details. You need them organized by day and ready for a slideshow or video montage.
