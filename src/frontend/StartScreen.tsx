@@ -38,21 +38,10 @@ export default function StartScreen({
 
             <div className="flex items-center gap-3">
               {onRunDemo && (
-                <button
-                  onClick={onRunDemo}
-                  className="text-sm text-gray-300 hover:text-gray-100"
-                  aria-label="Run demo"
-                >
+                <button onClick={onRunDemo} className="text-sm text-gray-300 hover:text-gray-100" aria-label="Run demo">
                   Demo
                 </button>
               )}
-              <button
-                onClick={onClose}
-                className="text-sm text-gray-400 hover:text-gray-200"
-                aria-label="Close welcome"
-              >
-                Dismiss
-              </button>
             </div>
           </div>
 
