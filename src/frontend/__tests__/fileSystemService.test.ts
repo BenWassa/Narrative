@@ -26,8 +26,13 @@ describe('fileSystemService', () => {
     const writes: Array<{ name: string; content: string }> = [];
 
     const createWritable = async () => ({
-      write: async (f: Blob) => {
-        const txt = await f.text();
+      write: async (f: any) => {
+        let txt = 'written';
+        if (f && typeof f.text === 'function') {
+          txt = await f.text();
+        } else if (f && typeof f === 'string') {
+          txt = f;
+        }
         writes.push({ name: 'unknown', content: txt });
       },
       close: async () => {},
