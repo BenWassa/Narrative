@@ -40,7 +40,10 @@ const VIEWS = ['inbox', 'days', 'favorites', 'archive', 'review'];
 export default function PhotoOrganizer() {
   const [photos, setPhotos] = useState(generateSamplePhotos());
   const [currentView, setCurrentView] = useState('inbox');
-  const [selectedPhoto, setSelectedPhoto] = useState(null);
+  // Support multi-selection: set of IDs, and a focused photo for keyboard actions
+  const [selectedPhotos, setSelectedPhotos] = useState(new Set());
+  const [focusedPhoto, setFocusedPhoto] = useState(null);
+  const [lastSelectedIndex, setLastSelectedIndex] = useState(null);
   const [fullscreenPhoto, setFullscreenPhoto] = useState(null);
   const [selectedDay, setSelectedDay] = useState(null);
   const [history, setHistory] = useState([]);
@@ -92,21 +95,27 @@ export default function PhotoOrganizer() {
     setPhotos(newPhotos);
   }, [history, historyIndex, photos]);
 
-  // Assign bucket to photo
-  const assignBucket = useCallback((photoId, bucket, dayNum = null) => {
+  // Assign bucket to one or many photos (accepts id or array of ids)
+  const assignBucket = useCallback((photoIds, bucket, dayNum = null) => {
+    const ids = Array.isArray(photoIds) ? photoIds : [photoIds];
+    // Keep counters per day+bucket to create sequences for bulk operations
+    const counters = {};
     const newPhotos = photos.map(photo => {
-      if (photo.id === photoId) {
+      if (ids.includes(photo.id)) {
         const day = dayNum || photo.day || Math.ceil((new Date(photo.timestamp).getDate()) / 1);
-        const sequence = photos.filter(p => p.day === day && p.bucket === bucket).length + 1;
-        const newName = bucket === 'X' 
-          ? photo.originalName 
-          : `D${String(day).padStart(2, '0')}_${bucket}_${String(sequence).padStart(3, '0')}__${photo.originalName}`;
-        
+        const key = `${day}_${bucket}`;
+        const existing = photos.filter(p => p.day === day && p.bucket === bucket).length;
+        const next = (counters[key] || existing) + 1;
+        counters[key] = next;
+        const newName = bucket === 'X'
+          ? photo.originalName
+          : `D${String(day).padStart(2, '0')}_${bucket}_${String(next).padStart(3, '0')}__${photo.originalName}`;
+
         return {
           ...photo,
           bucket,
           day,
-          sequence,
+          sequence: next,
           currentName: newName,
           archived: bucket === 'X'
         };
@@ -116,10 +125,11 @@ export default function PhotoOrganizer() {
     saveToHistory(newPhotos);
   }, [photos, saveToHistory]);
 
-  // Toggle favorite
-  const toggleFavorite = useCallback((photoId) => {
+  // Toggle favorite for a single or multiple photos
+  const toggleFavorite = useCallback((photoIds) => {
+    const ids = Array.isArray(photoIds) ? photoIds : [photoIds];
     const newPhotos = photos.map(photo => 
-      photo.id === photoId ? { ...photo, favorite: !photo.favorite } : photo
+      ids.includes(photo.id) ? { ...photo, favorite: !photo.favorite } : photo
     );
     saveToHistory(newPhotos);
   }, [photos, saveToHistory]);
@@ -154,42 +164,57 @@ export default function PhotoOrganizer() {
         return;
       }
 
-      if (!selectedPhoto) return;
+      // Determine primary target (focused photo or if a single selection exists)
+      const primaryId = focusedPhoto || (selectedPhotos.size === 1 ? Array.from(selectedPhotos)[0] : null);
+      if (!primaryId) return;
 
       // MECE bucket assignment
       const bucket = MECE_BUCKETS.find(b => b.key.toLowerCase() === e.key.toLowerCase());
       if (bucket) {
-        assignBucket(selectedPhoto, bucket.key);
-        // Move to next photo
-        const currentIndex = filteredPhotos.findIndex(p => p.id === selectedPhoto);
+        const targets = selectedPhotos.size > 0 ? Array.from(selectedPhotos) : [primaryId];
+        assignBucket(targets, bucket.key);
+        // Move focus to next photo in filteredPhotos
+        const currentIndex = filteredPhotos.findIndex(p => p.id === primaryId);
         if (currentIndex < filteredPhotos.length - 1) {
-          setSelectedPhoto(filteredPhotos[currentIndex + 1].id);
+          const nextId = filteredPhotos[currentIndex + 1].id;
+          setFocusedPhoto(nextId);
+          setSelectedPhotos(new Set([nextId]));
+          setLastSelectedIndex(currentIndex + 1);
         }
         return;
       }
 
       // Navigation
       if (e.key === 'ArrowRight') {
-        const currentIndex = filteredPhotos.findIndex(p => p.id === selectedPhoto);
+        const currentIndex = filteredPhotos.findIndex(p => p.id === primaryId);
         if (currentIndex < filteredPhotos.length - 1) {
-          setSelectedPhoto(filteredPhotos[currentIndex + 1].id);
+          const nextId = filteredPhotos[currentIndex + 1].id;
+          setFocusedPhoto(nextId);
+          setSelectedPhotos(new Set([nextId]));
+          setLastSelectedIndex(currentIndex + 1);
         }
       } else if (e.key === 'ArrowLeft') {
-        const currentIndex = filteredPhotos.findIndex(p => p.id === selectedPhoto);
+        const currentIndex = filteredPhotos.findIndex(p => p.id === primaryId);
         if (currentIndex > 0) {
-          setSelectedPhoto(filteredPhotos[currentIndex - 1].id);
+          const prevId = filteredPhotos[currentIndex - 1].id;
+          setFocusedPhoto(prevId);
+          setSelectedPhotos(new Set([prevId]));
+          setLastSelectedIndex(currentIndex - 1);
         }
       } else if (e.key === 'Enter' || e.key === ' ') {
         e.preventDefault();
-        setFullscreenPhoto(selectedPhoto);
+        setFullscreenPhoto(primaryId);
       } else if (e.key === 'Escape') {
         if (fullscreenPhoto) {
           setFullscreenPhoto(null);
         } else {
-          setSelectedPhoto(null);
+          setSelectedPhotos(new Set());
+          setFocusedPhoto(null);
+          setLastSelectedIndex(null);
         }
       } else if (e.key === 'f') {
-        toggleFavorite(selectedPhoto);
+        const targets = selectedPhotos.size > 0 ? Array.from(selectedPhotos) : [primaryId];
+        toggleFavorite(targets);
       } else if (e.key === 'z' && (e.metaKey || e.ctrlKey)) {
         e.preventDefault();
         if (e.shiftKey) {
@@ -202,7 +227,7 @@ export default function PhotoOrganizer() {
 
     window.addEventListener('keydown', handleKeyPress);
     return () => window.removeEventListener('keydown', handleKeyPress);
-  }, [selectedPhoto, filteredPhotos, assignBucket, toggleFavorite, undo, redo, showHelp, fullscreenPhoto]);
+  }, [selectedPhotos, focusedPhoto, filteredPhotos, assignBucket, toggleFavorite, undo, redo, showHelp, fullscreenPhoto]);
 
   // Stats
   const stats = React.useMemo(() => ({
@@ -212,6 +237,36 @@ export default function PhotoOrganizer() {
     archived: photos.filter(p => p.archived).length,
     favorites: photos.filter(p => p.favorite).length
   }), [photos]);
+
+  // Selection helpers
+  const handleSelectPhoto = useCallback((e, photoId, index) => {
+    // Shift-range selection
+    if (e.shiftKey && lastSelectedIndex !== null && lastSelectedIndex !== undefined) {
+      const start = Math.min(lastSelectedIndex, index);
+      const end = Math.max(lastSelectedIndex, index);
+      const rangeIds = filteredPhotos.slice(start, end + 1).map(p => p.id);
+      setSelectedPhotos(new Set(rangeIds));
+      setFocusedPhoto(photoId);
+      setLastSelectedIndex(index);
+      return;
+    }
+
+    // Cmd/Ctrl to toggle
+    if (e.metaKey || e.ctrlKey) {
+      const next = new Set(selectedPhotos);
+      if (next.has(photoId)) next.delete(photoId);
+      else next.add(photoId);
+      setSelectedPhotos(next);
+      setFocusedPhoto(photoId);
+      setLastSelectedIndex(index);
+      return;
+    }
+
+    // Regular click: single-select
+    setSelectedPhotos(new Set([photoId]));
+    setFocusedPhoto(photoId);
+    setLastSelectedIndex(index);
+  }, [selectedPhotos, lastSelectedIndex, filteredPhotos]);
 
   return (
     <div className="h-screen flex flex-col bg-gray-950 text-gray-100">
@@ -328,13 +383,17 @@ export default function PhotoOrganizer() {
               </div>
             ) : (
               <div className="grid grid-cols-4 gap-4">
-                {filteredPhotos.map(photo => (
+                {filteredPhotos.map((photo, idx) => (
                   <div
                     key={photo.id}
-                    onClick={() => setSelectedPhoto(photo.id)}
-                    onDoubleClick={() => setFullscreenPhoto(photo.id)}
+                    onClick={(e) => handleSelectPhoto(e, photo.id, idx)}
+                    onDoubleClick={() => {
+                      setFullscreenPhoto(photo.id);
+                      setSelectedPhotos(new Set([photo.id]));
+                      setFocusedPhoto(photo.id);
+                    }}
                     className={`relative group cursor-pointer rounded-lg overflow-hidden transition-all ${
-                      selectedPhoto === photo.id
+                      selectedPhotos.has(photo.id)
                         ? 'ring-4 ring-blue-500 scale-105'
                         : 'hover:ring-2 hover:ring-gray-600'
                     }`}
@@ -375,18 +434,24 @@ export default function PhotoOrganizer() {
         </main>
 
         {/* Right Panel - MECE Controls */}
-        {selectedPhoto && !fullscreenPhoto && (
+        {selectedPhotos.size > 0 && !fullscreenPhoto && (
           <aside className="w-80 border-l border-gray-800 bg-gray-900 overflow-y-auto">
             <div className="p-6">
               <div className="mb-6">
-                <img
-                  src={photos.find(p => p.id === selectedPhoto)?.thumbnail}
-                  alt="Selected"
-                  className="w-full rounded-lg"
-                />
-                <p className="mt-2 text-xs text-gray-400 font-mono break-all">
-                  {photos.find(p => p.id === selectedPhoto)?.currentName}
-                </p>
+                {selectedPhotos.size === 1 ? (
+                  <>
+                    <img
+                      src={photos.find(p => p.id === Array.from(selectedPhotos)[0])?.thumbnail}
+                      alt="Selected"
+                      className="w-full rounded-lg"
+                    />
+                    <p className="mt-2 text-xs text-gray-400 font-mono break-all">
+                      {photos.find(p => p.id === Array.from(selectedPhotos)[0])?.currentName}
+                    </p>
+                  </>
+                ) : (
+                  <div className="text-sm text-gray-300">{selectedPhotos.size} selected</div>
+                )}
               </div>
 
               <div className="space-y-2 mb-6">
@@ -394,7 +459,7 @@ export default function PhotoOrganizer() {
                 {MECE_BUCKETS.map(bucket => (
                   <button
                     key={bucket.key}
-                    onClick={() => assignBucket(selectedPhoto, bucket.key)}
+                    onClick={() => assignBucket(Array.from(selectedPhotos), bucket.key)}
                     className={`w-full text-left px-4 py-3 rounded-lg transition-all ${bucket.color} hover:brightness-110 text-white`}
                   >
                     <div className="flex items-center justify-between">
@@ -410,15 +475,16 @@ export default function PhotoOrganizer() {
 
               <div className="space-y-3 pt-6 border-t border-gray-800">
                 <button
-                  onClick={() => toggleFavorite(selectedPhoto)}
+                  onClick={() => toggleFavorite(Array.from(selectedPhotos))}
                   className={`w-full px-4 py-2 rounded-lg flex items-center gap-2 transition-colors ${
-                    photos.find(p => p.id === selectedPhoto)?.favorite
+                    // when single selection, reflect actual favorite state; otherwise neutral
+                    (selectedPhotos.size === 1 && photos.find(p => p.id === Array.from(selectedPhotos)[0])?.favorite)
                       ? 'bg-yellow-600 hover:bg-yellow-700'
                       : 'bg-gray-800 hover:bg-gray-700'
                   }`}
                 >
                   <Heart className={`w-4 h-4 ${
-                    photos.find(p => p.id === selectedPhoto)?.favorite ? 'fill-current' : ''
+                    (selectedPhotos.size === 1 && photos.find(p => p.id === Array.from(selectedPhotos)[0])?.favorite) ? 'fill-current' : ''
                   }`} />
                   Toggle Favorite (F)
                 </button>
