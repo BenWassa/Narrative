@@ -906,22 +906,28 @@ export default function PhotoOrganizer() {
       setLoadingMessage('Initializing project...');
       setProjectError(null);
       try {
-        setLoadingProgress(20);
-        setLoadingMessage('Scanning folder structure...');
+        setLoadingProgress(5);
+        setLoadingMessage('Requesting folder access...');
         const initResult = await initProject({
           dirHandle: state.dirHandle,
           projectName: state.projectName,
           rootLabel: state.rootPath,
+          onProgress: (progress, message) => {
+            // Map initProject progress (0-95) to 5-80 range in overall progress
+            const mappedProgress = 5 + progress * 0.789; // 0.789 = 80/95 approximately
+            setLoadingProgress(mappedProgress);
+            setLoadingMessage(message);
+          },
         });
 
-        setLoadingProgress(40);
-        setLoadingMessage('Analyzing photos...');
+        setLoadingProgress(80);
+        setLoadingMessage('Processing photo organization...');
         const hydratedPhotos = state.mappings?.length
           ? applyFolderMappings(initResult.photos, state.mappings)
           : applySuggestedDays(initResult.photos, initResult.suggestedDays);
 
-        setLoadingProgress(60);
-        setLoadingMessage('Organizing by days...');
+        setLoadingProgress(85);
+        setLoadingMessage('Setting up day containers...');
         const selectedDayContainers = (state.mappings || [])
           .filter((m: any) => !m.skip)
           .map((m: any) => m.folder);
@@ -935,8 +941,8 @@ export default function PhotoOrganizer() {
           dayContainers: selectedDayContainers,
         };
 
-        setLoadingProgress(75);
-        setLoadingMessage('Saving project...');
+        setLoadingProgress(90);
+        setLoadingMessage('Saving project state...');
         setPhotos(hydratedPhotos);
         setProjectName(nextProjectName);
         setProjectRootPath(nextProjectId);
@@ -955,8 +961,8 @@ export default function PhotoOrganizer() {
         setShowWelcome(false);
         safeLocalStorage.set(ACTIVE_PROJECT_KEY, nextProjectId);
 
-        setLoadingProgress(90);
-        setLoadingMessage('Finalizing...');
+        setLoadingProgress(95);
+        setLoadingMessage('Updating recent projects...');
         updateRecentProjects({
           projectName: nextProjectName,
           projectId: nextProjectId,
@@ -965,6 +971,8 @@ export default function PhotoOrganizer() {
           totalPhotos: hydratedPhotos.length,
         });
 
+        setLoadingProgress(98);
+        setLoadingMessage('Finalizing project...');
         await saveState(nextProjectId, nextState);
         // Hide the welcome view after successfully creating a project
         setShowWelcome(false);

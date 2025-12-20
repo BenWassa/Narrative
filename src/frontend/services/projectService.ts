@@ -329,6 +329,7 @@ export async function heicToBlob(file: File): Promise<Blob> {
 
 async function buildPhotosFromHandle(
   dirHandle: FileSystemDirectoryHandle,
+  onProgress?: (progress: number, message: string) => void,
 ): Promise<ProjectPhoto[]> {
   const files = await collectFiles(dirHandle);
   const photos: ProjectPhoto[] = [];
@@ -336,7 +337,11 @@ async function buildPhotosFromHandle(
   // (same file copied/symlinked to multiple locations)
   const seenFiles = new Set<string>();
 
-  for (const entry of files) {
+  for (let i = 0; i < files.length; i++) {
+    const entry = files[i];
+    const progress = Math.round(((i + 1) / files.length) * 100);
+    onProgress?.(progress, `Processing ${entry.handle.name}...`);
+
     const file = await entry.handle.getFile();
     const timestamp = file.lastModified;
     const originalName = file.name;
@@ -481,19 +486,31 @@ export async function initProject(options: {
   dirHandle: FileSystemDirectoryHandle;
   projectName?: string;
   rootLabel?: string;
+  onProgress?: (progress: number, message: string) => void;
 }): Promise<ProjectInitResponse> {
-  const { dirHandle, projectName, rootLabel } = options;
+  const { dirHandle, projectName, rootLabel, onProgress } = options;
   const permission = await dirHandle.requestPermission({ mode: 'read' });
   if (permission !== 'granted') {
     throw new Error('Folder access was not granted.');
   }
+
+  onProgress?.(5, 'Scanning folder structure...');
   const projectId = generateId();
+
+  onProgress?.(10, 'Collecting image files...');
   const photos = applyArchiveFolder(
-    await buildPhotosFromHandle(dirHandle),
+    await buildPhotosFromHandle(dirHandle, (progress, message) => {
+      // Map file processing progress (0-100) to 10-70 range
+      const mappedProgress = 10 + progress * 0.6;
+      onProgress?.(mappedProgress, message);
+    }),
     DEFAULT_SETTINGS.folderStructure.archiveFolder,
   );
+
+  onProgress?.(75, 'Analyzing photo timestamps...');
   const suggestedDays = clusterPhotosByTime(photos);
 
+  onProgress?.(85, 'Saving project data...');
   const state: ProjectState = {
     projectName: projectName?.trim() || dirHandle.name,
     rootPath: rootLabel || dirHandle.name,
@@ -505,6 +522,7 @@ export async function initProject(options: {
   await saveHandle(projectId, dirHandle);
   safeLocalStorage.set(`${STATE_PREFIX}${projectId}`, JSON.stringify(serializeState(state)));
 
+  onProgress?.(95, 'Project initialized successfully');
   return { projectId, photos, suggestedDays };
 }
 
