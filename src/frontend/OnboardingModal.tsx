@@ -9,6 +9,7 @@ import {
   FolderOpen,
 } from 'lucide-react';
 import StepIndicator from './ui/StepIndicator';
+import { detectFolderStructure, generateDryRunSummary } from '../services/folderDetectionService';
 
 // Data structure for folder mapping
 export interface FolderMapping {
@@ -89,6 +90,20 @@ export default function OnboardingModal({
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const fileInputRef = React.useRef<HTMLInputElement | null>(null);
+  const selectedFilesRef = React.useRef<FileList | null>(null);
+  const derivedSelectionRef = React.useRef<{
+    photoCountMap: Map<string, number>;
+    folders: string[];
+  } | null>(null);
+  const [detectionDebug, setDetectionDebug] = useState<string[]>([]);
+  const [showDebug, setShowDebug] = useState(false);
+
+  const pushDebug = useCallback((...parts: any[]) => {
+    const msg = parts.map(p => (typeof p === 'string' ? p : JSON.stringify(p))).join(' ');
+    // eslint-disable-next-line no-console
+    console.debug('[Onboarding][detect]', msg);
+    setDetectionDebug(prev => [...prev.slice(-20), `${new Date().toISOString()} ${msg}`]);
+  }, []);
 
   // Step 1: Handle folder selection
   const handleFolderSelect = useCallback(async () => {
@@ -105,12 +120,49 @@ export default function OnboardingModal({
     setError(null);
 
     try {
-      if (onDetect) {
-        const detected = await onDetect(rootPath);
-        setMappings(detected);
+      pushDebug('handleFolderSelect called', { rootPath, projectName, selectedFiles: selectedFilesRef.current?.length ?? 0 });
+      // If the user selected a folder via the hidden directory input, we can derive folder names
+      // and photo counts directly from the FileList (webkitRelativePath). This helps the preview
+      // work without needing an external detection service.
+      // Prefer an already-derived selection (persisted at file selection time) instead of relying on FileList
+      const derived = derivedSelectionRef.current;
+      if (derived && derived.folders.length > 0) {
+        pushDebug('Using derived selection for detection', { rootPath, derivedFolders: derived.folders, photoCounts: Array.from(derived.photoCountMap.entries()) });
+        const detected = detectFolderStructure(derived.folders, { photoCountMap: derived.photoCountMap, projectName });
+        // default to skipping undetected folders unless user includes them
+        const withSkips = detected.map(m => ({ ...m, skip: m.confidence === 'undetected' ? true : m.skip ?? false }));
+        pushDebug('detectFolderStructure returned', detected.length, detected.map(d => ({ folder: d.folder, detectedDay: d.detectedDay })));
+        setMappings(withSkips);
       } else {
-        // Fallback: return empty mappings (will be handled in preview)
-        setMappings([]);
+        const files = selectedFilesRef.current;
+        if (files && files.length > 0) {
+          const photoCountMap = new Map<string, number>();
+          for (let i = 0; i < files.length; i++) {
+            const f = files[i] as File & { webkitRelativePath?: string };
+            const rel = f.webkitRelativePath || f.name;
+            const parts = rel.split('/');
+            const folder = parts.length > 1 ? parts[0] : rel;
+            const ext = f.name.split('.').pop()?.toLowerCase() || '';
+            if (!['jpg', 'jpeg', 'png', 'heic'].includes(ext)) continue;
+            photoCountMap.set(folder, (photoCountMap.get(folder) || 0) + 1);
+          }
+          const folders = Array.from(photoCountMap.keys());
+          pushDebug('Derived folders from directory input for', rootPath, folders.length, folders, 'photoCounts', Array.from(photoCountMap.entries()));
+          const detected = detectFolderStructure(folders, { photoCountMap, projectName: projectName });
+          // default to skipping undetected folders unless user includes them
+          const withSkips = detected.map(m => ({ ...m, skip: m.confidence === 'undetected' ? true : m.skip ?? false }));
+          pushDebug('detectFolderStructure returned', detected.length, detected.map(d => ({ folder: d.folder, detectedDay: d.detectedDay })));
+          setMappings(withSkips);
+        } else if (onDetect) {
+          const detected = await onDetect(rootPath);
+          // helpful debug for developers when detection yields nothing
+          pushDebug('onDetect result for', rootPath, detected?.length ?? 0, detected?.slice(0, 6));
+          const withSkips = detected.map(m => ({ ...m, skip: m.confidence === 'undetected' ? true : m.skip ?? false }));
+          setMappings(withSkips);
+        } else {
+          // Fallback: return empty mappings (will be handled in preview)
+          setMappings([]);
+        }
       }
       setStep('preview');
     } catch (err) {
@@ -159,6 +211,10 @@ export default function OnboardingModal({
           true, // dryRun = true
         );
         setDryRunSummary(result);
+      } else {
+        // Generate a client-side dry-run summary so the feature is always available
+        const summary = generateDryRunSummary(mappings.filter(m => !m.skip));
+        setDryRunSummary({ summary, changes: {} });
       }
       setStep('dry-run');
     } catch (err) {
@@ -279,7 +335,7 @@ export default function OnboardingModal({
               )}
 
               {step === 'apply' && (
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-4">
                   <div className="flex items-center gap-2">
                     <label className="text-sm text-gray-500">Mode:</label>
                     <select
@@ -292,20 +348,23 @@ export default function OnboardingModal({
                     </select>
                   </div>
 
-                  <button
-                    onClick={async () => {
-                      if ('showDirectoryPicker' in window) {
-                        // @ts-ignore
-                        const dirHandle = await (window as any).showDirectoryPicker();
-                        await handleApplyWithFS(dirHandle);
-                      } else {
-                        await handleApplyWithFS(undefined);
-                      }
-                    }}
-                    className="px-3 py-1 bg-sky-600 text-white rounded-md text-sm"
-                  >
-                    Apply and Organize
-                  </button>
+                  <div className="flex flex-col items-end">
+                    <button
+                      onClick={async () => {
+                        if ('showDirectoryPicker' in window) {
+                          // @ts-ignore
+                          const dirHandle = await (window as any).showDirectoryPicker();
+                          await handleApplyWithFS(dirHandle);
+                        } else {
+                          await handleApplyWithFS(undefined);
+                        }
+                      }}
+                      className="px-3 py-1 bg-sky-600 text-white rounded-md text-sm"
+                    >
+                      Apply and Organize
+                    </button>
+                    <div className="text-xs text-gray-500 mt-2">Default mode: Copy — originals are kept. Change mode in the header before applying.</div>
+                  </div>
                 </div>
               )}
             </div>
@@ -386,12 +445,31 @@ export default function OnboardingModal({
                     onChange={e => {
                       const files = e.currentTarget.files;
                       if (!files || files.length === 0) return;
-                      // Derive selected folder from webkitRelativePath if available
+                      selectedFilesRef.current = files;
+                      // log small sample of selected files for debugging
+                      const sample: string[] = [];
+                      const photoCountMap = new Map<string, number>();
+                      for (let i = 0; i < files.length; i++) {
+                        const f = files[i] as File & { webkitRelativePath?: string };
+                        const rel = f.webkitRelativePath || f.name;
+                        sample.push(rel);
+                        const parts = rel.split('/');
+                        // use the immediate child under the root (e.g., 'Day1' from 'Root/Day1/file.jpg')
+                        // Use the immediate child under the selected root (parts[1]) when present
+                        const folder = parts.length > 1 ? parts[1] : rel;
+                        const ext = f.name.split('.').pop()?.toLowerCase() || '';
+                        if (!['jpg', 'jpeg', 'png', 'heic'].includes(ext)) continue;
+                        photoCountMap.set(folder, (photoCountMap.get(folder) || 0) + 1);
+                      }
+                      derivedSelectionRef.current = { photoCountMap, folders: Array.from(photoCountMap.keys()) };
+                      pushDebug('Directory input selected', files.length, 'files; sample:', sample.slice(0, 5), 'derivedFolders', Array.from(photoCountMap.entries()));
+
+                      // Derive selected folder name for the text field if available
                       const first = files[0] as File & { webkitRelativePath?: string };
-                      const rel = first.webkitRelativePath;
-                      const folder = rel ? rel.split('/')[0] : first.name;
+                      const rel = first.webkitRelativePath || first.name;
+                      const folder = rel.split('/')[0];
                       setRootPath(folder);
-                      // reset to allow reselecting same folder
+                      // reset file input so same folder can be reselected — but keep derivedSelectionRef
                       e.currentTarget.value = '';
                     }}
                   />
@@ -445,10 +523,65 @@ export default function OnboardingModal({
           {/* Step 2: Preview & Edit */}
           {step === 'preview' && (
             <div className="space-y-4">
-              <p className="text-sm text-gray-600">
-                Detected folder structure for {projectName}. You can edit the day numbers, skip
-                folders, or make other adjustments below.
-              </p>
+              <div className="rounded-lg border border-gray-200 bg-gray-50 p-4">
+                <p className="text-sm text-gray-700 font-medium">Review suggested mappings</p>
+                <p className="text-sm text-gray-600 mt-1">
+                  The preview shows how folders will be organized into days and the filenames that will be created.
+                  Please review each mapping and optionally edit the day number, skip folders you don't want to include,
+                  or rename suggested filenames.
+                </p>
+                {rootPath && (
+                  <div className="flex items-center justify-between mt-2">
+                    <p className="text-sm text-gray-500">Detected folder structure for <strong>{rootPath}</strong></p>
+                    {mappings.length > 0 ? (
+                      <p className="text-sm text-gray-500">{mappings.length} folders detected: {mappings.map(m => m.folder).join(', ')}</p>
+                    ) : (
+                      <div className="flex items-center gap-2">
+                        <p className="text-sm text-gray-500">No folders detected yet.</p>
+                        <button
+                          onClick={() => {
+                            // Load an example detection locally so users can see the preview
+                            const exampleFolders = ['Day 1', 'Day 2', 'Day 3', 'MiscFolder'];
+                            const photoCountMap = new Map([
+                              ['Day 1', 2],
+                              ['Day 2', 3],
+                              ['Day 3', 2],
+                              ['MiscFolder', 1],
+                            ]);
+                            const example = detectFolderStructure(exampleFolders, { photoCountMap });
+                            pushDebug('Loaded example mappings', example.map(e => e.folder));
+                            setMappings(example);
+                          }}
+                          className="px-3 py-1 bg-gray-100 text-gray-700 rounded-md text-sm hover:bg-gray-200"
+                        >
+                          Load example mappings
+                        </button>
+                        <button
+                          onClick={() => setShowDebug(prev => !prev)}
+                          className="px-3 py-1 bg-white text-gray-700 border rounded-md text-sm hover:bg-gray-50"
+                        >
+                          {showDebug ? 'Hide detection debug' : 'Show detection debug'}
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )}
+                {showDebug && detectionDebug.length > 0 && (
+                  <div className="mt-3 p-3 bg-gray-100 rounded text-xs text-gray-700 font-mono">
+                    {detectionDebug.map((d, i) => (
+                      // eslint-disable-next-line react/no-array-index-key
+                      <div key={i}>{d}</div>
+                    ))}
+                  </div>
+                )}
+
+                <ul className="mt-3 text-sm text-gray-600 list-disc list-inside space-y-1">
+                  <li><strong>Step 1:</strong> Inspect the detected folder names and counts.</li>
+                  <li><strong>Step 2:</strong> Edit day numbers or mark folders to <em>skip</em> if needed.</li>
+                  <li><strong>Step 3:</strong> Use <em>Export script</em> or <em>Export ZIP</em> to test locally, or click <em>Apply</em> to perform the reorganization.</li>
+                </ul>
+              </div>
+
 
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
@@ -501,19 +634,41 @@ export default function OnboardingModal({
                           </span>
                         </td>
                         <td className="px-3 py-3 text-center">
-                          <button
-                            onClick={() => handleMappingChange(idx, 'skip', !mapping.skip)}
-                            className={`px-3 py-1 rounded text-sm font-medium ${
-                              mapping.skip
-                                ? 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-                                : 'bg-blue-100 text-blue-700 hover:bg-blue-200'
-                            }`}
-                          >
-                            {mapping.skip ? 'Skip' : 'Map'}
-                          </button>
+                          {mapping.confidence === 'undetected' ? (
+                            <div className="flex items-center justify-center gap-2">
+                              <span className="text-sm text-gray-500">-</span>
+                              <button
+                                onClick={() => handleMappingChange(idx, 'skip', false)}
+                                className="px-2 py-1 bg-blue-100 text-blue-700 rounded text-xs"
+                              >
+                                Include
+                              </button>
+                            </div>
+                          ) : (
+                            <button
+                              onClick={() => handleMappingChange(idx, 'skip', !mapping.skip)}
+                              className={`px-3 py-1 rounded text-sm font-medium ${
+                                mapping.skip
+                                  ? 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                                  : 'bg-blue-100 text-blue-700 hover:bg-blue-200'
+                              }`}
+                            >
+                              {mapping.skip ? 'Skip' : 'Map'}
+                            </button>
+                          )}
                         </td>
                       </tr>
                     ))}
+                    {/* If detection returned no mappings, show a friendly hint */}
+                    {mappings.length === 0 && (
+                      <tr>
+                        <td colSpan={5} className="px-3 py-4 text-sm text-gray-600 text-center">
+                          No subfolders detected in the selected folder. Ensure the folder contains
+                          subfolders with photos (or use the Browse button to select a directory),
+                          then click Next again.
+                        </td>
+                      </tr>
+                    )}
                   </tbody>
                 </table>
               </div>
@@ -535,25 +690,81 @@ export default function OnboardingModal({
 
           {/* Step 3: Dry-Run Preview */}
           {step === 'dry-run' && dryRunSummary && (
-            <div className="space-y-4">
-              <p className="text-sm text-gray-600">
-                This preview shows what WILL happen if you apply these changes:
-              </p>
+              <div className="space-y-4">
+                <p className="text-sm text-gray-600">
+                  This preview shows what WILL happen if you apply these changes:
+                </p>
 
-              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 space-y-3">
-                <pre className="text-xs whitespace-pre-wrap text-gray-700 font-mono">
-                  {dryRunSummary.summary}
-                </pre>
-              </div>
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 space-y-3">
+                  <pre className="text-xs whitespace-pre-wrap text-gray-700 font-mono">
+                    {dryRunSummary.summary}
+                  </pre>
+                </div>
 
-              <div className="flex items-start gap-2 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
-                <AlertCircle size={18} className="text-yellow-700 flex-shrink-0 mt-0.5" />
-                <span className="text-sm text-yellow-800">
-                  ⚠ All changes are REVERSIBLE (undo available with Cmd+Z)
-                </span>
+                <div className="rounded-lg border border-gray-200 bg-white p-4">
+                  <p className="text-sm font-medium text-gray-700">Predicted folder structure</p>
+                  <ul className="mt-2 text-sm text-gray-700 list-inside space-y-1">
+                    {mappings
+                      .filter(m => !m.skip)
+                      .map((m, idx) => (
+                        <li key={idx}>
+                          <strong>{m.suggestedName}</strong>: {m.photoCount} photo{m.photoCount !== 1 ? 's' : ''} — from <em>{m.folder}</em>
+                        </li>
+                      ))}
+                  </ul>
+
+                  <div className="mt-3 flex items-center gap-2">
+                    <button
+                      onClick={async () => {
+                        const items = mappings.filter(m => !m.skip).map(m => ({
+                          originalName: m.folderPath.split('/').pop() || m.folder,
+                          newName: m.suggestedName || m.folder,
+                          day: m.detectedDay || 0,
+                        }));
+                        const { generateShellScript } = await import('./services/fileSystemService');
+                        const script = generateShellScript(items as any, { move: false });
+                        const blob = new Blob([script], { type: 'text/x-shellscript' });
+                        const url = URL.createObjectURL(blob);
+                        const a = document.createElement('a');
+                        a.href = url;
+                        a.download = `${projectName || 'project'}-organize.sh`;
+                        a.click();
+                      }}
+                      className="px-3 py-1 bg-gray-100 text-gray-700 rounded-md text-sm hover:bg-gray-200"
+                    >
+                      Export organize script
+                    </button>
+
+                    <button
+                      onClick={async () => {
+                        const items = mappings.filter(m => !m.skip).map(m => ({
+                          originalName: m.folderPath.split('/').pop() || m.folder,
+                          newName: m.suggestedName || m.folder,
+                          day: m.detectedDay || 0,
+                        }));
+                        const { exportAsZip } = await import('./services/fileSystemService');
+                        const blob = await exportAsZip(items as any);
+                        const url = URL.createObjectURL(blob);
+                        const a = document.createElement('a');
+                        a.href = url;
+                        a.download = `${projectName || 'project'}-organized.zip`;
+                        a.click();
+                      }}
+                      className="px-3 py-1 bg-gray-100 text-gray-700 rounded-md text-sm hover:bg-gray-200"
+                    >
+                      Export ZIP (dry-run)
+                    </button>
+                  </div>
+                </div>
+
+                <div className="flex items-start gap-2 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                  <AlertCircle size={18} className="text-yellow-700 flex-shrink-0 mt-0.5" />
+                  <span className="text-sm text-yellow-800">
+                    ⚠ This dry-run summary is generated locally; run the Export script or ZIP to test changes on your machine or click Apply to perform these changes.
+                  </span>
+                </div>
               </div>
-            </div>
-          )}
+            )}
 
           {/* Step 4: Apply Progress */}
           {step === 'apply' && (
@@ -646,6 +857,7 @@ export default function OnboardingModal({
                   Cancel
                 </button>
                 <div className="flex items-center gap-2">
+                  <div className="text-xs text-gray-500 mr-4 hidden sm:block">Default mode: Copy — originals are kept.</div>
                   <button
                     onClick={() => {
                       if (dryRunMode) {
