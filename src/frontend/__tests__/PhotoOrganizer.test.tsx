@@ -164,18 +164,25 @@ test('folder quick actions: select all and assign folder to day', async () => {
   fireEvent.click(foldersTab3);
 
   const folderA = await screen.findByText('FolderA');
-  // Select all in folder
-  const selectBtn = within(folderA.parentElement!).getByRole('button', { name: /Select all photos in FolderA/i });
-  fireEvent.click(selectBtn);
-
-  // Right panel should show 4 selected
-  expect(await screen.findByText(/4 selected/i)).toBeTruthy();
-
-  // Assign folder to a day (this will create a new day)
-  const assignBtn = within(folderA.parentElement!).getByRole('button', { name: /Assign all photos in FolderA to day/i });
-  fireEvent.click(assignBtn);
+  // Quick action buttons removed — ensure they are not present
+  expect(within(folderA.parentElement!).queryByRole('button', { name: /Select all photos in FolderA/i })).toBeNull();
+  expect(within(folderA.parentElement!).queryByRole('button', { name: /Assign all photos in FolderA to day/i })).toBeNull();
 
   // Day entries appear in the Folders sidebar; find Day 03 and open it
+  // Open FolderA and select all photos (shift-select range), then create a new day via the contextual Assign control
+  fireEvent.click(folderA);
+  const imgsInFolder = await screen.findAllByRole('img');
+  expect(imgsInFolder.length).toBeGreaterThanOrEqual(4);
+  const first = await screen.findByTestId('photo-photo_1');
+  const fourth = await screen.findByTestId('photo-photo_4');
+  fireEvent.click(first);
+  fireEvent.click(fourth, { shiftKey: true });
+
+  // Choose 'Create new day' from the Assign select
+  const assignSelect = await screen.findByRole('combobox', { name: /Assign to.../i });
+  fireEvent.change(assignSelect, { target: { value: 'new' } });
+
+  // New day should be created (Day 03) and show at least the photos we assigned
   const dayButton = await screen.findByRole('button', { name: /Day 03/i });
   fireEvent.click(dayButton);
   const imgs = await screen.findAllByRole('img');
@@ -185,8 +192,9 @@ test('folder quick actions: select all and assign folder to day', async () => {
   const foldersTab4 = await screen.findByRole('button', { name: /Folders/i });
   fireEvent.click(foldersTab4);
   const updatedFolderA = await screen.findByText('FolderA');
-  const updatedAssignBtn = within(updatedFolderA.parentElement!).getByRole('button', { name: /Assign all photos in FolderA to day/i });
-  expect(updatedAssignBtn).toBeDisabled();
+  // FolderA should have no unsorted photos left
+  const folderContainer = updatedFolderA.closest('[role="button"]');
+  expect(folderContainer).toHaveTextContent(/0\s+unsorted/);
 });
 
 test('handles localStorage failures gracefully when updating recents', async () => {

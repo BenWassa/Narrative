@@ -365,18 +365,7 @@ export default function PhotoOrganizer() {
   }, [history, historyIndex, persistState]);
 
   // Folder quick actions (defined after saveToHistory to avoid TDZ)
-  const selectFolderPhotos = useCallback((folder: string) => {
-    const ids = photos.filter(p => ((p.filePath || p.originalName).split('/')[0] || '(root)') === folder).map(p => p.id);
-    setSelectedPhotos(new Set(ids));
-    if (ids.length > 0) setFocusedPhoto(ids[0]);
-  }, [photos]);
-
-  const assignFolderToDay = useCallback((folder: string) => {
-    const day = selectedDay ?? ((photos.reduce((max, p) => (p.day && p.day > max ? p.day : max), 0) || 0) + 1);
-    const ids = photos.filter(p => ((p.filePath || p.originalName).split('/')[0] || '(root)') === folder).map(p => p.id);
-    const newPhotos = photos.map(p => (ids.includes(p.id) ? { ...p, day } : p));
-    saveToHistory(newPhotos);
-  }, [photos, selectedDay, saveToHistory]);
+  // folder-level quick actions removed: selection and bulk assign are handled via contextual selection
 
   const handleOnboardingComplete = useCallback(
     async (state: OnboardingState) => {
@@ -934,27 +923,7 @@ export default function PhotoOrganizer() {
                     <div className="flex items-center justify-between">
                       <div className="font-medium">{folder}</div>
                       <div className="flex gap-2">
-                        <button
-                          onClick={e => {
-                            e.stopPropagation();
-                            selectFolderPhotos(folder);
-                          }}
-                          className="px-2 py-1 rounded bg-gray-800 text-xs"
-                          aria-label={`Select all photos in ${folder}`}
-                        >
-                          Select
-                        </button>
-                        <button
-                          onClick={e => {
-                            e.stopPropagation();
-                            assignFolderToDay(folder);
-                          }}
-                          className={`px-2 py-1 rounded text-xs ${items.every(p => p.day !== null) ? 'bg-gray-700 text-gray-400 cursor-not-allowed' : 'bg-green-700'}`}
-                          aria-label={`Assign all photos in ${folder} to day`}
-                          disabled={items.every(p => p.day !== null)}
-                        >
-                          Assign
-                        </button>
+                        {/* Quick actions removed: selection and folder-assign moved to contextual workflows */}
                       </div>
                     </div>
                     <div className="text-xs opacity-70">{items.length} photos ({items.filter(p => p.day === null).length} unsorted)</div>
@@ -1128,6 +1097,7 @@ export default function PhotoOrganizer() {
                 <h3 className="text-sm font-semibold text-gray-300 mb-3">Assign Day</h3>
                 <div className="flex gap-2 items-center">
                   <select
+                    aria-label="Assign to..."
                     onChange={e => {
                       const val = e.target.value;
                       if (!val) return;
