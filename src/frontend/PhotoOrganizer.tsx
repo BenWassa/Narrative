@@ -711,17 +711,30 @@ export default function PhotoOrganizer() {
           <div className="flex items-center gap-3 px-6 py-2">
             {(() => {
               // Determine the current step for the header stepper
-              // - Organize: any non-review view used for organizing photos (folders, days, favorites, archive)
-              // - Review: explicit review view
-              // - Export: when the export script modal is open
+              // map to an index so we can show completed/active/inactive states
               const step = showExportScript ? 'export' : currentView === 'review' ? 'review' : 'organize';
+              const activeIndex = step === 'export' ? 3 : step === 'review' ? 2 : 1;
+              const steps = ['Import', 'Organize', 'Review', 'Export'];
               return (
-                <div className="flex items-center gap-2 text-xs text-gray-400">
-                  <div className={`px-2 py-1 rounded ${step === 'organize' ? 'bg-blue-700 text-white' : 'bg-gray-800'}`}>Import</div>
-                  <div className={`px-2 py-1 rounded ${step === 'organize' ? 'bg-blue-700 text-white' : 'bg-gray-800'}`}>Organize</div>
-                  <div className={`px-2 py-1 rounded ${step === 'review' ? 'bg-blue-700 text-white' : 'bg-gray-800'}`}>Review</div>
-                  <div className={`px-2 py-1 rounded ${step === 'export' ? 'bg-blue-700 text-white' : 'bg-gray-800'}`}>Export</div>
-                </div>
+                <nav aria-label="Progress" className="flex items-center w-full">
+                  {steps.map((label, i) => (
+                    <div key={label} className="flex items-center flex-1">
+                      <div className="flex flex-col items-center w-full">
+                        <div
+                          aria-hidden="true"
+                          className={`w-6 h-6 flex items-center justify-center rounded-full text-xs font-bold ${
+                            i < activeIndex ? 'bg-blue-600 text-white' : i === activeIndex ? 'bg-blue-700 text-white' : 'border border-gray-700 text-gray-400 bg-transparent'
+                          }`}
+                        >
+                          {i + 1}
+                        </div>
+                        <div className="text-xs text-gray-400 mt-1">{label}</div>
+                      </div>
+
+                      {i < steps.length - 1 && <div aria-hidden="true" className="flex-1 h-px bg-gray-800 mx-3" />}
+                    </div>
+                  ))}
+                </nav>
               );
             })()}
           </div>

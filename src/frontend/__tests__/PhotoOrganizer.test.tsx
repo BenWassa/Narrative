@@ -206,14 +206,33 @@ test('archive view highlights organize step, not export', async () => {
   const archiveTab = await screen.findByRole('button', { name: /Archive/i });
   fireEvent.click(archiveTab);
 
-  const importStep = await screen.findByText('Import');
-  const organizeStep = await screen.findByText('Organize');
-  const exportStep = await screen.findByText('Export');
+  const progress = await screen.findByRole('navigation', { name: /Progress/i });
+  const importCircle = within(progress).getByText('1');
+  const organizeCircle = within(progress).getByText('2');
+  const exportCircle = within(progress).getByText('4');
 
-  // Import and Organize should be highlighted for archive; Export should not
-  expect(importStep).toHaveClass('bg-blue-700');
-  expect(organizeStep).toHaveClass('bg-blue-700');
-  expect(exportStep).not.toHaveClass('bg-blue-700');
+  // Import should be shown as completed, Organize active, Export not active
+  expect(importCircle).toHaveClass('bg-blue-600');
+  expect(organizeCircle).toHaveClass('bg-blue-700');
+  expect(exportCircle).not.toHaveClass('bg-blue-700');
+});
+
+test('stepper renders non-interactive stage indicators', async () => {
+  render(<PhotoOrganizer />);
+  const projectButton = await screen.findByRole('button', { name: /Test Trip/i });
+  fireEvent.click(projectButton);
+
+  const progress = await screen.findByRole('navigation', { name: /Progress/i });
+
+  // Ensure labels exist and are not buttons
+  for (const label of ['Import', 'Organize', 'Review', 'Export']) {
+    const el = within(progress).getByText(label);
+    expect(el.closest('button')).toBeNull();
+  }
+
+  // Default active step should be Organize (number 2)
+  const activeNumber = within(progress).getByText('2');
+  expect(activeNumber).toHaveClass('bg-blue-700');
 });
 
 test('handles localStorage failures gracefully when updating recents', async () => {
