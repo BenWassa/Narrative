@@ -197,6 +197,25 @@ test('folder quick actions: select all and assign folder to day', async () => {
   expect(folderContainer).toHaveTextContent(/0\s+unsorted/);
 });
 
+test('archive view highlights organize step, not export', async () => {
+  render(<PhotoOrganizer />);
+  const projectButton = await screen.findByRole('button', { name: /Test Trip/i });
+  fireEvent.click(projectButton);
+
+  // Switch to Archive tab
+  const archiveTab = await screen.findByRole('button', { name: /Archive/i });
+  fireEvent.click(archiveTab);
+
+  const importStep = await screen.findByText('Import');
+  const organizeStep = await screen.findByText('Organize');
+  const exportStep = await screen.findByText('Export');
+
+  // Import and Organize should be highlighted for archive; Export should not
+  expect(importStep).toHaveClass('bg-blue-700');
+  expect(organizeStep).toHaveClass('bg-blue-700');
+  expect(exportStep).not.toHaveClass('bg-blue-700');
+});
+
 test('handles localStorage failures gracefully when updating recents', async () => {
   // make setItem throw to simulate quota or storage errors
   const origSet = localStorage.setItem;

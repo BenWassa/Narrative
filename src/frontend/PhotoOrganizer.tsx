@@ -710,7 +710,11 @@ export default function PhotoOrganizer() {
           {/* Process Stepper (Folders-first workflow) */}
           <div className="flex items-center gap-3 px-6 py-2">
             {(() => {
-              const step = currentView === 'folders' || currentView === 'days' ? 'organize' : currentView === 'review' ? 'review' : 'export';
+              // Determine the current step for the header stepper
+              // - Organize: any non-review view used for organizing photos (folders, days, favorites, archive)
+              // - Review: explicit review view
+              // - Export: when the export script modal is open
+              const step = showExportScript ? 'export' : currentView === 'review' ? 'review' : 'organize';
               return (
                 <div className="flex items-center gap-2 text-xs text-gray-400">
                   <div className={`px-2 py-1 rounded ${step === 'organize' ? 'bg-blue-700 text-white' : 'bg-gray-800'}`}>Import</div>
