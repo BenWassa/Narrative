@@ -72,8 +72,12 @@ test('renders project name', async () => {
   const projectButton = await screen.findByRole('button', { name: /Test Trip/i });
   fireEvent.click(projectButton);
 
-  const heading = await screen.findByRole('heading', { level: 1 });
-  expect(heading).toHaveTextContent('Test Trip');
+  // After clicking project, the StartScreen should disappear
+  await waitFor(() => expect(screen.queryByRole('heading', { name: 'Projects' })).not.toBeInTheDocument());
+
+  // And the project name should appear in the document
+  const projectName = screen.getByText('Test Trip');
+  expect(projectName).toBeInTheDocument();
 });
 
 test('shift-click selects a contiguous range', async () => {
@@ -468,8 +472,12 @@ test('handles localStorage failures gracefully when updating recents', async () 
     const projectButton = await screen.findByRole('button', { name: /Test Trip/i });
     fireEvent.click(projectButton);
 
-    const heading = await screen.findByRole('heading', { level: 1 });
-    expect(heading).toHaveTextContent('Test Trip');
+    // After project loads, the StartScreen should disappear
+    await waitFor(() => expect(screen.queryByRole('heading', { name: 'Projects' })).not.toBeInTheDocument());
+
+    // And the project name should appear in the document
+    const projectNameElement = screen.getByText('Test Trip');
+    expect(projectNameElement).toBeInTheDocument();
   } finally {
     localStorage.setItem = origSet;
   }

@@ -27,51 +27,64 @@ export default function StartScreen({
   if (!isOpen) return null;
 
   return (
-    <div className="h-screen bg-gray-950 text-gray-100 flex items-center justify-center p-6">
-      <div className="bg-gray-900 rounded-lg max-w-4xl w-full text-gray-100 shadow-xl overflow-hidden">
-        <div className="p-8 space-y-6">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <Camera className="w-6 h-6 text-blue-400" />
-              <h2 className="text-lg font-bold">Welcome</h2>
-            </div>
-            {/* App version badge — non-interactive, stylized */}
-            <div className="px-2 py-1 bg-gray-800 text-gray-200 rounded-md text-xs font-medium tracking-wide">
-              <span className="uppercase">{`v${__APP_VERSION__}`}</span>
-            </div>
+    <div className="h-screen bg-gray-950 text-gray-100 flex flex-col">
+      {/* Header */}
+      <div className="border-b border-gray-800 bg-gray-900/50 backdrop-blur-sm">
+        <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <Camera className="w-6 h-6 text-blue-400" />
+            <h1 className="text-xl font-bold">Narrative</h1>
+          </div>
+          <div className="px-3 py-1 bg-gray-800 text-gray-300 rounded-md text-xs font-medium tracking-wide">
+            <span className="uppercase">{`v${__APP_VERSION__}`}</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Main content */}
+      <div className="flex-1 flex items-center justify-center p-6">
+        <div className="w-full max-w-7xl">
+          {/* Title section */}
+          <div className="mb-8">
+            <h2 className="text-2xl font-bold mb-2">Projects</h2>
+            <p className="text-gray-400 text-sm">Create a new project or open a recent one</p>
           </div>
 
+          {/* Error message */}
           {errorMessage && (
-            <div className="rounded-lg border border-red-800 bg-red-950/60 px-4 py-3 text-sm text-red-200">
+            <div className="rounded-lg border border-red-800 bg-red-950/60 px-4 py-3 text-sm text-red-200 mb-6">
               {errorMessage}
             </div>
           )}
 
-          <div className="flex gap-6">
-            <div className="w-40 flex-shrink-0">
-              <button
-                onClick={() => setShowOnboarding(true)}
-                className="flex flex-col items-center justify-center rounded-lg border border-dashed border-gray-700 p-6 bg-gray-950 hover:bg-gray-900 w-full"
-                aria-label="Create new project"
-              >
-                <div className="w-12 h-12 rounded-full bg-gray-800 flex items-center justify-center mb-3">
-                  <Plus className="w-6 h-6 text-blue-400" />
+          {/* Projects grid */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 auto-rows-max">
+            {/* New Project Button - same size as ProjectTile */}
+            <button
+              onClick={() => setShowOnboarding(true)}
+              className="relative rounded-lg overflow-hidden border-2 border-dashed border-gray-700 bg-gray-900 hover:bg-gray-800 hover:border-blue-500 transition-all group"
+              aria-label="Create new project"
+            >
+              <div className="aspect-video flex flex-col items-center justify-center bg-gradient-to-br from-gray-800 to-gray-900 group-hover:from-gray-700 group-hover:to-gray-800 transition-colors">
+                <div className="w-14 h-14 rounded-full bg-gray-700 group-hover:bg-blue-500/20 flex items-center justify-center mb-2 transition-colors">
+                  <Plus className="w-7 h-7 text-blue-400" />
                 </div>
-                <div className="text-sm font-medium">New Project</div>
-              </button>
-            </div>
+                <div className="text-sm font-semibold text-gray-300">New Project</div>
+              </div>
+            </button>
 
-            {recentProjects.length > 0 && (
-              <>
-                <div aria-hidden className="w-px bg-gray-700 rounded h-40" />
-                <div className="flex-1 grid grid-cols-2 gap-4">
-                  {recentProjects.map(project => (
-                    <ProjectTile key={project.projectId} project={project} onOpen={onOpenProject} />
-                  ))}
-                </div>
-              </>
-            )}
+            {/* Recent Projects */}
+            {recentProjects.map(project => (
+              <ProjectTile key={project.projectId} project={project} onOpen={onOpenProject} />
+            ))}
           </div>
+
+          {/* Empty state */}
+          {recentProjects.length === 0 && (
+            <div className="text-center py-12 text-gray-500">
+              <p className="text-sm">No recent projects. Create one to get started.</p>
+            </div>
+          )}
         </div>
       </div>
 

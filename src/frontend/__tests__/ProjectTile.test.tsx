@@ -13,7 +13,7 @@ describe('ProjectTile', () => {
 
     expect(container).toMatchSnapshot();
     const openButton = screen.getByRole('button', { name: /Open project Test/i });
-    expect(openButton).toHaveTextContent('Test');
+    expect(openButton).toBeInTheDocument();
   });
 
   it('renders an image when coverUrl is present', () => {

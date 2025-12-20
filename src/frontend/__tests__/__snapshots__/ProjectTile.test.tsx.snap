@@ -3,34 +3,39 @@
 exports[`ProjectTile > renders an image when coverUrl is present 1`] = `
 <div>
   <div
-    class="relative rounded-lg overflow-hidden border border-gray-800 bg-gray-950"
+    class="relative rounded-lg overflow-hidden border border-gray-800 bg-gray-950 hover:border-blue-500 transition-colors group cursor-pointer"
   >
     <button
       aria-label="Open project Test"
-      class="w-full h-36 block text-left"
-    >
-      <img
-        alt="Test"
-        class="w-full h-36 object-cover"
-        src="https://picsum.photos/200/100"
-      />
-    </button>
-    <div
-      class="p-3 flex items-center justify-between"
+      class="w-full block text-left"
     >
       <div
-        class="min-w-0"
+        class="aspect-video overflow-hidden bg-gray-900 relative"
       >
-        <div
-          class="text-sm font-medium truncate"
-        >
-          Test
-        </div>
-        <div
-          class="text-xs text-gray-500"
-        >
-          120 photos
-        </div>
+        <img
+          alt="Test"
+          class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
+          src="https://picsum.photos/200/100"
+        />
+      </div>
+    </button>
+    <div
+      class="p-3 space-y-1"
+    >
+      <div
+        class="text-sm font-semibold text-gray-200 truncate"
+      >
+        Test
+      </div>
+      <div
+        class="text-xs text-gray-500"
+      >
+        120 photos
+      </div>
+      <div
+        class="text-xs text-gray-600 truncate"
+      >
+        /tmp/test
       </div>
     </div>
   </div>
@@ -40,29 +45,42 @@ exports[`ProjectTile > renders an image when coverUrl is present 1`] = `
 exports[`ProjectTile > renders with a fallback gradient when no coverUrl 1`] = `
 <div>
   <div
-    class="relative rounded-lg overflow-hidden border border-gray-800 bg-gray-950"
+    class="relative rounded-lg overflow-hidden border border-gray-800 bg-gray-950 hover:border-blue-500 transition-colors group cursor-pointer"
   >
     <button
       aria-label="Open project Test"
-      class="w-full h-36 block text-left"
+      class="w-full block text-left"
     >
       <div
-        class="w-full h-36 bg-gradient-to-br from-gray-800 to-gray-900 flex items-center justify-center text-sm text-gray-400"
+        class="aspect-video overflow-hidden bg-gray-900 relative"
       >
-        Test
+        <div
+          class="w-full h-full bg-gradient-to-br from-gray-800 to-gray-900 flex items-center justify-center text-sm text-gray-400"
+        >
+          <div
+            class="text-center"
+          >
+            <div
+              class="text-xs font-medium text-gray-500"
+            >
+              No cover
+            </div>
+          </div>
+        </div>
       </div>
     </button>
     <div
-      class="p-3 flex items-center justify-between"
+      class="p-3 space-y-1"
     >
       <div
-        class="min-w-0"
+        class="text-sm font-semibold text-gray-200 truncate"
       >
-        <div
-          class="text-sm font-medium truncate"
-        >
-          Test
-        </div>
+        Test
+      </div>
+      <div
+        class="text-xs text-gray-600 truncate"
+      >
+        /tmp/test
       </div>
     </div>
   </div>
