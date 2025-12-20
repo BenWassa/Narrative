@@ -53,7 +53,7 @@ const DEFAULT_SETTINGS: ProjectSettings = {
 
 export default function PhotoOrganizer() {
   const [photos, setPhotos] = useState<ProjectPhoto[]>([]);
-  const [currentView, setCurrentView] = useState('inbox');
+  const [currentView, setCurrentView] = useState('days');
   // Support multi-selection: set of IDs, and a focused photo for keyboard actions
   const [selectedPhotos, setSelectedPhotos] = useState<Set<string>>(new Set());
   const [focusedPhoto, setFocusedPhoto] = useState<string | null>(null);
@@ -269,8 +269,6 @@ export default function PhotoOrganizer() {
   // Filter photos based on current view
   const filteredPhotos = React.useMemo(() => {
     switch (currentView) {
-      case 'inbox':
-        return photos.filter(p => !p.bucket && !p.archived);
       case 'days':
         if (selectedDay !== null) {
           return photos.filter(p => p.day === selectedDay);
@@ -714,7 +712,6 @@ export default function PhotoOrganizer() {
           {/* View Tabs */}
           <div className="flex gap-1 px-6 pb-2">
             {[
-              { id: 'inbox', label: 'Inbox', count: stats.unsorted },
               { id: 'days', label: 'Days', count: days.length },
               { id: 'favorites', label: 'Favorites', count: stats.favorites },
               { id: 'archive', label: 'Archive', count: stats.archived },

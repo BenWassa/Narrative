@@ -17,7 +17,7 @@ const samplePhotos = Array.from({ length: 6 }, (_, index) => {
     originalName: `IMG_${1000 + index}.jpg`,
     currentName: `IMG_${1000 + index}.jpg`,
     timestamp: Date.now() + index * 1000,
-    day: null,
+    day: index < 4 ? 1 : 2, // Assign first 4 photos to Day 1, rest to Day 2
     bucket: null,
     sequence: null,
     favorite: false,
@@ -77,6 +77,10 @@ test('shift-click selects a contiguous range', async () => {
   const { container } = render(<PhotoOrganizer />);
   const projectButton = await screen.findByRole('button', { name: /Test Trip/i });
   fireEvent.click(projectButton);
+
+  // Select a day first (since default view is now 'days' instead of 'inbox')
+  const dayButton = await screen.findByRole('button', { name: /Day 01/i });
+  fireEvent.click(dayButton);
 
   // wait for images to render
   const imgs = await screen.findAllByRole('img');
