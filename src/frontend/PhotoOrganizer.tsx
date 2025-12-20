@@ -76,6 +76,7 @@ export default function PhotoOrganizer() {
   const [dayLabels, setDayLabels] = useState<Record<number, string>>({});
   const [editingDay, setEditingDay] = useState<number | null>(null);
   const [editingDayName, setEditingDayName] = useState('');
+  const [dayContainers, setDayContainers] = useState<string[]>([]);
   const [selectedRootFolder, setSelectedRootFolder] = useState<string | null>(null);
   const [projectSettings, setProjectSettings] = useState<ProjectSettings>(DEFAULT_SETTINGS);
   const [recentProjects, setRecentProjects] = useState<RecentProject[]>([]);
@@ -113,6 +114,7 @@ export default function PhotoOrganizer() {
     setProjectFolderLabel(state.rootPath || null);
     setProjectSettings(state.settings || DEFAULT_SETTINGS);
     setDayLabels((state as any).dayLabels || {});
+    setDayContainers((state as any).dayContainers || []);
   }, []);
 
   const updateRecentProjects = useCallback((project: RecentProject) => {
@@ -141,9 +143,34 @@ export default function PhotoOrganizer() {
   }, [photos, dayLabels]);
 
   const applyFolderMappings = useCallback((sourcePhotos: ProjectPhoto[], mappings: any[]) => {
-    // Basic implementation used in tests — for now, return source photos unchanged.
-    // Real implementation applies mapping rules to assign days or rename files.
-    return sourcePhotos;
+    // Apply mappings from onboarding: assign detected day numbers to photos
+    // Also detect day numbers from Dnn subfolders (e.g., 01_DAYS/D01/...)
+    const folderByName = new Map<string, any>();
+    mappings.forEach(m => folderByName.set(m.folder, m));
+
+    return sourcePhotos.map(p => {
+      if (!p.filePath) return p;
+      const parts = p.filePath.split('/');
+
+      // If it's in a Dnn subfolder, set day from that
+      if (parts.length > 1) {
+        const sub = parts[1];
+        const match = sub.match(/^D(\d{1,2})/i);
+        if (match) {
+          const d = parseInt(match[1], 10);
+          if (!Number.isNaN(d)) return { ...p, day: d };
+        }
+      }
+
+      // Otherwise check top-level mapping
+      const top = parts[0];
+      const mapping = folderByName.get(top);
+      if (mapping && mapping.detectedDay != null) {
+        return { ...p, day: mapping.detectedDay };
+      }
+
+      return p;
+    });
   }, []);
   const loadProject = useCallback(
     async (projectId: string, options?: { addRecent?: boolean }) => {
@@ -255,12 +282,19 @@ export default function PhotoOrganizer() {
       }
     }
 
-    return rootGroups.filter(([folder, items]) => {
+    // Ensure any explicitly selected day containers are present (even if empty)
+    const combined = new Map(rootGroups);
+    (dayContainers || []).forEach(dc => {
+      if (!combined.has(dc)) combined.set(dc, []);
+    });
+
+    return Array.from(combined.entries()).filter(([folder, items]) => {
       const hasDayAssigned = items.some(p => p.day !== null);
       const isDaysContainer = folder === daysContainer;
       const isDetectedContainer = detectedDaysContainers.has(folder);
       const isDayName = dayNames.has(folder);
-      return hasDayAssigned || isDaysContainer || isDetectedContainer || isDayName;
+      const isSelectedContainer = (dayContainers || []).includes(folder);
+      return hasDayAssigned || isDaysContainer || isDetectedContainer || isDayName || isSelectedContainer;
     });
   }, [rootGroups, days, dayLabels, projectSettings]);
 
@@ -402,9 +436,12 @@ export default function PhotoOrganizer() {
           projectName: state.projectName,
           rootLabel: state.rootPath,
         });
-        const hydratedPhotos = state.mappings?.length
-          ? applyFolderMappings(initResult.photos, state.mappings)
-          : applySuggestedDays(initResult.photos, initResult.suggestedDays);
+          const hydratedPhotos = state.mappings?.length
+            ? applyFolderMappings(initResult.photos, state.mappings)
+            : applySuggestedDays(initResult.photos, initResult.suggestedDays);
+          const selectedDayContainers = (state.mappings || [])
+            .filter((m: any) => !m.skip)
+            .map((m: any) => m.folder);
         const nextProjectName = state.projectName?.trim() || deriveProjectName(state.rootPath);
         const nextProjectId = initResult.projectId;
         const nextState: ProjectState = {
@@ -412,6 +449,7 @@ export default function PhotoOrganizer() {
           rootPath: state.rootPath || state.dirHandle.name,
           photos: hydratedPhotos,
           settings: DEFAULT_SETTINGS,
+          dayContainers: selectedDayContainers,
         };
 
         setPhotos(hydratedPhotos);

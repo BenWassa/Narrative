@@ -221,6 +221,39 @@ test('folders shows days container when day subfolders exist even if photos are 
   expect(daysContainer).toBeTruthy();
 });
 
+test('onboarding-selected day containers are shown even when empty', async () => {
+  const stateWithSelectedContainer = {
+    ...sampleState,
+    photos: [
+      ...sampleState.photos,
+      {
+        id: 'photo_9',
+        originalName: 'IMG_9009.jpg',
+        currentName: 'IMG_9009.jpg',
+        timestamp: Date.now(),
+        day: null,
+        bucket: null,
+        sequence: null,
+        favorite: false,
+        rating: 0,
+        archived: false,
+        thumbnail: 'https://picsum.photos/seed/9/400/300',
+        filePath: 'Misc/IMG_9009.jpg',
+      },
+    ],
+    dayContainers: ['PickedDays'],
+  };
+
+  vi.mocked(projectService.getState).mockResolvedValue(stateWithSelectedContainer as any);
+  render(<PhotoOrganizer />);
+  const projectButton = await screen.findByRole('button', { name: /Test Trip/i });
+  fireEvent.click(projectButton);
+
+  // The selected day container should be visible even though no Dnn subfolders or assigned photos exist
+  const picked = await screen.findByText('PickedDays');
+  expect(picked).toBeTruthy();
+});
+
 test('folder quick actions: select all and assign folder to day', async () => {
   render(<PhotoOrganizer />);
   const projectButton = await screen.findByRole('button', { name: /Test Trip/i });

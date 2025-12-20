@@ -38,6 +38,8 @@ export interface ProjectState {
   photos: ProjectPhoto[];
   settings: ProjectSettings;
   dayLabels?: Record<string, string>;
+  // list of folder names that the user marked as day containers during onboarding
+  dayContainers?: string[];
   lastModified?: number;
 }
 
@@ -191,6 +193,7 @@ function serializeState(state: ProjectState) {
     rootPath: state.rootPath,
     settings: state.settings,
     dayLabels: state.dayLabels || {},
+    dayContainers: state.dayContainers || [],
     lastModified: state.lastModified ?? Date.now(),
     edits,
   };
@@ -272,6 +275,7 @@ export async function getState(projectId: string): Promise<ProjectState> {
       },
     },
     dayLabels: stored.dayLabels || {},
+    dayContainers: stored.dayContainers || [],
     lastModified: stored.lastModified,
   };
 }
