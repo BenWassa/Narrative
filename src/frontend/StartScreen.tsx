@@ -6,7 +6,7 @@ interface StartScreenProps {
   isOpen: boolean;
   onClose: () => void;
   onCreateComplete: (state: OnboardingState) => void;
-  onOpenProject: (rootPath: string) => void;
+  onOpenProject: (projectId: string) => void;
   recentProjects?: RecentProject[];
 }
 
@@ -58,11 +58,11 @@ export default function StartScreen({
                 <div aria-hidden className="w-px bg-gray-700 rounded h-40" />
                 <div className="flex-1 grid grid-cols-2 gap-4">
                   {recentProjects.map(project => (
-                    <button
-                      key={project.rootPath}
-                      onClick={() => onOpenProject(project.rootPath)}
-                      className="text-left rounded-lg border border-gray-800 bg-gray-950 px-3 py-3 hover:border-blue-500"
-                    >
+                  <button
+                    key={project.rootPath}
+                    onClick={() => onOpenProject(project.projectId)}
+                    className="text-left rounded-lg border border-gray-800 bg-gray-950 px-3 py-3 hover:border-blue-500"
+                  >
                       <div className="text-sm text-gray-100">{project.projectName}</div>
                       <div className="text-xs text-gray-500 truncate mt-1">
                         {project.rootPath}

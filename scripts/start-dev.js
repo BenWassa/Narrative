@@ -9,10 +9,9 @@ function start(cmd, args, opts) {
   return p;
 }
 
-console.log('Starting frontend and backend...');
+console.log('Starting frontend...');
 
 const frontend = start('npm', ['run', 'dev']);
-const backend = start('npm', ['--prefix', 'src/backend', 'run', 'dev']);
 
 // Immediately print the frontend URL so it's visible in mixed output
 console.log('\nFrontend: http://localhost:5173\n');
@@ -21,7 +20,6 @@ console.log('\nFrontend: http://localhost:5173\n');
 ['SIGINT', 'SIGTERM', 'SIGHUP'].forEach(sig => {
   process.on(sig, () => {
     frontend.kill(sig);
-    backend.kill(sig);
     process.exit();
   });
 });
@@ -30,6 +28,5 @@ console.log('\nFrontend: http://localhost:5173\n');
 process.on('exit', () => {
   try {
     frontend.kill();
-    backend.kill();
   } catch (e) {}
 });

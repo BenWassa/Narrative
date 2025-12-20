@@ -50,6 +50,7 @@ beforeEach(() => {
     JSON.stringify([
       {
         projectName: sampleState.projectName,
+        projectId: 'project-1',
         rootPath: sampleState.rootPath,
         lastOpened: Date.now(),
       },

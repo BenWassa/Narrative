@@ -4,10 +4,12 @@ import { FolderOpen, X } from 'lucide-react';
 export interface OnboardingState {
   projectName: string;
   rootPath: string;
+  dirHandle: FileSystemDirectoryHandle;
 }
 
 export interface RecentProject {
   projectName: string;
+  projectId: string;
   rootPath: string;
   coverUrl?: string;
   lastOpened: number;
@@ -18,7 +20,7 @@ interface OnboardingModalProps {
   onClose: () => void;
   onComplete: (state: OnboardingState) => void;
   recentProjects?: RecentProject[];
-  onSelectRecent?: (rootPath: string) => void;
+  onSelectRecent?: (projectId: string) => void;
 }
 
 export default function OnboardingModal({
@@ -31,6 +33,7 @@ export default function OnboardingModal({
   const [projectName, setProjectName] = useState('');
   const [rootPath, setRootPath] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const [dirHandle, setDirHandle] = useState<FileSystemDirectoryHandle | null>(null);
   const fileInputRef = React.useRef<HTMLInputElement | null>(null);
 
   const handleCreate = useCallback(() => {
@@ -38,14 +41,18 @@ export default function OnboardingModal({
       setError('Please enter a project name');
       return;
     }
-    if (!rootPath.trim()) {
-      setError('Please enter the folder path');
+    if (!dirHandle) {
+      setError('Please choose a folder');
       return;
     }
     setError(null);
-    onComplete({ projectName: projectName.trim(), rootPath: rootPath.trim() });
+    onComplete({
+      projectName: projectName.trim(),
+      rootPath: rootPath.trim() || dirHandle.name,
+      dirHandle,
+    });
     onClose();
-  }, [onClose, onComplete, projectName, rootPath]);
+  }, [dirHandle, onClose, onComplete, projectName, rootPath]);
 
   if (!isOpen) return null;
 
@@ -86,9 +93,9 @@ export default function OnboardingModal({
               <div className="space-y-2">
                 {recentProjects.map(project => (
                   <button
-                    key={project.rootPath}
+                    key={project.projectId}
                     onClick={() => {
-                      onSelectRecent?.(project.rootPath);
+                      onSelectRecent?.(project.projectId);
                       onClose();
                     }}
                     className="w-full text-left rounded-lg border border-gray-200 bg-white px-3 py-2 hover:border-blue-300 hover:bg-blue-50"
@@ -138,11 +145,21 @@ export default function OnboardingModal({
                   const rel = first.webkitRelativePath || first.name;
                   const folder = rel.split('/')[0];
                   setRootPath(folder);
+                  setDirHandle(null);
                   e.currentTarget.value = '';
                 }}
               />
               <button
-                onClick={() => fileInputRef.current?.click()}
+                onClick={async () => {
+                  if ('showDirectoryPicker' in window) {
+                    // @ts-ignore
+                    const handle = await (window as any).showDirectoryPicker();
+                    setDirHandle(handle);
+                    setRootPath(handle?.name || '');
+                    return;
+                  }
+                  fileInputRef.current?.click();
+                }}
                 className="px-4 py-2 bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 flex items-center gap-2"
               >
                 <FolderOpen size={18} />
@@ -150,9 +167,8 @@ export default function OnboardingModal({
               </button>
             </div>
             <p className="text-xs text-gray-500 mt-2">
-              Paste the full path to the folder that contains your photos. The browser folder
-              picker only supplies the folder name, so use a full path if your folder is outside
-              your home directory.
+              Use the folder picker to grant access. If the picker is unavailable, paste the full
+              path (the app will ask again on first open).
             </p>
           </div>
         </div>
@@ -166,8 +182,8 @@ export default function OnboardingModal({
           </button>
           <button
             onClick={handleCreate}
-            disabled={!projectName.trim() || !rootPath.trim()}
-            aria-disabled={!projectName.trim() || !rootPath.trim()}
+            disabled={!projectName.trim() || !dirHandle}
+            aria-disabled={!projectName.trim() || !dirHandle}
             className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium disabled:bg-gray-200 disabled:text-gray-500 disabled:cursor-not-allowed"
           >
             Create Project
