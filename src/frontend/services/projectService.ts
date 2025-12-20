@@ -490,6 +490,11 @@ export async function getState(projectId: string): Promise<ProjectState> {
   // Build photos from filesystem
   const freshPhotos = await buildPhotosFromHandle(handle);
 
+  // If no photos found, the handle may be invalid (e.g., after page refresh)
+  if (freshPhotos.length === 0) {
+    throw new Error('Project folder access is no longer available. Please reselect the folder.');
+  }
+
   // Apply cached edits (including thumbnails) if available
   let photos = freshPhotos;
   if (stored.edits) {
