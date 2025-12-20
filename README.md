@@ -46,7 +46,7 @@ No AI guessing. No cloud upload. No complex tagging. Just fast, manual curation 
 
 ### ⚡ Keyboard-First Operation
 
-- **A-F keys**: Assign story categories instantly
+- **A-E, M keys**: Assign story categories instantly (M = Mood/Night)
 - **Arrow keys**: Navigate photos
 - **F key**: Toggle favorites
 - **Undo/Redo**: Cmd+Z / Cmd+Shift+Z
@@ -58,7 +58,7 @@ No AI guessing. No cloud upload. No complex tagging. Just fast, manual curation 
 - **C** - Culture/Detail (local life, close-ups)
 - **D** - Action/Moment (events, activities)
 - **E** - Transition (travel, movement)
-- **F** - Mood/Night (atmosphere, evening)
+- **F** - Mood/Night (atmosphere, evening) — assigned with **M** shortcut
 - **X** - Archive (unwanted shots)
 
 ### 📁 Clean File Organization
@@ -117,7 +117,7 @@ npm run dev
 ### 2. Organize Photos
 
 - Click a photo or use arrow keys to navigate
-- Press **A-F** to categorize by story role
+- Press **A-E** or **M** to categorize by story role (M = Mood/Night)
 - Press **X** to archive unwanted photos
 - Press **F** to mark favorites
 

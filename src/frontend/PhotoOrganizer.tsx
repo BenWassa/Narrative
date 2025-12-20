@@ -3,7 +3,6 @@ import safeLocalStorage from './utils/safeLocalStorage';
 import {
   Camera,
   ChevronDown,
-  Star,
   Calendar,
   Heart,
   Undo2,
@@ -193,6 +192,7 @@ export default function PhotoOrganizer() {
       try {
         const state = await getState(projectId);
         setProjectFromState(state);
+        setProjectRootPath(projectId);
         setShowOnboarding(false);
         // Hide the welcome view when a project is successfully loaded
         setShowWelcome(false);
@@ -242,8 +242,14 @@ export default function PhotoOrganizer() {
       setRecentProjects([]);
     }
 
-    // Show a friendly welcome page on first load
-    setShowWelcome(true);
+    const activeProjectId = safeLocalStorage.get(ACTIVE_PROJECT_KEY);
+    if (activeProjectId) {
+      loadProject(activeProjectId, { addRecent: false });
+      setShowWelcome(false);
+    } else {
+      // Show a friendly welcome page on first load
+      setShowWelcome(true);
+    }
   }, [loadProject]);
 
   // Get days from photos
@@ -440,9 +446,25 @@ export default function PhotoOrganizer() {
         focusedPhoto || (selectedPhotos.size === 1 ? Array.from(selectedPhotos)[0] : null);
       if (!primaryId) return;
 
+      if (
+        e.key.toLowerCase() === 'f' &&
+        !e.shiftKey &&
+        !e.metaKey &&
+        !e.ctrlKey &&
+        !e.altKey
+      ) {
+        const targets = selectedPhotos.size > 0 ? Array.from(selectedPhotos) : [primaryId];
+        toggleFavorite(targets);
+        return;
+      }
+
       // MECE bucket assignment
-      const bucket = MECE_BUCKETS.find(b => b.key.toLowerCase() === e.key.toLowerCase());
-      if (bucket) {
+      let bucketKey = e.key.toUpperCase();
+      if (bucketKey === 'M') {
+        bucketKey = 'F';
+      }
+      const bucket = MECE_BUCKETS.find(b => b.key === bucketKey);
+      if (bucket && bucket.key !== 'F') {
         const targets = selectedPhotos.size > 0 ? Array.from(selectedPhotos) : [primaryId];
         assignBucket(targets, bucket.key);
         // Move focus to next photo in filteredPhotos
@@ -454,6 +476,12 @@ export default function PhotoOrganizer() {
           setLastSelectedIndex(currentIndex + 1);
           lastSelectedIndexRef.current = currentIndex + 1;
         }
+        return;
+      }
+
+      if (bucket?.key === 'F' && e.key.toLowerCase() === 'm') {
+        const targets = selectedPhotos.size > 0 ? Array.from(selectedPhotos) : [primaryId];
+        assignBucket(targets, bucket.key);
         return;
       }
 
@@ -487,9 +515,6 @@ export default function PhotoOrganizer() {
           setLastSelectedIndex(null);
           lastSelectedIndexRef.current = null;
         }
-      } else if (e.key === 'f') {
-        const targets = selectedPhotos.size > 0 ? Array.from(selectedPhotos) : [primaryId];
-        toggleFavorite(targets);
       } else if (e.key === 'z' && (e.metaKey || e.ctrlKey)) {
         e.preventDefault();
         if (e.shiftKey) {
@@ -779,8 +804,10 @@ export default function PhotoOrganizer() {
                     className={`relative group cursor-pointer rounded-lg overflow-hidden transition-all ${
                       selectedPhotos.has(photo.id)
                         ? 'ring-4 ring-blue-500 scale-105'
+                        : !photo.bucket && !photo.archived
+                        ? 'ring-2 ring-blue-400/40 hover:ring-blue-400/70'
                         : 'hover:ring-2 hover:ring-gray-600'
-                    }`}
+                    } ${photo.bucket || photo.archived ? 'opacity-60 saturate-50' : ''}`}
                   >
                     {photo.thumbnail ? (
                       <img
@@ -808,14 +835,10 @@ export default function PhotoOrganizer() {
                           MECE_BUCKETS.find(b => b.key === photo.bucket)?.color
                         } text-white shadow-lg`}
                       >
-                        {photo.bucket}
-                      </div>
-                    )}
-
-                    {/* Favorite star */}
-                    {photo.favorite && (
-                      <div className="absolute top-2 right-2">
-                        <Star className="w-5 h-5 fill-yellow-400 text-yellow-400" />
+                        <div className="flex items-center gap-1">
+                          <span>{photo.bucket}</span>
+                          {photo.favorite && <Heart className="w-3.5 h-3.5 fill-current" />}
+                        </div>
                       </div>
                     )}
                   </div>
@@ -990,12 +1013,15 @@ export default function PhotoOrganizer() {
                     {MECE_BUCKETS.map(bucket => (
                       <div key={bucket.key} className="flex items-center gap-3 text-sm">
                         <kbd className={`px-2 py-1 rounded ${bucket.color} text-white font-bold`}>
-                          {bucket.key}
+                          {bucket.key === 'F' ? 'M' : bucket.key}
                         </kbd>
                         <span>{bucket.label}</span>
                       </div>
                     ))}
                   </div>
+                  <p className="text-xs text-gray-400 mt-3">
+                    Keyboard shortcuts: A–E, X, M (Mood/Night). F is reserved for Favorite.
+                  </p>
                 </div>
 
                 <div>

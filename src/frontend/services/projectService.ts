@@ -206,6 +206,10 @@ export async function initProject(options: {
   rootLabel?: string;
 }): Promise<ProjectInitResponse> {
   const { dirHandle, projectName, rootLabel } = options;
+  const permission = await dirHandle.requestPermission({ mode: 'read' });
+  if (permission !== 'granted') {
+    throw new Error('Folder access was not granted.');
+  }
   const projectId = generateId();
   const photos = await buildPhotosFromHandle(dirHandle);
   const suggestedDays = clusterPhotosByTime(photos);
