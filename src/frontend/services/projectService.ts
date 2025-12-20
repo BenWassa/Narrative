@@ -103,7 +103,10 @@ async function collectFiles(
   for await (const [name, handle] of dirHandle.entries()) {
     if (handle.kind === 'directory') {
       if (name.startsWith('.')) continue;
-      const nested = await collectFiles(handle as FileSystemDirectoryHandle, prefix ? `${prefix}/${name}` : name);
+      const nested = await collectFiles(
+        handle as FileSystemDirectoryHandle,
+        prefix ? `${prefix}/${name}` : name,
+      );
       entries.push(...nested);
     } else if (handle.kind === 'file') {
       if (!isSupportedFile(name)) continue;
@@ -114,7 +117,9 @@ async function collectFiles(
   return entries;
 }
 
-async function buildPhotosFromHandle(dirHandle: FileSystemDirectoryHandle): Promise<ProjectPhoto[]> {
+async function buildPhotosFromHandle(
+  dirHandle: FileSystemDirectoryHandle,
+): Promise<ProjectPhoto[]> {
   const files = await collectFiles(dirHandle);
   const photos: ProjectPhoto[] = [];
 

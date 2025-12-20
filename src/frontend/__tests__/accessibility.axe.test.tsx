@@ -7,11 +7,7 @@ import PhotoOrganizer from '../PhotoOrganizer';
 describe('Automated accessibility checks (axe-core)', () => {
   it('OnboardingModal should have no critical accessibility violations (if axe-core installed)', async () => {
     const { container } = render(
-      <OnboardingModal
-        isOpen={true}
-        onClose={() => {}}
-        onComplete={() => {}}
-      />,
+      <OnboardingModal isOpen={true} onClose={() => {}} onComplete={() => {}} />,
     );
 
     try {

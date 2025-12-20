@@ -31,10 +31,18 @@ export default function StepIndicator({ steps, currentKey }: StepIndicatorProps)
                     : 'bg-gray-100 text-gray-500 border border-gray-200'
                 }`}
               >
-                {status === 'done' ? <Check className="w-4 h-4 text-green-800" /> : <span>{i + 1}</span>}
+                {status === 'done' ? (
+                  <Check className="w-4 h-4 text-green-800" />
+                ) : (
+                  <span>{i + 1}</span>
+                )}
               </div>
 
-              <div className={`ml-3 text-sm ${status === 'active' ? 'text-sky-800 font-medium' : 'text-gray-500'}`}>
+              <div
+                className={`ml-3 text-sm ${
+                  status === 'active' ? 'text-sky-800 font-medium' : 'text-gray-500'
+                }`}
+              >
                 {s.label}
               </div>
             </div>

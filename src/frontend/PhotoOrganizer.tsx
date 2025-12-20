@@ -101,7 +101,10 @@ export default function PhotoOrganizer() {
   );
 
   const applyFolderMappings = useCallback(
-    (sourcePhotos: ProjectPhoto[], mappings: Array<{ folder: string; detectedDay: number | null; skip?: boolean }>) => {
+    (
+      sourcePhotos: ProjectPhoto[],
+      mappings: Array<{ folder: string; detectedDay: number | null; skip?: boolean }>,
+    ) => {
       const dayByFolder = new Map<string, number>();
       mappings.forEach(mapping => {
         if (mapping.skip) return;
@@ -444,13 +447,7 @@ export default function PhotoOrganizer() {
         focusedPhoto || (selectedPhotos.size === 1 ? Array.from(selectedPhotos)[0] : null);
       if (!primaryId) return;
 
-      if (
-        e.key.toLowerCase() === 'f' &&
-        !e.shiftKey &&
-        !e.metaKey &&
-        !e.ctrlKey &&
-        !e.altKey
-      ) {
+      if (e.key.toLowerCase() === 'f' && !e.shiftKey && !e.metaKey && !e.ctrlKey && !e.altKey) {
         const targets = selectedPhotos.size > 0 ? Array.from(selectedPhotos) : [primaryId];
         toggleFavorite(targets);
         return;
@@ -1087,7 +1084,6 @@ export default function PhotoOrganizer() {
           loadProject(rootPath);
         }}
       />
-
     </div>
   );
 }

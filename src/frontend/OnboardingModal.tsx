@@ -172,9 +172,7 @@ export default function OnboardingModal({
                     }}
                     className="w-full text-left rounded-lg border border-gray-200 bg-white px-3 py-2 hover:border-blue-300 hover:bg-blue-50"
                   >
-                    <div className="text-sm font-medium text-gray-900">
-                      {project.projectName}
-                    </div>
+                    <div className="text-sm font-medium text-gray-900">{project.projectName}</div>
                     <div className="text-xs text-gray-600 truncate">{project.rootPath}</div>
                   </button>
                 ))}
@@ -241,8 +239,8 @@ export default function OnboardingModal({
                   </button>
                 </div>
                 <p className="text-xs text-gray-500 mt-2">
-                  Use the folder picker to grant access. If the picker is unavailable, paste the full
-                  path (the app will ask again on first open).
+                  Use the folder picker to grant access. If the picker is unavailable, paste the
+                  full path (the app will ask again on first open).
                 </p>
               </div>
             </>

@@ -8,9 +8,24 @@ describe('groupProjectsByDate', () => {
 
   const sample = [
     { projectName: 'A', projectId: 'p-a', rootPath: '/a', lastOpened: now } as RecentProject,
-    { projectName: 'B', projectId: 'p-b', rootPath: '/b', lastOpened: now - oneDay } as RecentProject,
-    { projectName: 'C', projectId: 'p-c', rootPath: '/c', lastOpened: now - oneDay * 3 } as RecentProject,
-    { projectName: 'D', projectId: 'p-d', rootPath: '/d', lastOpened: now - oneDay * 10 } as RecentProject,
+    {
+      projectName: 'B',
+      projectId: 'p-b',
+      rootPath: '/b',
+      lastOpened: now - oneDay,
+    } as RecentProject,
+    {
+      projectName: 'C',
+      projectId: 'p-c',
+      rootPath: '/c',
+      lastOpened: now - oneDay * 3,
+    } as RecentProject,
+    {
+      projectName: 'D',
+      projectId: 'p-d',
+      rootPath: '/d',
+      lastOpened: now - oneDay * 10,
+    } as RecentProject,
   ];
 
   test('creates buckets and orders newest-first', () => {
