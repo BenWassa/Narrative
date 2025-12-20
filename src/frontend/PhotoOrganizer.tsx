@@ -77,6 +77,7 @@ export default function PhotoOrganizer() {
   const [projectName, setProjectName] = useState('No Project');
   const [projectRootPath, setProjectRootPath] = useState<string | null>(null);
   const [projectFolderLabel, setProjectFolderLabel] = useState<string | null>(null);
+  const [currentVersion, setCurrentVersion] = useState(versionManager.getDisplayVersion());
   const [dayLabels, setDayLabels] = useState<Record<number, string>>({});
   const [editingDay, setEditingDay] = useState<number | null>(null);
   const [editingDayName, setEditingDayName] = useState('');
@@ -426,6 +427,21 @@ export default function PhotoOrganizer() {
     },
     [getState, applyDayContainers, setProjectFromState, showToast, updateRecentProjects],
   );
+
+  // Fetch current version on mount for robustness
+  useEffect(() => {
+    const fetchVersion = async () => {
+      try {
+        const version = await versionManager.getCurrentVersion();
+        setCurrentVersion(`v${version}`);
+      } catch (error) {
+        // Keep build-time version as fallback
+        console.warn('Failed to fetch runtime version:', error);
+      }
+    };
+
+    fetchVersion();
+  }, []);
 
   useEffect(() => {
     try {
@@ -1180,7 +1196,7 @@ export default function PhotoOrganizer() {
             </div>
 
             <div className="flex items-center gap-2">
-              <span className="text-xs text-gray-500">{versionManager.getDisplayVersion()}</span>
+              <span className="text-xs text-gray-500">{currentVersion}</span>
 
               {/* Main Menu button - always available */}
               <button

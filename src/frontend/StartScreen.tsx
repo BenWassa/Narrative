@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Plus } from 'lucide-react';
 import OnboardingModal, { OnboardingState, RecentProject } from './OnboardingModal';
 import ProjectTile from './ui/ProjectTile';
@@ -24,6 +24,22 @@ export default function StartScreen({
   errorMessage = null,
 }: StartScreenProps) {
   const [showOnboarding, setShowOnboarding] = useState(false);
+  const [currentVersion, setCurrentVersion] = useState(versionManager.getDisplayVersion());
+
+  // Fetch current version on mount for robustness
+  useEffect(() => {
+    const fetchVersion = async () => {
+      try {
+        const version = await versionManager.getCurrentVersion();
+        setCurrentVersion(`v${version}`);
+      } catch (error) {
+        // Keep build-time version as fallback
+        console.warn('Failed to fetch runtime version:', error);
+      }
+    };
+
+    fetchVersion();
+  }, []);
 
   if (!isOpen) return null;
 
@@ -41,7 +57,7 @@ export default function StartScreen({
             <h1 className="text-xl font-bold">Narrative</h1>
           </div>
           <div className="px-3 py-1 bg-gray-800 text-gray-300 rounded-md text-xs font-medium tracking-wide">
-            <span className="uppercase">{versionManager.getDisplayVersion()}</span>
+            <span className="uppercase">{currentVersion}</span>
           </div>
         </div>
       </div>

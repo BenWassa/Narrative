@@ -51,7 +51,9 @@ export default function LoadingModal({
           <div className="mt-6">
             <div className="flex justify-between items-center mb-2">
               <span className="text-xs font-medium text-gray-400">Progress</span>
-              <span className="text-xs font-bold text-blue-400">{Math.round(displayProgress)}%</span>
+              <span className="text-xs font-bold text-blue-400">
+                {Math.round(displayProgress)}%
+              </span>
             </div>
             <div className="w-full bg-gray-800 rounded-full h-2 overflow-hidden">
               <div

@@ -75,6 +75,44 @@ export class VersionManager {
     }
     return 0;
   }
+
+  /**
+   * Fetch current version from package.json at runtime (for development robustness)
+   */
+  async fetchRuntimeVersion(): Promise<string | null> {
+    try {
+      // Only attempt in development or when explicitly needed
+      if (import.meta.env.PROD || import.meta.env.MODE === 'test') {
+        return null; // Use build-time version in production or tests
+      }
+
+      const response = await fetch('/package.json');
+      if (!response.ok) {
+        console.warn('Failed to fetch package.json for version check');
+        return null;
+      }
+
+      const pkg = await response.json();
+      return pkg.version || null;
+    } catch (error) {
+      console.warn('Error fetching runtime version:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Get the most current version available (runtime check in dev, build-time otherwise)
+   */
+  async getCurrentVersion(): Promise<string> {
+    // In production, always use build-time version
+    if (import.meta.env.PROD) {
+      return this.version;
+    }
+
+    // In development, try to get runtime version for better DX
+    const runtimeVersion = await this.fetchRuntimeVersion();
+    return runtimeVersion || this.version;
+  }
 }
 
 // Export singleton instance

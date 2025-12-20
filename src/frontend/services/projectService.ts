@@ -340,14 +340,16 @@ async function buildPhotosFromHandle(
     const file = await entry.handle.getFile();
     const timestamp = file.lastModified;
     const originalName = file.name;
-    
+
     // Create a fingerprint to detect duplicates
     // Use filename + timestamp + size to identify same file in multiple locations
     const fileFingerprint = `${originalName}|${timestamp}|${file.size}`;
-    
+
     // Skip if we've already seen this exact file
     if (seenFiles.has(fileFingerprint)) {
-      console.debug(`[ProjectService] Skipping duplicate file: ${entry.path} (matches ${originalName})`);
+      console.debug(
+        `[ProjectService] Skipping duplicate file: ${entry.path} (matches ${originalName})`,
+      );
       continue;
     }
     seenFiles.add(fileFingerprint);
