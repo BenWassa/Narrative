@@ -130,6 +130,22 @@ async function collectFiles(
 }
 
 export async function heicToBlob(file: File): Promise<Blob> {
+  // First check if the file is already readable by the browser
+  try {
+    // Try to create an ImageBitmap to see if the file is already readable
+    if (typeof createImageBitmap !== 'undefined') {
+      const testBitmap = await createImageBitmap(file);
+      testBitmap.close(); // Clean up
+      // If we get here, the file is already browser-readable, return it as-is
+      console.log(
+        `File ${file.name} is already browser readable (${file.type}), skipping HEIC conversion`,
+      );
+      return file;
+    }
+  } catch (testErr) {
+    // File is not readable, continue with conversion
+  }
+
   try {
     // Try using heic2any library first - most reliable for HEIC conversion
     const heic2any = (await import('heic2any')).default;
@@ -140,7 +156,16 @@ export async function heicToBlob(file: File): Promise<Blob> {
         quality: 0.8,
       });
       return convertedBlob as Blob;
-    } catch (heicErr) {
+    } catch (heicErr: any) {
+      // Check if the error indicates the file is already readable
+      if (
+        heicErr?.message?.includes('already browser readable') ||
+        heicErr?.message?.includes('ERR_USER') ||
+        heicErr?.code === 1
+      ) {
+        console.log(`File ${file.name} is already browser readable, using original file`);
+        return file;
+      }
       console.warn(`heic2any conversion failed for ${file.name}:`, heicErr);
       // Fall through to other methods
     }

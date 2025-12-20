@@ -311,6 +311,7 @@ export default function PhotoOrganizer() {
     // Apply mappings from onboarding: assign detected day numbers to photos
     // Only assign days to folders that were NOT skipped during onboarding
     // Also detect day numbers from Dnn subfolders (e.g., 01_DAYS/D01/...)
+    // Reset day to null for folders that are not mapped
     const folderByName = new Map<string, any>();
     mappings.forEach(m => folderByName.set(m.folder, m));
 
@@ -335,7 +336,8 @@ export default function PhotoOrganizer() {
         return { ...p, day: mapping.detectedDay };
       }
 
-      return p;
+      // Reset day to null for unmapped folders
+      return { ...p, day: null };
     });
   }, []);
 
@@ -856,6 +858,18 @@ export default function PhotoOrganizer() {
     [photos, saveToHistory, selectedDay],
   );
 
+  // Remove day assignment from selected photos
+  const removeDayAssignment = useCallback(
+    photoIds => {
+      const ids = Array.isArray(photoIds) ? photoIds : [photoIds];
+      const newPhotos = photos.map(photo =>
+        ids.includes(photo.id) ? { ...photo, day: null } : photo,
+      );
+      saveToHistory(newPhotos);
+    },
+    [photos, saveToHistory],
+  );
+
   // Toggle favorite for a single or multiple photos
   const toggleFavorite = useCallback(
     photoIds => {
@@ -925,6 +939,67 @@ export default function PhotoOrganizer() {
         const hydratedPhotos = state.mappings?.length
           ? applyFolderMappings(initResult.photos, state.mappings)
           : applySuggestedDays(initResult.photos, initResult.suggestedDays);
+
+        // Log final folder organization for debugging
+        console.group('🎯 FINAL PHOTO ORGANIZATION');
+        const folderGroups = new Map<string, ProjectPhoto[]>();
+        hydratedPhotos.forEach(photo => {
+          const topFolder = (photo.filePath || photo.originalName || '').split('/')[0] || 'root';
+          if (!folderGroups.has(topFolder)) {
+            folderGroups.set(topFolder, []);
+          }
+          folderGroups.get(topFolder)!.push(photo);
+        });
+
+        console.log('📁 Photos by folder:');
+        folderGroups.forEach((photos, folder) => {
+          const dayCounts = new Map<number | null, number>();
+          photos.forEach(p => {
+            const day = p.day;
+            dayCounts.set(day, (dayCounts.get(day) || 0) + 1);
+          });
+
+          console.group(`📂 ${folder} (${photos.length} photos)`);
+          dayCounts.forEach((count, day) => {
+            console.log(`  Day ${day || 'null'}: ${count} photos`);
+          });
+          console.table(
+            photos.map(p => ({
+              id: p.id,
+              fileName: p.originalName,
+              day: p.day,
+              filePath: p.filePath,
+            })),
+          );
+          console.groupEnd();
+        });
+
+        // Also log by day
+        console.log('📅 Photos by day:');
+        const dayGroups = new Map<number | null, ProjectPhoto[]>();
+        hydratedPhotos.forEach(photo => {
+          const day = photo.day;
+          if (!dayGroups.has(day)) {
+            dayGroups.set(day, []);
+          }
+          dayGroups.get(day)!.push(photo);
+        });
+
+        dayGroups.forEach((photos, day) => {
+          const folderCounts = new Map<string, number>();
+          photos.forEach(p => {
+            const folder = (p.filePath || p.originalName || '').split('/')[0] || 'root';
+            folderCounts.set(folder, (folderCounts.get(folder) || 0) + 1);
+          });
+
+          console.group(`📆 Day ${day || 'null'} (${photos.length} photos)`);
+          folderCounts.forEach((count, folder) => {
+            console.log(`  ${folder}: ${count} photos`);
+          });
+          console.groupEnd();
+        });
+
+        console.groupEnd();
 
         setLoadingProgress(85);
         setLoadingMessage('Setting up day containers...');
@@ -1110,6 +1185,7 @@ export default function PhotoOrganizer() {
     focusedPhoto,
     filteredPhotos,
     assignBucket,
+    removeDayAssignment,
     toggleFavorite,
     undo,
     redo,
@@ -2040,6 +2116,15 @@ export default function PhotoOrganizer() {
                     Assign selected photos to a day folder
                   </div>
                 </div>
+                <button
+                  onClick={() => {
+                    removeDayAssignment(Array.from(selectedPhotos));
+                    setSelectedPhotos(new Set());
+                  }}
+                  className="w-full px-3 py-2 bg-gray-700 hover:bg-gray-600 rounded text-sm font-medium transition-colors"
+                >
+                  Remove Day Assignment
+                </button>
               </div>
 
               <div className="space-y-2 mb-6">
