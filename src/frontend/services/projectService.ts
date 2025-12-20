@@ -394,8 +394,7 @@ function serializeState(state: ProjectState) {
     rating: photo.rating,
     archived: photo.archived,
     currentName: photo.currentName,
-    // Cache thumbnail URLs to avoid regenerating them on reload
-    thumbnail: photo.thumbnail,
+    // Note: thumbnails are not cached as blob URLs are session-specific
   }));
 
   return {
@@ -504,15 +503,20 @@ export async function getState(projectId: string): Promise<ProjectState> {
       if (edit?.filePath) cachedEdits.set(edit.filePath, edit);
     });
 
-    // Apply cached data to fresh photos, but only regenerate thumbnails if not cached
+    // Apply cached data to fresh photos (thumbnails are always fresh)
     photos = freshPhotos.map(photo => {
       const cached = photo.filePath ? cachedEdits.get(photo.filePath) : null;
       if (cached) {
-        // Use cached thumbnail if available, otherwise keep the freshly generated one
+        // Apply cached edits but keep fresh thumbnail
         return {
           ...photo,
-          ...cached,
-          thumbnail: cached.thumbnail || photo.thumbnail,
+          day: cached.day,
+          bucket: cached.bucket,
+          sequence: cached.sequence,
+          favorite: cached.favorite,
+          rating: cached.rating,
+          archived: cached.archived,
+          currentName: cached.currentName,
         };
       }
       return photo;
