@@ -15,6 +15,7 @@ import {
 import { Pencil, Save, X as XIcon } from 'lucide-react';
 import OnboardingModal, { OnboardingState, RecentProject } from './OnboardingModal';
 import StartScreen from './StartScreen';
+import { versionManager } from '../utils/versionManager';
 import {
   initProject,
   getState,
@@ -1128,7 +1129,7 @@ export default function PhotoOrganizer() {
             </div>
 
             <div className="flex items-center gap-2">
-              <span className="text-xs text-gray-500">v{__APP_VERSION__}</span>
+              <span className="text-xs text-gray-500">{versionManager.getDisplayVersion()}</span>
 
               {/* Main Menu button - always available */}
               <button

@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Camera, Plus } from 'lucide-react';
 import OnboardingModal, { OnboardingState, RecentProject } from './OnboardingModal';
 import ProjectTile from './ui/ProjectTile';
+import { versionManager } from '../utils/versionManager';
 
 interface StartScreenProps {
   isOpen: boolean;
@@ -36,7 +37,7 @@ export default function StartScreen({
             <h1 className="text-xl font-bold">Narrative</h1>
           </div>
           <div className="px-3 py-1 bg-gray-800 text-gray-300 rounded-md text-xs font-medium tracking-wide">
-            <span className="uppercase">{`v${__APP_VERSION__}`}</span>
+            <span className="uppercase">{versionManager.getDisplayVersion()}</span>
           </div>
         </div>
       </div>
@@ -60,18 +61,26 @@ export default function StartScreen({
           {/* Projects grid */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 auto-rows-max">
             {/* New Project Button - same size as ProjectTile */}
-            <button
-              onClick={() => setShowOnboarding(true)}
-              className="relative rounded-lg overflow-hidden border-2 border-dashed border-gray-700 bg-gray-900 hover:bg-gray-800 hover:border-blue-500 transition-all group"
-              aria-label="Create new project"
-            >
-              <div className="aspect-video flex flex-col items-center justify-center bg-gradient-to-br from-gray-800 to-gray-900 group-hover:from-gray-700 group-hover:to-gray-800 transition-colors">
-                <div className="w-14 h-14 rounded-full bg-gray-700 group-hover:bg-blue-500/20 flex items-center justify-center mb-2 transition-colors">
-                  <Plus className="w-7 h-7 text-blue-400" />
+            <div className="relative rounded-lg overflow-hidden border-2 border-dashed border-gray-700 bg-gray-950 hover:border-blue-500 transition-colors group cursor-pointer">
+              <button
+                onClick={() => setShowOnboarding(true)}
+                className="w-full block text-left"
+                aria-label="Create new project"
+              >
+                <div className="aspect-video overflow-hidden bg-gray-900 relative">
+                  <div className="w-full h-full bg-gradient-to-br from-gray-800 to-gray-900 flex items-center justify-center group-hover:from-gray-700 group-hover:to-gray-800 transition-colors">
+                    <div className="w-14 h-14 rounded-full bg-gray-700 group-hover:bg-blue-500/20 flex items-center justify-center mb-2 transition-colors">
+                      <Plus className="w-7 h-7 text-blue-400" />
+                    </div>
+                  </div>
                 </div>
-                <div className="text-sm font-semibold text-gray-300">New Project</div>
+              </button>
+
+              <div className="p-3 space-y-1">
+                <div className="text-sm font-semibold text-gray-200">New Project</div>
+                <div className="text-xs text-gray-500">Start organizing photos</div>
               </div>
-            </button>
+            </div>
 
             {/* Recent Projects */}
             {recentProjects.map(project => (

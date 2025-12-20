@@ -73,7 +73,9 @@ test('renders project name', async () => {
   fireEvent.click(projectButton);
 
   // After clicking project, the StartScreen should disappear
-  await waitFor(() => expect(screen.queryByRole('heading', { name: 'Projects' })).not.toBeInTheDocument());
+  await waitFor(() =>
+    expect(screen.queryByRole('heading', { name: 'Projects' })).not.toBeInTheDocument(),
+  );
 
   // And the project name should appear in the document
   const projectName = screen.getByText('Test Trip');
@@ -473,7 +475,9 @@ test('handles localStorage failures gracefully when updating recents', async () 
     fireEvent.click(projectButton);
 
     // After project loads, the StartScreen should disappear
-    await waitFor(() => expect(screen.queryByRole('heading', { name: 'Projects' })).not.toBeInTheDocument());
+    await waitFor(() =>
+      expect(screen.queryByRole('heading', { name: 'Projects' })).not.toBeInTheDocument(),
+    );
 
     // And the project name should appear in the document
     const projectNameElement = screen.getByText('Test Trip');

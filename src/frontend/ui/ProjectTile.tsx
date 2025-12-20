@@ -41,7 +41,9 @@ export default function ProjectTile({ project, onOpen }: ProjectTileProps) {
       <div className="p-3 space-y-1">
         <div className="text-sm font-semibold text-gray-200 truncate">{project.projectName}</div>
         {typeof project.totalPhotos === 'number' && (
-          <div className="text-xs text-gray-500">{`${project.totalPhotos} ${project.totalPhotos === 1 ? 'photo' : 'photos'}`}</div>
+          <div className="text-xs text-gray-500">{`${project.totalPhotos} ${
+            project.totalPhotos === 1 ? 'photo' : 'photos'
+          }`}</div>
         )}
         <div className="text-xs text-gray-600 truncate">{project.rootPath}</div>
       </div>
