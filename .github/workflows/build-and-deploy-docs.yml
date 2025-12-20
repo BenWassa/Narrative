@@ -70,7 +70,8 @@ jobs:
       - name: Upload built site artifact
         uses: actions/upload-pages-artifact@v4
         with:
-          path: ./docs/site
+          # Vite is configured to output to `docs/` (see vite.config.ts outDir)
+          path: ./docs
 
       - name: Deploy to GitHub Pages
         id: deployment
