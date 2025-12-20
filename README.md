@@ -16,14 +16,12 @@ There is a lightweight static site in the `docs/` folder suitable for publishing
 
 ### Frontend demo and publishing
 
-This repo includes a small Vite + React build that outputs a production site to `docs/site/` (so `docs/index.html` can remain a top-level docs landing page). To try locally and publish:
+This repo includes a small Vite + React build that outputs a production site to `docs/` for GitHub Pages. To try locally and publish:
 
 1. Install dependencies: `npm install` (root)
 2. Run dev server: `npm run dev` (open `http://localhost:5173` by default)
-3. Build for production: `npm run build` — the built site will be placed in `docs/site/`
-4. Push to GitHub and ensure GitHub Pages is set to serve from the `docs/` folder on the `main` branch — the app will be available at `/site/` and the docs index will remain at the root of the `docs/` folder.
-
-If you'd rather deploy the app at the docs root (e.g., `docs/index.html`), I can change the Vite output to `docs/` (this will overwrite the current `docs/index.html`).
+3. Build for production: `npm run build` — the built site will be placed in `docs/`
+4. Push to GitHub and ensure GitHub Pages is set to serve from the `docs/` folder on the `main` branch — the app will load at the repo root (e.g. `https://benwassa.github.io/Narrative/`).
 
 ---
 
