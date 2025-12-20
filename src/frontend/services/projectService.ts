@@ -37,6 +37,7 @@ export interface ProjectState {
   rootPath: string;
   photos: ProjectPhoto[];
   settings: ProjectSettings;
+  dayLabels?: Record<string, string>;
   lastModified?: number;
 }
 
@@ -189,6 +190,7 @@ function serializeState(state: ProjectState) {
     projectName: state.projectName,
     rootPath: state.rootPath,
     settings: state.settings,
+    dayLabels: state.dayLabels || {},
     lastModified: state.lastModified ?? Date.now(),
     edits,
   };
@@ -269,6 +271,7 @@ export async function getState(projectId: string): Promise<ProjectState> {
         metaFolder: '_meta',
       },
     },
+    dayLabels: stored.dayLabels || {},
     lastModified: stored.lastModified,
   };
 }

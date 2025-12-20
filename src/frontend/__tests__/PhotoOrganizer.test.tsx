@@ -79,7 +79,7 @@ test('shift-click selects a contiguous range', async () => {
   fireEvent.click(projectButton);
 
   // Select a day first (since default view is now 'days' instead of 'inbox')
-  const dayButton = await screen.findByRole('button', { name: /Day 01/i });
+  const dayButton = await screen.findByRole('button', { name: /(Day 01|Beach)/i });
   fireEvent.click(dayButton);
 
   // wait for images to render
@@ -96,6 +96,36 @@ test('shift-click selects a contiguous range', async () => {
   // selected tiles get the 'ring-4' class
   const selected = container.querySelectorAll('.ring-4');
   expect(selected.length).toBeGreaterThanOrEqual(4);
+});
+
+test('renames a day label and export script uses it', async () => {
+  render(<PhotoOrganizer />);
+  const projectButton = await screen.findByRole('button', { name: /Test Trip/i });
+  fireEvent.click(projectButton);
+
+  // ensure Day 01 exists and open edit
+  const editBtn = await screen.findByLabelText(/Edit day 1/i);
+  fireEvent.click(editBtn);
+
+  const input = await screen.findByRole('textbox');
+  fireEvent.change(input, { target: { value: 'Beach' } });
+
+  const save = await screen.findByLabelText(/Save day name/i);
+  fireEvent.click(save);
+  // select a photo in that day and assign it a category so export will include it
+  const dayButton = await screen.findByText(/Beach/i);
+  fireEvent.click(dayButton);
+  const first = await screen.findByTestId('photo-photo_1');
+  fireEvent.click(first);
+  const bucketBtn = await screen.findByRole('button', { name: /Establishing/i });
+  fireEvent.click(bucketBtn);
+
+  // Export script should include the new label
+  const exportBtn = await screen.findByRole('button', { name: /Export Script/i });
+  fireEvent.click(exportBtn);
+
+  const textarea = await screen.findByRole('textbox');
+  expect(textarea.value).toContain('Beach');
 });
 
 test('handles localStorage failures gracefully when updating recents', async () => {

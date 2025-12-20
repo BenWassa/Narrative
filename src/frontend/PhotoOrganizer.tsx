@@ -12,6 +12,7 @@ import {
   Download,
   Loader,
 } from 'lucide-react';
+import { Pencil, Save, X as XIcon } from 'lucide-react';
 import OnboardingModal, { OnboardingState, RecentProject } from './OnboardingModal';
 import StartScreen from './StartScreen';
 import {
@@ -66,9 +67,14 @@ export default function PhotoOrganizer() {
   const [showHelp, setShowHelp] = useState(false);
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [showWelcome, setShowWelcome] = useState(false);
+  const [editingName, setEditingName] = useState(false);
+  const [nameInput, setNameInput] = useState('');
   const [projectName, setProjectName] = useState('No Project');
   const [projectRootPath, setProjectRootPath] = useState<string | null>(null);
   const [projectFolderLabel, setProjectFolderLabel] = useState<string | null>(null);
+  const [dayLabels, setDayLabels] = useState<Record<number, string>>({});
+  const [editingDay, setEditingDay] = useState<number | null>(null);
+  const [editingDayName, setEditingDayName] = useState('');
   const [projectSettings, setProjectSettings] = useState<ProjectSettings>(DEFAULT_SETTINGS);
   const [recentProjects, setRecentProjects] = useState<RecentProject[]>([]);
   const [showProjectMenu, setShowProjectMenu] = useState(false);
@@ -135,8 +141,8 @@ export default function PhotoOrganizer() {
 
     photos.forEach(photo => {
       if (!photo.day || !photo.bucket || photo.archived) return;
-      const dayLabel = `D${String(photo.day).padStart(2, '0')}`;
-      const destDir = `${daysRoot}/${dayLabel}`;
+      const label = (photo.day && dayLabels[photo.day]) || `D${String(photo.day).padStart(2, '0')}`;
+      const destDir = `${daysRoot}/${label}`;
       const destName = photo.currentName || photo.originalName;
       const sourcePath = photo.filePath || photo.originalName;
       lines.push(`mkdir -p "${destDir}"`);
@@ -145,7 +151,7 @@ export default function PhotoOrganizer() {
 
     lines.push('echo "Done"');
     return lines.join('\n');
-  }, [photos, projectSettings.folderStructure.daysFolder]);
+  }, [photos, projectSettings.folderStructure.daysFolder, dayLabels]);
 
   const persistState = useCallback(
     async (nextPhotos: ProjectPhoto[]) => {
@@ -155,6 +161,7 @@ export default function PhotoOrganizer() {
         rootPath: projectFolderLabel || projectRootPath,
         photos: nextPhotos,
         settings: projectSettings,
+        dayLabels,
       };
       try {
         await saveState(projectRootPath, state);
@@ -162,7 +169,7 @@ export default function PhotoOrganizer() {
         setProjectError(err instanceof Error ? err.message : 'Failed to save project state');
       }
     },
-    [projectName, projectRootPath, projectFolderLabel, projectSettings],
+    [projectName, projectRootPath, projectFolderLabel, projectSettings, dayLabels],
   );
 
   const updateRecentProjects = useCallback((nextProject: RecentProject) => {
@@ -178,6 +185,7 @@ export default function PhotoOrganizer() {
     setPhotos(state.photos || []);
     setProjectName(state.projectName || 'Untitled Project');
     setProjectFolderLabel(state.rootPath || null);
+    setDayLabels((state as any).dayLabels || {});
     setProjectSettings(state.settings || DEFAULT_SETTINGS);
     setHistory([]);
     setHistoryIndex(-1);
@@ -601,8 +609,35 @@ export default function PhotoOrganizer() {
                 {/* Ensure the project name has high contrast against the header */}
                 <h1 className="text-lg font-semibold text-gray-100">{projectName}</h1>
                 <p className="text-xs text-gray-400">
-                  {stats.sorted} sorted · {stats.unsorted} inbox · {stats.favorites} favorites
+                  {stats.sorted} sorted · {stats.root} root · {stats.favorites} favorites
                 </p>
+              </div>
+
+              <div className="space-y-4 mb-6">
+                <h3 className="text-sm font-semibold text-gray-300 mb-3">Assign Day</h3>
+                <div className="flex gap-2 items-center">
+                  <select
+                    onChange={e => {
+                      const val = e.target.value;
+                      if (!val) return;
+                      const dayNum = val === 'new' ? Math.max(0, ...days.map(d => d[0])) + 1 : Number(val);
+                      const targets = Array.from(selectedPhotos);
+                      const newPhotos = photos.map(ph => (targets.includes(ph.id) ? { ...ph, day: dayNum } : ph));
+                      saveToHistory(newPhotos);
+                      setSelectedDay(dayNum);
+                      setCurrentView('days');
+                    }}
+                    className="px-3 py-2 rounded bg-gray-800"
+                    defaultValue=""
+                  >
+                    <option value="">Assign to...</option>
+                    {days.map(([d]) => (
+                      <option key={d} value={d}>{`Day ${String(d).padStart(2, '0')}`}</option>
+                    ))}
+                    <option value="new">Create new day</option>
+                  </select>
+                  <div className="text-xs text-gray-400">Assign selected photos to a day folder</div>
+                </div>
               </div>
             </div>
 
@@ -752,18 +787,70 @@ export default function PhotoOrganizer() {
               <h3 className="text-xs font-semibold text-gray-400 uppercase mb-3">Days</h3>
               <div className="space-y-1">
                 {days.map(([day, dayPhotos], idx) => (
-                  <button
+                  <div
                     key={day}
+                    role="button"
+                    tabIndex={0}
                     onClick={() => setSelectedDay(day)}
+                    onKeyDown={e => e.key === 'Enter' && setSelectedDay(day)}
                     className={`w-full text-left px-3 py-2 rounded text-sm transition-colors ${
                       selectedDay === day
                         ? 'bg-blue-600 text-white'
                         : 'hover:bg-gray-800 text-gray-300'
                     }`}
                   >
-                    <div className="font-medium">Day {String(day).padStart(2, '0')}</div>
+                    <div className="flex items-center justify-between">
+                      {editingDay === day ? (
+                        <div className="flex items-center gap-2 w-full">
+                          <input
+                            value={editingDayName}
+                            onChange={e => setEditingDayName(e.target.value)}
+                            className="w-full px-2 py-1 rounded bg-gray-800 text-sm text-gray-100"
+                          />
+                          <button
+                            onClick={e => {
+                              e.stopPropagation();
+                              setDayLabels(prev => ({ ...prev, [day]: editingDayName }));
+                              persistState(photos);
+                              setEditingDay(null);
+                            }}
+                            className="p-1 bg-green-600 rounded"
+                            aria-label="Save day name"
+                          >
+                            <Save className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={e => {
+                              e.stopPropagation();
+                              setEditingDay(null);
+                            }}
+                            className="p-1 bg-gray-800 rounded"
+                            aria-label="Cancel"
+                          >
+                            <XIcon className="w-4 h-4" />
+                          </button>
+                        </div>
+                      ) : (
+                        <>
+                          <div className="font-medium">
+                            {dayLabels[day] || `Day ${String(day).padStart(2, '0')}`}
+                          </div>
+                          <button
+                            onClick={e => {
+                              e.stopPropagation();
+                              setEditingDay(day);
+                              setEditingDayName(dayLabels[day] || `Day ${String(day).padStart(2, '0')}`);
+                            }}
+                            className="p-1 ml-2"
+                            aria-label={`Edit day ${day}`}
+                          >
+                            <Pencil className="w-4 h-4 text-gray-400" />
+                          </button>
+                        </>
+                      )}
+                    </div>
                     <div className="text-xs opacity-70">{dayPhotos.length} photos</div>
-                  </button>
+                  </div>
                 ))}
               </div>
             </div>
@@ -858,9 +945,56 @@ export default function PhotoOrganizer() {
                       alt="Selected"
                       className="w-full rounded-lg"
                     />
-                    <p className="mt-2 text-xs text-gray-400 font-mono break-all">
-                      {photos.find(p => p.id === Array.from(selectedPhotos)[0])?.currentName}
-                    </p>
+                    <div className="mt-2 text-xs text-gray-400 font-mono break-all">
+                      {!editingName ? (
+                        <div className="flex items-center justify-between">
+                          <div>
+                            {photos.find(p => p.id === Array.from(selectedPhotos)[0])?.currentName}
+                          </div>
+                          <button
+                            onClick={() => {
+                              const id = Array.from(selectedPhotos)[0];
+                              const p = photos.find(x => x.id === id);
+                              setNameInput(p?.currentName || p?.originalName || '');
+                              setEditingName(true);
+                            }}
+                            className="p-1 ml-2"
+                            aria-label="Edit name"
+                          >
+                            <Pencil className="w-4 h-4 text-gray-400" />
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="flex gap-2">
+                          <input
+                            value={nameInput}
+                            onChange={e => setNameInput(e.target.value)}
+                            className="w-full px-2 py-1 rounded bg-gray-800 text-sm text-gray-100"
+                          />
+                          <button
+                            onClick={() => {
+                              const id = Array.from(selectedPhotos)[0];
+                              const newPhotos = photos.map(ph =>
+                                ph.id === id ? { ...ph, currentName: nameInput } : ph,
+                              );
+                              saveToHistory(newPhotos);
+                              setEditingName(false);
+                            }}
+                            className="p-1 bg-green-600 rounded"
+                            aria-label="Save name"
+                          >
+                            <Save className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={() => setEditingName(false)}
+                            className="p-1 bg-gray-800 rounded"
+                            aria-label="Cancel edit name"
+                          >
+                            <XIcon className="w-4 h-4" />
+                          </button>
+                        </div>
+                      )}
+                    </div>
                   </>
                 ) : (
                   <div className="text-sm text-gray-300">{selectedPhotos.size} selected</div>
