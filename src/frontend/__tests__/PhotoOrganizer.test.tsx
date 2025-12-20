@@ -93,26 +93,6 @@ test('shift-click selects a contiguous range', async () => {
   expect(selected.length).toBeGreaterThanOrEqual(4);
 });
 
-test('run demo does not persist sample project to recents', async () => {
-  // Ensure recents are empty
-  localStorage.clear();
-
-  const { container } = render(<PhotoOrganizer />);
-  const runDemo = await screen.findByRole('button', { name: /Run demo/i });
-  fireEvent.click(runDemo);
-
-  // Wait for project name to appear
-  const heading = await screen.findByRole('heading', { level: 1 });
-  expect(heading).toHaveTextContent('Sample Trip');
-
-  // recent projects must be empty or not include sample://trip
-  const raw = localStorage.getItem('narrative:recentProjects');
-  if (raw) {
-    const parsed = JSON.parse(raw) as any[];
-    expect(parsed.find(p => p.rootPath === 'sample://trip')).toBeUndefined();
-  }
-});
-
 test('handles localStorage failures gracefully when updating recents', async () => {
   // make setItem throw to simulate quota or storage errors
   const origSet = localStorage.setItem;

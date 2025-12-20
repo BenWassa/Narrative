@@ -11,8 +11,6 @@ describe('Automated accessibility checks (axe-core)', () => {
         isOpen={true}
         onClose={() => {}}
         onComplete={() => {}}
-        onDetect={async () => []}
-        onApply={async () => ({ summary: '', changes: {} })}
       />,
     );
 

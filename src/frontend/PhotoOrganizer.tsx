@@ -13,9 +13,8 @@ import {
   Download,
   Loader,
 } from 'lucide-react';
-import OnboardingModal, { FolderMapping, OnboardingState, RecentProject } from './OnboardingModal';
+import OnboardingModal, { OnboardingState, RecentProject } from './OnboardingModal';
 import StartScreen from './StartScreen';
-import { detectFolderStructure, generateDryRunSummary } from '../services/folderDetectionService';
 import {
   initProject,
   getState,
@@ -195,14 +194,6 @@ export default function PhotoOrganizer() {
     setShowWelcome(true);
   }, [loadProject]);
 
-  const setRecentProjectCover = useCallback((rootPath: string, coverUrl: string) => {
-    setRecentProjects(prev => {
-      const updated = prev.map(p => (p.rootPath === rootPath ? { ...p, coverUrl } : p));
-      safeLocalStorage.set(RECENT_PROJECTS_KEY, JSON.stringify(updated));
-      return updated;
-    });
-  }, []);
-
   // Get days from photos
   const days = React.useMemo(() => {
     const dayMap = new Map();
@@ -318,42 +309,6 @@ export default function PhotoOrganizer() {
     }
   }, [history, historyIndex, persistState]);
 
-  // Onboarding handlers
-  const handleDetect = useCallback(async (rootPath: string): Promise<FolderMapping[]> => {
-    // Simulate folder detection (in real implementation, this would call a backend service)
-    // For now, return a sample detection result
-    const sampleFolders = ['Day 1', 'Day 2', 'Day 3', 'unsorted'];
-    const photoCountMap = new Map([
-      ['Day 1', 42],
-      ['Day 2', 56],
-      ['Day 3', 38],
-      ['unsorted', 12],
-    ]);
-
-    return detectFolderStructure(sampleFolders, { photoCountMap });
-  }, []);
-
-  const handleApply = useCallback(
-    async (
-      mappings: FolderMapping[],
-      dryRun: boolean,
-    ): Promise<{ summary: string; changes: object }> => {
-      // Generate dry-run summary
-      const summary = generateDryRunSummary(mappings);
-
-      if (dryRun) {
-        return { summary, changes: {} };
-      }
-
-      // In a real implementation, this would apply the mappings to the filesystem
-      // For now, we'll just simulate the application
-      // TODO: Integrate with backend service to actually move/rename files
-
-      return { summary, changes: {} };
-    },
-    [],
-  );
-
   const handleOnboardingComplete = useCallback(
     async (state: OnboardingState) => {
       setLoadingProject(true);
@@ -403,39 +358,6 @@ export default function PhotoOrganizer() {
     },
     [applySuggestedDays, deriveProjectName, updateRecentProjects],
   );
-
-  // Create a small in-memory sample project for quick exploration (no backend calls)
-  const createSampleProject = useCallback(() => {
-    const now = Date.now();
-    const samplePhotos: ProjectPhoto[] = Array.from({ length: 8 }).map((_, i) => ({
-      id: `sample-${i}`,
-      originalName: `IMG_${1000 + i}.jpg`,
-      currentName: `IMG_${1000 + i}.jpg`,
-      timestamp: now - i * 1000 * 60 * 60 * 24,
-      day: i < 4 ? 1 : 2,
-      bucket: null,
-      sequence: null,
-      favorite: false,
-      rating: 0,
-      archived: false,
-      thumbnail: `https://picsum.photos/seed/sample-${i}/400/300`,
-    }));
-
-    const nextProjectName = 'Sample Trip';
-    setPhotos(samplePhotos);
-    setProjectName(nextProjectName);
-    setProjectRootPath('sample://trip');
-    setProjectSettings(DEFAULT_SETTINGS);
-    setHistory([]);
-    setHistoryIndex(-1);
-    setSelectedPhotos(new Set());
-    setFocusedPhoto(null);
-    setLastSelectedIndex(null);
-    lastSelectedIndexRef.current = null;
-    setSelectedDay(null);
-    setShowWelcome(false);
-    // Do not persist demo/sample projects to recent projects — keep them ephemeral
-  }, [updateRecentProjects]);
 
   // Keyboard shortcuts
   useEffect(() => {
@@ -1002,16 +924,12 @@ export default function PhotoOrganizer() {
           setProjectError(null);
           loadProject(rootPath);
         }}
-        onSetCover={(rootPath, coverUrl) => setRecentProjectCover(rootPath, coverUrl)}
-        onRunDemo={() => createSampleProject()}
         recentProjects={recentProjects}
       />
       <OnboardingModal
         isOpen={showOnboarding}
         onClose={() => setShowOnboarding(false)}
         onComplete={handleOnboardingComplete}
-        onDetect={handleDetect}
-        onApply={handleApply}
         recentProjects={recentProjects}
         onSelectRecent={rootPath => {
           setProjectError(null);
