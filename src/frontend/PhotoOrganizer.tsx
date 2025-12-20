@@ -835,7 +835,7 @@ export default function PhotoOrganizer() {
   return (
     <div className="h-screen flex flex-col bg-gray-950 text-gray-100">
       {/* Header - hidden while StartScreen is visible */}
-      {!(showWelcome && !projectRootPath) && (
+      {!showWelcome && (
         <header className="border-b border-gray-800 bg-gray-900">
           <div className="flex items-center justify-between px-6 py-3">
             <div className="flex items-center gap-4">
@@ -852,6 +852,18 @@ export default function PhotoOrganizer() {
             </div>
 
             <div className="flex items-center gap-2">
+              <button
+                onClick={() => {
+                  setShowProjectMenu(false);
+                  setShowOnboarding(false);
+                  setProjectError(null);
+                  setShowWelcome(true);
+                }}
+                className="px-3 py-1 bg-gray-800 hover:bg-gray-700 rounded text-sm font-medium"
+                title="Back to the main menu"
+              >
+                Main Menu
+              </button>
               <div className="relative">
                 <button
                   onClick={() => setShowProjectMenu(prev => !prev)}
@@ -1743,7 +1755,7 @@ export default function PhotoOrganizer() {
 
       {/* Onboarding Modal */}
       <StartScreen
-        isOpen={showWelcome && !projectRootPath}
+        isOpen={showWelcome}
         onClose={() => setShowWelcome(false)}
         onCreateComplete={handleOnboardingComplete}
         onOpenProject={rootPath => {

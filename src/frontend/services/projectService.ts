@@ -53,6 +53,15 @@ const SUPPORTED_EXT = ['jpg', 'jpeg', 'png', 'heic', 'webp'];
 const STATE_PREFIX = 'narrative:projectState:';
 const HANDLE_DB = 'narrative:handles';
 const HANDLE_STORE = 'projects';
+const DEFAULT_SETTINGS: ProjectSettings = {
+  autoDay: true,
+  folderStructure: {
+    daysFolder: '01_DAYS',
+    archiveFolder: '98_ARCHIVE',
+    favoritesFolder: 'FAV',
+    metaFolder: '_meta',
+  },
+};
 
 function generateId() {
   return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
@@ -294,6 +303,19 @@ function applyEdits(photos: ProjectPhoto[], edits: Array<any>) {
   });
 }
 
+function applyArchiveFolder(photos: ProjectPhoto[], archiveFolder: string): ProjectPhoto[] {
+  if (!archiveFolder) return photos;
+  const normalized = archiveFolder.toLowerCase();
+  return photos.map(photo => {
+    if (!photo.filePath) return photo;
+    const topFolder = photo.filePath.split('/')[0] || '';
+    if (topFolder.toLowerCase() === normalized) {
+      return { ...photo, archived: true, bucket: 'X' };
+    }
+    return photo;
+  });
+}
+
 export async function initProject(options: {
   dirHandle: FileSystemDirectoryHandle;
   projectName?: string;
@@ -305,22 +327,17 @@ export async function initProject(options: {
     throw new Error('Folder access was not granted.');
   }
   const projectId = generateId();
-  const photos = await buildPhotosFromHandle(dirHandle);
+  const photos = applyArchiveFolder(
+    await buildPhotosFromHandle(dirHandle),
+    DEFAULT_SETTINGS.folderStructure.archiveFolder,
+  );
   const suggestedDays = clusterPhotosByTime(photos);
 
   const state: ProjectState = {
     projectName: projectName?.trim() || dirHandle.name,
     rootPath: rootLabel || dirHandle.name,
     photos,
-    settings: {
-      autoDay: true,
-      folderStructure: {
-        daysFolder: '01_DAYS',
-        archiveFolder: '98_ARCHIVE',
-        favoritesFolder: 'FAV',
-        metaFolder: '_meta',
-      },
-    },
+    settings: DEFAULT_SETTINGS,
     lastModified: Date.now(),
   };
 
@@ -344,20 +361,17 @@ export async function getState(projectId: string): Promise<ProjectState> {
   const stored = raw ? JSON.parse(raw) : {};
   const photos = await buildPhotosFromHandle(handle);
   const mergedPhotos = stored.edits ? applyEdits(photos, stored.edits) : photos;
+  const settings = stored.settings || DEFAULT_SETTINGS;
+  const archivedPhotos = applyArchiveFolder(
+    mergedPhotos,
+    settings.folderStructure?.archiveFolder || DEFAULT_SETTINGS.folderStructure.archiveFolder,
+  );
 
   return {
     projectName: stored.projectName || handle.name,
     rootPath: stored.rootPath || handle.name,
-    photos: mergedPhotos,
-    settings: stored.settings || {
-      autoDay: true,
-      folderStructure: {
-        daysFolder: '01_DAYS',
-        archiveFolder: '98_ARCHIVE',
-        favoritesFolder: 'FAV',
-        metaFolder: '_meta',
-      },
-    },
+    photos: archivedPhotos,
+    settings,
     dayLabels: stored.dayLabels || {},
     dayContainers: stored.dayContainers || [],
     lastModified: stored.lastModified,
