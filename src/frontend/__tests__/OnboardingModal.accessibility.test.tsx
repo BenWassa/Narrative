@@ -38,13 +38,16 @@ describe('OnboardingModal accessibility (contrast-related helpers)', () => {
 
   it('shows numbered step indicator and highlights preview as active after folder selection', async () => {
     const onDetect = vi.fn(async () => []);
+    // Supply an onApply that delays so the component remains in 'apply' step long enough
+    const delayedOnApply = async () => new Promise(resolve => setTimeout(resolve, 200));
+
     render(
       <OnboardingModal
         isOpen={true}
         onClose={() => {}}
         onComplete={() => {}}
         onDetect={onDetect}
-        onApply={async () => ({ summary: '', changes: {} })}
+        onApply={delayedOnApply}
       />,
     );
 
@@ -63,4 +66,40 @@ describe('OnboardingModal accessibility (contrast-related helpers)', () => {
     expect(activeBubble).toBeTruthy();
     expect(activeBubble).toHaveTextContent('2');
   });
+
+  it('exports shell script and zip without applying', async () => {
+    const onDetect = vi.fn(async () => []);
+    render(
+      <OnboardingModal
+        isOpen={true}
+        onClose={() => {}}
+        onComplete={() => {}}
+        onDetect={onDetect}
+        onApply={async () => ({ summary: '', changes: {} })}
+      />,
+    );
+
+    const projectInput = screen.getByPlaceholderText('e.g., Iceland Trip 2024');
+    fireEvent.change(projectInput, { target: { value: 'Test Trip' } });
+    const pathInput = screen.getByPlaceholderText('/Users/you/trips/iceland');
+    fireEvent.change(pathInput, { target: { value: '/tmp/test' } });
+
+    const nextBtn = screen.getByRole('button', { name: /Next/i });
+    fireEvent.click(nextBtn);
+
+    // Wait for preview content to render
+    await screen.findByText(/Detected folder structure for/i);
+
+    // Now on preview - export script and zip
+    const exportScriptBtn = screen.getByRole('button', { name: /Export organize script/i });
+    expect(exportScriptBtn).toBeInTheDocument();
+    // clicking will trigger download - ensure no errors
+    fireEvent.click(exportScriptBtn);
+
+    const exportZipBtn = screen.getByRole('button', { name: /Export ZIP/i });
+    expect(exportZipBtn).toBeInTheDocument();
+    fireEvent.click(exportZipBtn);
+  });
+
+  // NOTE: Integration test for the File System Access apply flow is covered by unit tests
 });

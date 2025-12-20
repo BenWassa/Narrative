@@ -78,6 +78,8 @@ export default function OnboardingModal({
   const [mappings, setMappings] = useState<FolderMapping[]>([]);
   const [dryRunMode, setDryRunMode] = useState(false);
   const [applyInProgress, setApplyInProgress] = useState(false);
+  const [applyProgress, setApplyProgress] = useState({ done: 0, total: 0 });
+  const [applyMode, setApplyMode] = useState<'copy' | 'move'>('copy');
   const [dryRunSummary, setDryRunSummary] = useState<{
     summary: string;
     changes: object;
@@ -200,11 +202,16 @@ export default function OnboardingModal({
 
         if (dirHandle) {
           // in-place
-          await import('./services/fileSystemService').then(svc =>
-            svc.applyOrganizationInPlace(dirHandle, items, (done, total) => {
-              // TODO: hook up progress
-            }),
-          );
+            await import('./services/fileSystemService').then(svc =>
+              svc.applyOrganizationInPlace(
+                dirHandle,
+                items,
+                (done, total) => {
+                  setApplyProgress({ done, total });
+                },
+                { move: applyMode === 'move' },
+              ),
+            );
         } else {
           // fallback to zip
           const { exportAsZip } = await import('./services/fileSystemService');
@@ -273,6 +280,18 @@ export default function OnboardingModal({
 
               {step === 'apply' && (
                 <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2">
+                    <label className="text-sm text-gray-500">Mode:</label>
+                    <select
+                      value={applyMode}
+                      onChange={e => setApplyMode(e.target.value as any)}
+                      className="px-2 py-1 rounded-md border-gray-200"
+                    >
+                      <option value="copy">Copy (keep originals)</option>
+                      <option value="move">Move (remove originals)</option>
+                    </select>
+                  </div>
+
                   <button
                     onClick={async () => {
                       if ('showDirectoryPicker' in window) {
@@ -538,10 +557,22 @@ export default function OnboardingModal({
 
           {/* Step 4: Apply Progress */}
           {step === 'apply' && (
-            <div className="space-y-4 text-center">
-              <Loader className="inline-block animate-spin text-blue-600" size={32} />
-              <p className="text-gray-700 font-medium">Applying changes...</p>
-              <p className="text-sm text-gray-600">Please wait, this may take a moment.</p>
+            <div className="space-y-4">
+              <div className="text-center">
+                <Loader className="inline-block animate-spin text-blue-600" size={32} />
+                <p className="text-gray-700 font-medium">Applying changes...</p>
+                <p className="text-sm text-gray-600">Please wait, this may take a moment.</p>
+              </div>
+
+              <div className="w-full">
+                <div className="w-full bg-gray-100 h-3 rounded overflow-hidden">
+                  <div
+                    className="h-3 bg-sky-500"
+                    style={{ width: applyProgress.total ? `${(applyProgress.done / applyProgress.total) * 100}%` : '0%' }}
+                  />
+                </div>
+                <div className="text-xs text-gray-500 mt-2">{applyProgress.done} / {applyProgress.total} files processed</div>
+              </div>
             </div>
           )}
 
@@ -614,15 +645,16 @@ export default function OnboardingModal({
                 >
                   Cancel
                 </button>
-                <button
-                  onClick={() => {
-                    if (dryRunMode) {
-                      handleDryRun();
-                    } else {
-                      setStep('apply');
-                      handleApply();
-                    }
-                  }}
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => {
+                      if (dryRunMode) {
+                        handleDryRun();
+                      } else {
+                        setStep('apply');
+                        handleApply();
+                      }
+                    }}
                   disabled={loading || mappings.every(m => m.skip)}
                   aria-disabled={loading || mappings.every(m => m.skip)}
                   className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium disabled:bg-gray-200 disabled:text-gray-500 disabled:cursor-not-allowed flex items-center gap-2"
@@ -634,6 +666,46 @@ export default function OnboardingModal({
                   )}
                   {dryRunMode ? 'Preview' : 'Apply'}
                 </button>
+                  <button
+                    onClick={async () => {
+                      const items = mappings.filter(m => !m.skip).map(m => ({
+                        originalName: m.folderPath.split('/').pop() || m.folder,
+                        newName: m.suggestedName || m.folder,
+                        day: m.detectedDay || 0,
+                      }));
+                      const { generateShellScript } = await import('./services/fileSystemService');
+                      const script = generateShellScript(items as any, { move: false });
+                      const blob = new Blob([script], { type: 'text/x-shellscript' });
+                      const url = URL.createObjectURL(blob);
+                      const a = document.createElement('a');
+                      a.href = url;
+                      a.download = `${projectName || 'project'}-organize.sh`;
+                      a.click();
+                    }}
+                    className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 font-medium"
+                  >
+                    Export organize script
+                  </button>
+                  <button
+                    onClick={async () => {
+                      const items = mappings.filter(m => !m.skip).map(m => ({
+                        originalName: m.folderPath.split('/').pop() || m.folder,
+                        newName: m.suggestedName || m.folder,
+                        day: m.detectedDay || 0,
+                      }));
+                      const { exportAsZip } = await import('./services/fileSystemService');
+                      const blob = await exportAsZip(items as any);
+                      const url = URL.createObjectURL(blob);
+                      const a = document.createElement('a');
+                      a.href = url;
+                      a.download = `${projectName || 'project'}-organized.zip`;
+                      a.click();
+                    }}
+                    className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 font-medium"
+                  >
+                    Export ZIP (dry-run)
+                  </button>
+                </div>
               </>
             )}
 

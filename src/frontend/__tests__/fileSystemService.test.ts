@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { exportAsZip, supportsFileSystemAccess, applyOrganizationInPlace } from '../services/fileSystemService';
+import { exportAsZip, supportsFileSystemAccess, applyOrganizationInPlace, generateShellScript } from '../services/fileSystemService';
 
 describe('fileSystemService', () => {
   it('supportsFileSystemAccess checks for showDirectoryPicker', () => {
@@ -19,6 +19,18 @@ describe('fileSystemService', () => {
     const file = new File(['hello'], 'a.txt', { type: 'text/plain' });
     const blob = await exportAsZip([{ file, originalName: 'a.txt', day: 1 } as any]);
     expect(blob).toBeInstanceOf(Blob);
+  });
+
+  it('generateShellScript creates cp/mv commands', () => {
+    const items = [
+      { originalName: 'IMG_001.jpg', newName: 'D01_IMG_001.jpg', day: 1 },
+      { originalName: 'IMG_002.jpg', newName: 'D02_IMG_002.jpg', day: 2 },
+    ];
+    const scriptCopy = generateShellScript(items, { move: false });
+    expect(scriptCopy).toContain('cp -- "IMG_001.jpg"');
+
+    const scriptMove = generateShellScript(items, { move: true });
+    expect(scriptMove).toContain('mv -- "IMG_001.jpg"');
   });
 
   it('applyOrganizationInPlace iterates and writes files', async () => {
@@ -49,14 +61,16 @@ describe('fileSystemService', () => {
     const dirHandle = {
       getDirectoryHandle: async (_name: string, opts?: any) => dayHandle,
       getFileHandle: async (_name: string) => fileHandle,
-      removeEntry: async (_name: string) => {},
+      removeEntry: async (_name: string) => {
+        // simulate removal
+      },
     };
 
     const photos = [{ originalName: 'orig.jpg', newName: 'D01_orig.jpg', day: 1 }];
 
     const res = await applyOrganizationInPlace(dirHandle as any, photos as any, (done, total) => {
       // progress callback invoked
-    });
+    }, { move: true });
 
     expect(res.total).toBe(1);
     expect(res.done).toBe(1);

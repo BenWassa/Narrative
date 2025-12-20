@@ -33,7 +33,31 @@ export async function exportAsZip(photos: Array<ProjectPhoto | { file?: File; bl
   return content;
 }
 
-export async function applyOrganizationInPlace(dirHandle: any, photos: Array<{ originalName: string; newName: string; day: number; fileHandle?: any }>, onProgress?: (done: number, total: number) => void) {
+export function generateShellScript(photos: Array<{ originalName: string; newName: string; day: number }>, opts?: { move?: boolean }) {
+  const lines: string[] = [];
+  lines.push('#!/usr/bin/env bash');
+  lines.push('set -euo pipefail');
+  lines.push('');
+  photos.forEach(p => {
+    const dayDir = `Day ${p.day}`;
+    const mkdir = `mkdir -p "${dayDir}"`;
+    const cmd = opts?.move
+      ? `mv -- "${p.originalName}" "${dayDir}/${p.newName}"`
+      : `cp -- "${p.originalName}" "${dayDir}/${p.newName}"`;
+    lines.push(mkdir);
+    lines.push(cmd);
+  });
+
+  lines.push('echo "Done"');
+  return lines.join('\n');
+}
+
+export async function applyOrganizationInPlace(
+  dirHandle: any,
+  photos: Array<{ originalName: string; newName: string; day: number; fileHandle?: any }>,
+  onProgress?: (done: number, total: number) => void,
+  options?: { move?: boolean },
+) {
   // dirHandle: FileSystemDirectoryHandle
   let done = 0;
   const total = photos.length;
@@ -63,11 +87,13 @@ export async function applyOrganizationInPlace(dirHandle: any, photos: Array<{ o
     await writable.write(file);
     await writable.close();
 
-    // Optionally remove original
-    try {
-      await dirHandle.removeEntry(p.originalName);
-    } catch (e) {
-      // ignore if can't remove
+    // Optionally remove original (move semantics)
+    if (options?.move) {
+      try {
+        await dirHandle.removeEntry(p.originalName);
+      } catch (e) {
+        // ignore if can't remove
+      }
     }
 
     done++;

@@ -434,11 +434,7 @@ export default function PhotoOrganizer() {
     lastSelectedIndexRef.current = null;
     setSelectedDay(null);
     setShowWelcome(false);
-    updateRecentProjects({
-      projectName: nextProjectName,
-      rootPath: 'sample://trip',
-      lastOpened: Date.now(),
-    });
+    // Do not persist demo/sample projects to recent projects — keep them ephemeral
   }, [updateRecentProjects]);
 
   // Keyboard shortcuts
