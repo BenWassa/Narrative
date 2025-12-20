@@ -130,7 +130,25 @@ async function collectFiles(
 }
 
 export async function heicToBlob(file: File): Promise<Blob> {
-  // Create canvas from HEIC file using browser's native support
+  try {
+    // Try using heic2any library first - most reliable for HEIC conversion
+    const heic2any = (await import('heic2any')).default;
+    try {
+      const convertedBlob = await heic2any({
+        blob: file,
+        toType: 'image/jpeg',
+        quality: 0.8,
+      });
+      return convertedBlob as Blob;
+    } catch (heicErr) {
+      console.warn(`heic2any conversion failed for ${file.name}:`, heicErr);
+      // Fall through to other methods
+    }
+  } catch (importErr) {
+    console.warn('heic2any library not available, trying fallbacks');
+  }
+
+  // Fallback: Create canvas from HEIC file using browser's native support
   const canvas = document.createElement('canvas');
   const ctx = canvas.getContext('2d');
   if (!ctx) {
