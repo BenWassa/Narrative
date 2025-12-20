@@ -693,6 +693,7 @@ export default function PhotoOrganizer() {
       projectRootPath &&
       photos.length > 0 &&
       selectedRootFolder === null &&
+      selectedDay === null &&
       currentView === 'folders'
     ) {
       // Select the first available root folder
@@ -701,7 +702,7 @@ export default function PhotoOrganizer() {
         setSelectedRootFolder(firstFolder);
       }
     }
-  }, [projectRootPath, photos.length, selectedRootFolder, currentView, rootGroups]);
+  }, [projectRootPath, photos.length, selectedRootFolder, selectedDay, currentView, rootGroups]);
 
   // Save state to history
   const persistState = useCallback(
