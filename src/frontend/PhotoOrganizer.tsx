@@ -848,6 +848,31 @@ export default function PhotoOrganizer() {
         {currentView === 'folders' && (
           <aside className="w-48 border-r border-gray-800 bg-gray-900 overflow-y-auto">
             <div className="p-4">
+              {/* Days grouping at top when viewing folders */}
+              <h3 className="text-xs font-semibold text-gray-400 uppercase mb-3">Days</h3>
+              <div className="space-y-1 mb-4">
+                {days.map(([day, dayPhotos]) => (
+                  <div
+                    key={`day-${day}`}
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => {
+                      setSelectedDay(day);
+                      setCurrentView('days');
+                    }}
+                    onKeyDown={e => e.key === 'Enter' && (setSelectedDay(day), setCurrentView('days'))}
+                    className={`w-full text-left px-3 py-2 rounded text-sm transition-colors ${
+                      selectedDay === day ? 'bg-blue-600 text-white' : 'hover:bg-gray-800 text-gray-300'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="font-medium">{dayLabels[day] || `Day ${String(day).padStart(2, '0')}`}</div>
+                    </div>
+                    <div className="text-xs opacity-70">{dayPhotos.length} photos</div>
+                  </div>
+                ))}
+              </div>
+
               <h3 className="text-xs font-semibold text-gray-400 uppercase mb-3">Folders</h3>
               <div className="space-y-1">
                 {rootGroups.map(([folder, items]) => (

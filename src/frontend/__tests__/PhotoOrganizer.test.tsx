@@ -148,6 +148,10 @@ test('root view groups by top-level folder and opens group', async () => {
   const folderA = await screen.findByText('FolderA');
   expect(folderA).toBeTruthy();
 
+  // Days should be listed first in the sidebar
+  const dayHeading = await screen.findByText(/Day 01/i);
+  expect(dayHeading).toBeTruthy();
+
   // Open FolderA
   fireEvent.click(folderA);
   const photos = await screen.findAllByRole('img');
