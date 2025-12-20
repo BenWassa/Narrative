@@ -277,6 +277,8 @@ export default function PhotoOrganizer() {
           return photos.filter(p => p.day === selectedDay);
         }
         return photos.filter(p => p.day !== null && !p.archived);
+      case 'root':
+        return photos.filter(p => p.day === null && !p.archived);
       case 'favorites':
         return photos.filter(p => p.favorite && !p.archived);
       case 'archive':
@@ -542,6 +544,7 @@ export default function PhotoOrganizer() {
       unsorted: photos.filter(p => !p.bucket && !p.archived).length,
       archived: photos.filter(p => p.archived).length,
       favorites: photos.filter(p => p.favorite).length,
+      root: photos.filter(p => p.day === null && !p.archived).length,
     }),
     [photos],
   );
@@ -710,6 +713,7 @@ export default function PhotoOrganizer() {
           <div className="flex gap-1 px-6 pb-2">
             {[
               { id: 'days', label: 'Days', count: days.length },
+              { id: 'root', label: 'Root', count: stats.root },
               { id: 'favorites', label: 'Favorites', count: stats.favorites },
               { id: 'archive', label: 'Archive', count: stats.archived },
               { id: 'review', label: 'Review', count: stats.sorted },
