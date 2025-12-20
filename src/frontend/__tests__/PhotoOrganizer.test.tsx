@@ -141,8 +141,8 @@ test('root view groups by top-level folder and opens group', async () => {
 
   // Switch to Root tab
   // Switch to Folders tab (folders-first)
-  const foldersTab = await screen.findByRole('button', { name: /Folders/i });
-  fireEvent.click(foldersTab);
+  const foldersTab2 = await screen.findByRole('button', { name: /Folders/i });
+  fireEvent.click(foldersTab2);
 
   // Expect folders to be listed
   const folderA = await screen.findByText('FolderA');
@@ -160,8 +160,8 @@ test('folder quick actions: select all and assign folder to day', async () => {
   fireEvent.click(projectButton);
 
   // Ensure we're viewing folders
-  const foldersTab = await screen.findByRole('button', { name: /Folders/i });
-  fireEvent.click(foldersTab);
+  const foldersTab3 = await screen.findByRole('button', { name: /Folders/i });
+  fireEvent.click(foldersTab3);
 
   const folderA = await screen.findByText('FolderA');
   // Select all in folder
@@ -182,6 +182,13 @@ test('folder quick actions: select all and assign folder to day', async () => {
   fireEvent.click(dayButton);
   const imgs = await screen.findAllByRole('img');
   expect(imgs.length).toBeGreaterThanOrEqual(4);
+
+  // Return to folders and ensure Assign button for FolderA is now disabled (all assigned)
+  const foldersTab4 = await screen.findByRole('button', { name: /Folders/i });
+  fireEvent.click(foldersTab4);
+  const updatedFolderA = await screen.findByText('FolderA');
+  const updatedAssignBtn = within(updatedFolderA.parentElement!).getByRole('button', { name: /Assign all photos in FolderA to day/i });
+  expect(updatedAssignBtn).toBeDisabled();
 });
 
 test('handles localStorage failures gracefully when updating recents', async () => {

@@ -613,32 +613,7 @@ export default function PhotoOrganizer() {
                 </p>
               </div>
 
-              <div className="space-y-4 mb-6">
-                <h3 className="text-sm font-semibold text-gray-300 mb-3">Assign Day</h3>
-                <div className="flex gap-2 items-center">
-                  <select
-                    onChange={e => {
-                      const val = e.target.value;
-                      if (!val) return;
-                      const dayNum = val === 'new' ? Math.max(0, ...days.map(d => d[0])) + 1 : Number(val);
-                      const targets = Array.from(selectedPhotos);
-                      const newPhotos = photos.map(ph => (targets.includes(ph.id) ? { ...ph, day: dayNum } : ph));
-                      saveToHistory(newPhotos);
-                      setSelectedDay(dayNum);
-                      setCurrentView('days');
-                    }}
-                    className="px-3 py-2 rounded bg-gray-800"
-                    defaultValue=""
-                  >
-                    <option value="">Assign to...</option>
-                    {days.map(([d]) => (
-                      <option key={d} value={d}>{`Day ${String(d).padStart(2, '0')}`}</option>
-                    ))}
-                    <option value="new">Create new day</option>
-                  </select>
-                  <div className="text-xs text-gray-400">Assign selected photos to a day folder</div>
-                </div>
-              </div>
+              {/* Assign Day moved into the contextual right panel (appears when photos selected) */}
             </div>
 
             <div className="flex items-center gap-2">
@@ -905,8 +880,9 @@ export default function PhotoOrganizer() {
                             e.stopPropagation();
                             assignFolderToDay(folder);
                           }}
-                          className="px-2 py-1 rounded bg-green-700 text-xs"
+                          className={`px-2 py-1 rounded text-xs ${items.every(p => p.day !== null) ? 'bg-gray-700 text-gray-400 cursor-not-allowed' : 'bg-green-700'}`}
                           aria-label={`Assign all photos in ${folder} to day`}
+                          disabled={items.every(p => p.day !== null)}
                         >
                           Assign
                         </button>
@@ -1076,6 +1052,36 @@ export default function PhotoOrganizer() {
                 ) : (
                   <div className="text-sm text-gray-300">{selectedPhotos.size} selected</div>
                 )}
+              </div>
+
+              {/* Contextual Assign Day (only when photos are selected) */}
+              <div className="space-y-4 mb-6">
+                <h3 className="text-sm font-semibold text-gray-300 mb-3">Assign Day</h3>
+                <div className="flex gap-2 items-center">
+                  <select
+                    onChange={e => {
+                      const val = e.target.value;
+                      if (!val) return;
+                      const dayNum = val === 'new' ? Math.max(0, ...days.map(d => d[0])) + 1 : Number(val);
+                      const targets = Array.from(selectedPhotos);
+                      const newPhotos = photos.map(ph => (targets.includes(ph.id) ? { ...ph, day: dayNum } : ph));
+                      saveToHistory(newPhotos);
+                      setSelectedDay(dayNum);
+                      setCurrentView('days');
+                      // clear selection after assign
+                      setSelectedPhotos(new Set());
+                    }}
+                    className="px-3 py-2 rounded bg-gray-800"
+                    defaultValue=""
+                  >
+                    <option value="">Assign to...</option>
+                    {days.map(([d]) => (
+                      <option key={d} value={d}>{`Day ${String(d).padStart(2, '0')}`}</option>
+                    ))}
+                    <option value="new">Create new day</option>
+                  </select>
+                  <div className="text-xs text-gray-400">Assign selected photos to a day folder</div>
+                </div>
               </div>
 
               <div className="space-y-2 mb-6">
