@@ -188,6 +188,39 @@ test('folders list shows only day-related folders (filters out non-day folders)'
   expect(screen.queryByText('FolderC')).toBeNull();
 });
 
+test('folders shows days container when day subfolders exist even if photos are unassigned', async () => {
+  // Photo is inside the days container under D01 but has no day assigned — still should show 01_DAYS
+  const stateWithDaysFolder = {
+    ...sampleState,
+    photos: [
+      ...sampleState.photos,
+      {
+        id: 'photo_8',
+        originalName: 'IMG_3008.jpg',
+        currentName: 'IMG_3008.jpg',
+        timestamp: Date.now(),
+        day: null,
+        bucket: null,
+        sequence: null,
+        favorite: false,
+        rating: 0,
+        archived: false,
+        thumbnail: 'https://picsum.photos/seed/8/400/300',
+        filePath: '01_DAYS/D01/IMG_3008.jpg',
+      },
+    ],
+  };
+
+  vi.mocked(projectService.getState).mockResolvedValue(stateWithDaysFolder as any);
+  render(<PhotoOrganizer />);
+  const projectButton = await screen.findByRole('button', { name: /Test Trip/i });
+  fireEvent.click(projectButton);
+
+  // Should show the days container folder (01_DAYS)
+  const daysContainer = await screen.findByText('01_DAYS');
+  expect(daysContainer).toBeTruthy();
+});
+
 test('folder quick actions: select all and assign folder to day', async () => {
   render(<PhotoOrganizer />);
   const projectButton = await screen.findByRole('button', { name: /Test Trip/i });

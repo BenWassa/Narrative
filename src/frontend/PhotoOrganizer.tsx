@@ -245,11 +245,22 @@ export default function PhotoOrganizer() {
   const displayRootGroups = React.useMemo(() => {
     const dayNames = new Set(days.map(([d]) => dayLabels[d] || `Day ${String(d).padStart(2, '0')}`));
     const daysContainer = projectSettings?.folderStructure?.daysFolder;
+
+    // Detect day-like subfolders (e.g., 01_DAYS/D01) even when photos inside are unassigned.
+    const detectedDaysContainers = new Set<string>();
+    for (const p of photos) {
+      const parts = (p.filePath || p.originalName || '').split('/');
+      if (parts.length > 1 && /^D\d{2}/i.test(parts[1])) {
+        detectedDaysContainers.add(parts[0]);
+      }
+    }
+
     return rootGroups.filter(([folder, items]) => {
       const hasDayAssigned = items.some(p => p.day !== null);
       const isDaysContainer = folder === daysContainer;
+      const isDetectedContainer = detectedDaysContainers.has(folder);
       const isDayName = dayNames.has(folder);
-      return hasDayAssigned || isDaysContainer || isDayName;
+      return hasDayAssigned || isDaysContainer || isDetectedContainer || isDayName;
     });
   }, [rootGroups, days, dayLabels, projectSettings]);
 
