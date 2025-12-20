@@ -1669,7 +1669,10 @@ export default function PhotoOrganizer() {
                           key={`container-${containerName}`}
                           role="button"
                           tabIndex={0}
-                          onClick={() => setSelectedRootFolder(containerName)}
+                          onClick={() => {
+                            setSelectedRootFolder(containerName);
+                            setSelectedDay(null); // Clear day selection when selecting a folder
+                          }}
                           className={`w-full text-left px-3 py-2 rounded text-sm transition-colors ${
                             selectedRootFolder === containerName
                               ? 'bg-blue-600 text-white'
@@ -1714,7 +1717,10 @@ export default function PhotoOrganizer() {
                           key={f.folder}
                           role="button"
                           tabIndex={0}
-                          onClick={() => setSelectedRootFolder(f.folder)}
+                          onClick={() => {
+                            setSelectedRootFolder(f.folder);
+                            setSelectedDay(null); // Clear day selection when selecting a folder
+                          }}
                           className={`w-full text-left px-3 py-2 rounded text-sm transition-colors ${
                             selectedRootFolder === f.folder
                               ? 'bg-blue-600 text-white'
@@ -1746,7 +1752,14 @@ export default function PhotoOrganizer() {
         {/* Photo Grid */}
         <main className="flex-1 overflow-y-auto">
           <div className="p-6">
-            {currentView === 'days' && selectedDay === null ? (
+            {loadingProject ? (
+              <div className="flex items-center justify-center h-96">
+                <div className="text-center">
+                  <Loader className="w-12 h-12 mx-auto mb-4 animate-spin text-blue-400" />
+                  <p className="text-gray-400">Loading project...</p>
+                </div>
+              </div>
+            ) : currentView === 'days' && selectedDay === null ? (
               <div className="flex items-center justify-center h-96 text-gray-500">
                 <div className="text-center">
                   <Calendar className="w-12 h-12 mx-auto mb-4 opacity-50" />
@@ -1764,7 +1777,9 @@ export default function PhotoOrganizer() {
               (() => {
                 const rootPhotos =
                   currentView === 'folders' && selectedRootFolder
-                    ? rootGroups.find(r => r[0] === selectedRootFolder)?.[1] || []
+                    ? (rootGroups.find(r => r[0] === selectedRootFolder)?.[1] || []).filter(p =>
+                        selectedDay === null || p.day === selectedDay || p.day === null,
+                      )
                     : null;
                 const displayPhotos = rootPhotos !== null ? rootPhotos : filteredPhotos;
                 if (displayPhotos.length === 0) {
