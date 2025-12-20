@@ -15,6 +15,7 @@ import {
 import { Pencil, Save, X as XIcon } from 'lucide-react';
 import OnboardingModal, { OnboardingState, RecentProject } from './OnboardingModal';
 import StartScreen from './StartScreen';
+import CoverPicker from './ui/CoverPicker';
 import {
   initProject,
   getState,
@@ -67,7 +68,7 @@ export default function PhotoOrganizer() {
   const [historyIndex, setHistoryIndex] = useState(-1);
   const [showHelp, setShowHelp] = useState(false);
   const [showOnboarding, setShowOnboarding] = useState(false);
-  const [showWelcome, setShowWelcome] = useState(false);
+  const [showWelcome, setShowWelcome] = useState(() => !safeLocalStorage.get(ACTIVE_PROJECT_KEY));
   const [editingName, setEditingName] = useState(false);
   const [nameInput, setNameInput] = useState('');
   const [projectName, setProjectName] = useState('No Project');
@@ -121,8 +122,22 @@ export default function PhotoOrganizer() {
     try {
       const raw = safeLocalStorage.get(RECENT_PROJECTS_KEY);
       const parsed = raw ? (JSON.parse(raw) as RecentProject[]) : [];
+      const existing = parsed.find(p => p.projectId === project.projectId) || {};
+      const merged = { ...existing, ...project } as RecentProject;
       const filtered = parsed.filter(p => p.projectId !== project.projectId);
-      const next = [project, ...filtered].slice(0, 20);
+      const next = [merged, ...filtered].slice(0, 20);
+      safeLocalStorage.set(RECENT_PROJECTS_KEY, JSON.stringify(next));
+      setRecentProjects(next);
+    } catch (err) {
+      // Ignore storage errors
+    }
+  }, []);
+
+  const updateRecentProject = useCallback((projectId: string, updates: Partial<RecentProject>) => {
+    try {
+      const raw = safeLocalStorage.get(RECENT_PROJECTS_KEY);
+      const parsed = raw ? (JSON.parse(raw) as RecentProject[]) : [];
+      const next = parsed.map(p => (p.projectId === projectId ? { ...p, ...updates } : p));
       safeLocalStorage.set(RECENT_PROJECTS_KEY, JSON.stringify(next));
       setRecentProjects(next);
     } catch (err) {
@@ -191,6 +206,7 @@ export default function PhotoOrganizer() {
             projectId,
             rootPath: state.rootPath || 'Unknown location',
             lastOpened: Date.now(),
+            totalPhotos: state.photos?.length || 0,
           });
         }
       } catch (err) {
@@ -235,7 +251,7 @@ export default function PhotoOrganizer() {
       loadProject(activeProjectId, { addRecent: false });
       setShowWelcome(false);
     } else {
-      // Show a friendly welcome page on first load
+      // Show the main menu when there is no active project
       setShowWelcome(true);
     }
   }, [loadProject]);
@@ -655,6 +671,7 @@ export default function PhotoOrganizer() {
           projectId: nextProjectId,
           rootPath: state.rootPath || state.dirHandle.name,
           lastOpened: Date.now(),
+          totalPhotos: hydratedPhotos.length,
         });
 
         await saveState(nextProjectId, nextState);
@@ -858,12 +875,23 @@ export default function PhotoOrganizer() {
                   setShowOnboarding(false);
                   setProjectError(null);
                   setShowWelcome(true);
+                  safeLocalStorage.remove(ACTIVE_PROJECT_KEY);
                 }}
                 className="px-3 py-1 bg-gray-800 hover:bg-gray-700 rounded text-sm font-medium"
                 title="Back to the main menu"
               >
                 Main Menu
               </button>
+              {projectRootPath && (
+                <CoverPicker
+                  projectId={projectRootPath}
+                  onSetCover={(projectId, coverUrl) => {
+                    updateRecentProject(projectId, { coverUrl });
+                  }}
+                  label="Set Cover"
+                  buttonClassName="px-3 py-1 bg-gray-800 hover:bg-gray-700 rounded text-sm font-medium"
+                />
+              )}
               <div className="relative">
                 <button
                   onClick={() => setShowProjectMenu(prev => !prev)}
@@ -1756,13 +1784,21 @@ export default function PhotoOrganizer() {
       {/* Onboarding Modal */}
       <StartScreen
         isOpen={showWelcome}
-        onClose={() => setShowWelcome(false)}
+        onClose={() => {
+          if (!projectRootPath) return;
+          setShowWelcome(false);
+          safeLocalStorage.set(ACTIVE_PROJECT_KEY, projectRootPath);
+        }}
         onCreateComplete={handleOnboardingComplete}
         onOpenProject={rootPath => {
           setProjectError(null);
           loadProject(rootPath);
         }}
         recentProjects={recentProjects}
+        canClose={Boolean(projectRootPath)}
+        onSetCover={(projectId, coverUrl) => {
+          updateRecentProject(projectId, { coverUrl });
+        }}
       />
       <OnboardingModal
         isOpen={showOnboarding}

@@ -19,9 +19,18 @@ exports[`ProjectTile > renders an image when coverUrl is present 1`] = `
       class="p-3 flex items-center justify-between"
     >
       <div
-        class="text-sm font-medium truncate"
+        class="min-w-0"
       >
-        Test
+        <div
+          class="text-sm font-medium truncate"
+        >
+          Test
+        </div>
+        <div
+          class="text-xs text-gray-500"
+        >
+          120 photos
+        </div>
       </div>
       <div
         class="flex items-center gap-2"
@@ -62,9 +71,13 @@ exports[`ProjectTile > renders with a fallback gradient when no coverUrl 1`] = `
       class="p-3 flex items-center justify-between"
     >
       <div
-        class="text-sm font-medium truncate"
+        class="min-w-0"
       >
-        Test
+        <div
+          class="text-sm font-medium truncate"
+        >
+          Test
+        </div>
       </div>
       <div
         class="flex items-center gap-2"

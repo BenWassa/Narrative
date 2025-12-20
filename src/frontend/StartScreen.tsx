@@ -1,13 +1,16 @@
 import React, { useState } from 'react';
 import { Camera, Plus } from 'lucide-react';
 import OnboardingModal, { OnboardingState, RecentProject } from './OnboardingModal';
+import ProjectTile from './ui/ProjectTile';
 
 interface StartScreenProps {
   isOpen: boolean;
   onClose: () => void;
   onCreateComplete: (state: OnboardingState) => void;
   onOpenProject: (projectId: string) => void;
+  onSetCover: (projectId: string, coverUrl: string) => void;
   recentProjects?: RecentProject[];
+  canClose?: boolean;
 }
 
 export default function StartScreen({
@@ -15,7 +18,9 @@ export default function StartScreen({
   onClose,
   onCreateComplete,
   onOpenProject,
+  onSetCover,
   recentProjects = [],
+  canClose = false,
 }: StartScreenProps) {
   const [showOnboarding, setShowOnboarding] = useState(false);
 
@@ -30,13 +35,15 @@ export default function StartScreen({
               <Camera className="w-6 h-6 text-blue-400" />
               <h2 className="text-lg font-bold">Welcome</h2>
             </div>
-            <button
-              onClick={onClose}
-              className="text-sm text-gray-300 hover:text-gray-100"
-              aria-label="Close welcome"
-            >
-              Close
-            </button>
+            {canClose && (
+              <button
+                onClick={onClose}
+                className="text-sm text-gray-300 hover:text-gray-100"
+                aria-label="Close welcome"
+              >
+                Close
+              </button>
+            )}
           </div>
 
           <div className="flex gap-6">
@@ -58,14 +65,12 @@ export default function StartScreen({
                 <div aria-hidden className="w-px bg-gray-700 rounded h-40" />
                 <div className="flex-1 grid grid-cols-2 gap-4">
                   {recentProjects.map(project => (
-                    <button
-                      key={project.rootPath}
-                      onClick={() => onOpenProject(project.projectId)}
-                      className="text-left rounded-lg border border-gray-800 bg-gray-950 px-3 py-3 hover:border-blue-500"
-                    >
-                      <div className="text-sm text-gray-100">{project.projectName}</div>
-                      <div className="text-xs text-gray-500 truncate mt-1">{project.rootPath}</div>
-                    </button>
+                    <ProjectTile
+                      key={project.projectId}
+                      project={project}
+                      onOpen={onOpenProject}
+                      onSetCover={onSetCover}
+                    />
                   ))}
                 </div>
               </>

@@ -6,14 +6,21 @@ import ProjectTile from '../ui/ProjectTile';
 describe('ProjectTile', () => {
   beforeAll(() => {
     // @ts-ignore
-    global.URL.createObjectURL = vi.fn(() => 'blob://fake');
+    global.FileReader = class {
+      result = null;
+      onload: null | (() => void) = null;
+      readAsDataURL() {
+        this.result = 'data:image/png;base64,fake';
+        if (this.onload) this.onload();
+      }
+    };
   });
 
   it('renders with a fallback gradient when no coverUrl', () => {
     const onOpen = vi.fn();
     const onSetCover = vi.fn();
 
-    const project = { projectName: 'Test', rootPath: '/tmp/test' };
+    const project = { projectName: 'Test', projectId: 'project-1', rootPath: '/tmp/test' };
 
     const { container } = render(
       <ProjectTile project={project} onOpen={onOpen} onSetCover={onSetCover} />,
@@ -30,8 +37,10 @@ describe('ProjectTile', () => {
 
     const project = {
       projectName: 'Test',
+      projectId: 'project-1',
       rootPath: '/tmp/test',
       coverUrl: 'https://picsum.photos/200/100',
+      totalPhotos: 120,
     };
 
     const { container } = render(
@@ -46,21 +55,21 @@ describe('ProjectTile', () => {
     const onOpen = vi.fn();
     const onSetCover = vi.fn();
 
-    const project = { projectName: 'Test', rootPath: '/tmp/test' };
+    const project = { projectName: 'Test', projectId: 'project-1', rootPath: '/tmp/test' };
 
     render(<ProjectTile project={project} onOpen={onOpen} onSetCover={onSetCover} />);
 
     const button = screen.getByRole('button', { name: /Open project Test/i });
     fireEvent.click(button);
 
-    expect(onOpen).toHaveBeenCalledWith('/tmp/test');
+    expect(onOpen).toHaveBeenCalledWith('project-1');
   });
 
   it('calls onSetCover when a file is chosen', () => {
     const onOpen = vi.fn();
     const onSetCover = vi.fn();
 
-    const project = { projectName: 'Test', rootPath: '/tmp/test' };
+    const project = { projectName: 'Test', projectId: 'project-1', rootPath: '/tmp/test' };
 
     render(<ProjectTile project={project} onOpen={onOpen} onSetCover={onSetCover} />);
 
@@ -71,6 +80,6 @@ describe('ProjectTile', () => {
     const file = new File(['dummy'], 'photo.png', { type: 'image/png' });
     fireEvent.change(input, { target: { files: [file] } });
 
-    expect(onSetCover).toHaveBeenCalledWith('/tmp/test', 'blob://fake');
+    expect(onSetCover).toHaveBeenCalledWith('project-1', 'data:image/png;base64,fake');
   });
 });

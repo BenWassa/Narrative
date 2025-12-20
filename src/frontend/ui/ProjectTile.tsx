@@ -3,21 +3,23 @@ import CoverPicker from './CoverPicker';
 
 interface RecentProject {
   projectName: string;
+  projectId: string;
   rootPath: string;
   coverUrl?: string;
+  totalPhotos?: number;
 }
 
 interface ProjectTileProps {
   project: RecentProject;
-  onOpen: (rootPath: string) => void;
-  onSetCover: (rootPath: string, coverUrl: string) => void;
+  onOpen: (projectId: string) => void;
+  onSetCover: (projectId: string, coverUrl: string) => void;
 }
 
 export default function ProjectTile({ project, onOpen, onSetCover }: ProjectTileProps) {
   return (
     <div className="relative rounded-lg overflow-hidden border border-gray-800 bg-gray-950">
       <button
-        onClick={() => onOpen(project.rootPath)}
+        onClick={() => onOpen(project.projectId)}
         className="w-full h-36 block text-left"
         aria-label={`Open project ${project.projectName}`}
       >
@@ -35,8 +37,13 @@ export default function ProjectTile({ project, onOpen, onSetCover }: ProjectTile
       </button>
 
       <div className="p-3 flex items-center justify-between">
-        <div className="text-sm font-medium truncate">{project.projectName}</div>
-        <CoverPicker projectRoot={project.rootPath} onSetCover={onSetCover} />
+        <div className="min-w-0">
+          <div className="text-sm font-medium truncate">{project.projectName}</div>
+          {typeof project.totalPhotos === 'number' && (
+            <div className="text-xs text-gray-500">{project.totalPhotos} photos</div>
+          )}
+        </div>
+        <CoverPicker projectId={project.projectId} onSetCover={onSetCover} />
       </div>
     </div>
   );

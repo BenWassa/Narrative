@@ -14,6 +14,7 @@ export interface RecentProject {
   projectId: string;
   rootPath: string;
   coverUrl?: string;
+  totalPhotos?: number;
   lastOpened: number;
 }
 
