@@ -120,6 +120,71 @@ async function collectFiles(
   return entries;
 }
 
+async function heicToBlob(file: File): Promise<Blob | null> {
+  // Create canvas from HEIC file using browser's native support
+  const canvas = document.createElement('canvas');
+  const ctx = canvas.getContext('2d');
+  if (!ctx) {
+    return null;
+  }
+
+  try {
+    // Try to use createImageBitmap if available
+    if (typeof createImageBitmap !== 'undefined') {
+      try {
+        const bitmap = await createImageBitmap(file);
+        canvas.width = bitmap.width;
+        canvas.height = bitmap.height;
+        ctx.drawImage(bitmap, 0, 0);
+        return new Promise((resolve, reject) => {
+          canvas.toBlob(
+            blob => {
+              if (blob) {
+                resolve(blob);
+              } else {
+                reject(new Error('Failed to create blob'));
+              }
+            },
+            'image/jpeg',
+            0.8,
+          );
+        });
+      } catch (bitmapErr) {
+        // createImageBitmap failed, continue to fallback
+      }
+    }
+
+    // Fallback: create a placeholder canvas
+    canvas.width = 400;
+    canvas.height = 300;
+    ctx.fillStyle = '#e5e5e5';
+    ctx.fillRect(0, 0, 400, 300);
+    ctx.fillStyle = '#666666';
+    ctx.font = 'bold 16px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('HEIC', 200, 140);
+    ctx.font = '12px sans-serif';
+    ctx.fillText('Preview not available', 200, 165);
+
+    return new Promise((resolve, reject) => {
+      canvas.toBlob(
+        blob => {
+          if (blob) {
+            resolve(blob);
+          } else {
+            reject(new Error('Failed to create fallback blob'));
+          }
+        },
+        'image/jpeg',
+        0.8,
+      );
+    });
+  } catch (e) {
+    return null;
+  }
+}
+
 async function buildPhotosFromHandle(
   dirHandle: FileSystemDirectoryHandle,
 ): Promise<ProjectPhoto[]> {
@@ -133,7 +198,26 @@ async function buildPhotosFromHandle(
     const originalName = file.name;
     const ext = file.name.split('.').pop()?.toLowerCase() || '';
     const isHeic = ext === 'heic' || ext === 'heif' || file.type.toLowerCase().includes('heic');
-    const thumbnail = isHeic ? '' : URL.createObjectURL(file);
+
+    let thumbnail = '';
+    if (isHeic) {
+      try {
+        const blob = await heicToBlob(file);
+        if (blob) {
+          thumbnail = URL.createObjectURL(blob);
+        }
+      } catch (e) {
+        console.warn(`Failed to generate preview for ${originalName}:`, e);
+        // Keep thumbnail empty on error
+      }
+    } else {
+      try {
+        thumbnail = URL.createObjectURL(file);
+      } catch (e) {
+        console.warn(`Failed to create object URL for ${originalName}:`, e);
+        // Keep thumbnail empty on error
+      }
+    }
 
     photos.push({
       id,

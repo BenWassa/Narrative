@@ -136,7 +136,8 @@ export default function PhotoOrganizer() {
       .filter(p => p.bucket && !p.archived)
       .forEach(p => {
         const day = p.day as number | null;
-        const label = day !== null ? dayLabels[day] || `Day ${String(day).padStart(2, '0')}` : '(root)';
+        const label =
+          day !== null ? dayLabels[day] || `Day ${String(day).padStart(2, '0')}` : '(root)';
         lines.push(`${label}: ${p.currentName}`);
       });
     return lines.join('\n');
@@ -253,6 +254,96 @@ export default function PhotoOrganizer() {
     return Array.from(dayMap.entries()).sort((a, b) => a[0] - b[0]);
   }, [photos]);
 
+  // Visible days are only those that have been explicitly configured (i.e. labels exist).
+  // Inferred day numbers (from heuristics) are intentionally hidden from the UI until the
+  // user confirms them by adding a label. We still compute days normally for diagnostics
+  // and internal inference, but UI lists use `visibleDays`.
+  const visibleDays = React.useMemo(
+    () => days.filter(([d]) => dayLabels[d] != null),
+    [days, dayLabels],
+  );
+
+  // Consolidated folder categorization logic - single source of truth
+  const DAY_PREFIX_RE = /^(?:day|d)[\s_-]?(\d{1,2})/i;
+  const categorizeFolder = useCallback(
+    (
+      folder: string,
+      items: ProjectPhoto[],
+    ): {
+      isSelected: boolean;
+      isDayLike: boolean;
+      dayNumber: number | null;
+      displayName: string;
+    } => {
+      const isSelected = (dayContainers || []).includes(folder);
+
+      // Check for day-like characteristics
+      const hasDayAssigned = items.some(p => p.day !== null);
+      const detectedDnn = items.some(p => {
+        const parts = (p.filePath || p.originalName || '').split('/');
+        return parts.length > 1 && /^D\d{1,2}/i.test(parts[1]);
+      });
+      const isDayName = days.some(
+        ([d]) => (dayLabels[d] || `Day ${String(d).padStart(2, '0')}`) === folder,
+      );
+      const isDaysContainer = folder === projectSettings?.folderStructure?.daysFolder;
+      const hasDayPrefix = DAY_PREFIX_RE.test(folder) || folder.toLowerCase().startsWith('day');
+
+      const isDayLike =
+        hasDayAssigned || detectedDnn || isDayName || isDaysContainer || hasDayPrefix;
+
+      // Infer day number from most common assigned day or from folder name
+      let dayNumber: number | null = null;
+      if (hasDayAssigned) {
+        const dayCounts: Record<number, number> = {};
+        items.forEach(p => {
+          if (p.day != null) dayCounts[p.day] = (dayCounts[p.day] || 0) + 1;
+        });
+        if (Object.keys(dayCounts).length) {
+          dayNumber = Number(Object.entries(dayCounts).sort((a, b) => b[1] - a[1])[0][0]);
+        }
+      }
+
+      if (dayNumber == null) {
+        const m = folder.match(DAY_PREFIX_RE);
+        if (m) {
+          const n = parseInt(m[1], 10);
+          if (!Number.isNaN(n)) dayNumber = n;
+        }
+      }
+
+      const displayName =
+        dayNumber != null
+          ? dayLabels[dayNumber] || `Day ${String(dayNumber).padStart(2, '0')}`
+          : folder;
+
+      return { isSelected, isDayLike, dayNumber, displayName };
+    },
+    [dayContainers, dayLabels, days, projectSettings],
+  );
+
+  // Sort and categorize folders for display
+  const sortFolders = useCallback(
+    (folders: [string, ProjectPhoto[]][]) => {
+      const categorized = folders.map(([folder, items]) => {
+        const cat = categorizeFolder(folder, items);
+        return { folder, items, ...cat };
+      });
+
+      // Sort: selected day containers first (by day number), then non-day, then detected day-like
+      const selected = categorized.filter(f => f.isSelected);
+      const nonDay = categorized.filter(f => !f.isSelected && !f.isDayLike);
+      const dayLike = categorized.filter(f => !f.isSelected && f.isDayLike);
+
+      selected.sort((a, b) => (a.dayNumber ?? 999) - (b.dayNumber ?? 999));
+      nonDay.sort((a, b) => a.folder.localeCompare(b.folder));
+      dayLike.sort((a, b) => a.folder.localeCompare(b.folder));
+
+      return { selected, nonDay, dayLike };
+    },
+    [categorizeFolder],
+  );
+
   // Root-level groups (top-level folders under the project root)
   const rootGroups = React.useMemo(() => {
     const map = new Map<string, ProjectPhoto[]>();
@@ -270,7 +361,9 @@ export default function PhotoOrganizer() {
   // Show only folders that are relevant day folders: either they contain photos with a day assigned,
   // they match the configured days container, or they match an explicit day label (custom names).
   const displayRootGroups = React.useMemo(() => {
-    const dayNames = new Set(days.map(([d]) => dayLabels[d] || `Day ${String(d).padStart(2, '0')}`));
+    const dayNames = new Set(
+      days.map(([d]) => dayLabels[d] || `Day ${String(d).padStart(2, '0')}`),
+    );
     const daysContainer = projectSettings?.folderStructure?.daysFolder;
 
     // Detect day-like subfolders (e.g., 01_DAYS/D01) even when photos inside are unassigned.
@@ -288,15 +381,70 @@ export default function PhotoOrganizer() {
       if (!combined.has(dc)) combined.set(dc, []);
     });
 
-    return Array.from(combined.entries()).filter(([folder, items]) => {
-      const hasDayAssigned = items.some(p => p.day !== null);
-      const isDaysContainer = folder === daysContainer;
-      const isDetectedContainer = detectedDaysContainers.has(folder);
-      const isDayName = dayNames.has(folder);
-      const isSelectedContainer = (dayContainers || []).includes(folder);
-      return hasDayAssigned || isDaysContainer || isDetectedContainer || isDayName || isSelectedContainer;
-    });
+    // Return all top-level folders (plus any explicitly selected containers) — we'll decide which
+    // ones are shown as 'selected day containers' vs 'other' when rendering the sidebar.
+    return Array.from(combined.entries());
   }, [rootGroups, days, dayLabels, projectSettings]);
+
+  // Debug: log the current folder groupings for troubleshooting
+  React.useEffect(() => {
+    try {
+      console.group('[PhotoOrganizer] Folder & Day Diagnostics');
+      console.debug(
+        '[PhotoOrganizer] Days:',
+        days.map(([d]) => ({ day: d, label: dayLabels[d] || `Day ${String(d).padStart(2, '0')}` })),
+      );
+
+      // Day sources breakdown
+      const daySources: Record<number, { count: number; sources: Set<string> }> = {};
+      photos.forEach(p => {
+        if (p.day == null) return;
+        const d = p.day as number;
+        if (!daySources[d]) daySources[d] = { count: 0, sources: new Set() };
+        daySources[d].count += 1;
+        const parts = (p.filePath || p.originalName || '').split('/');
+        if (parts.length > 1 && /^D\d{1,2}/i.test(parts[1])) {
+          daySources[d].sources.add('DnnSubfolder');
+        } else if ((dayContainers || []).includes(parts[0])) {
+          daySources[d].sources.add('SelectedContainer');
+        } else if (parts[0] === projectSettings?.folderStructure?.daysFolder) {
+          daySources[d].sources.add('DaysFolder');
+        } else {
+          daySources[d].sources.add('Inferred');
+        }
+      });
+      const configuredDays = Object.keys(dayLabels).map(k => Number(k));
+      console.debug(
+        '[PhotoOrganizer] Day breakdown (count + sources):',
+        Object.entries(daySources).map(([k, v]) => ({
+          day: Number(k),
+          count: v.count,
+          sources: Array.from(v.sources),
+        })),
+      );
+      console.debug('[PhotoOrganizer] Configured day labels:', configuredDays);
+      const extraneous = Object.keys(daySources)
+        .map(Number)
+        .filter(d => !configuredDays.includes(d));
+      if (extraneous.length) {
+        console.debug('[PhotoOrganizer] Extraneous/unexpected day numbers:', extraneous);
+      }
+
+      // Root folder breakdown
+      console.group('Root folders (all top-level folders)');
+      rootGroups.forEach(([folder, items]) => {
+        const reason = categorizeFolder(folder, items);
+        console.groupCollapsed(`${folder} → ${reason.displayName}`);
+        console.table(items.map(i => ({ id: i.id, filePath: i.filePath, day: i.day })));
+        console.groupEnd();
+      });
+      console.groupEnd();
+
+      console.groupEnd();
+    } catch (err) {
+      console.debug('[PhotoOrganizer] debug logging failed', err);
+    }
+  }, [days, rootGroups, dayContainers, projectSettings, dayLabels, photos, categorizeFolder]);
 
   // Filter photos based on current view
   const filteredPhotos = React.useMemo(() => {
@@ -308,9 +456,22 @@ export default function PhotoOrganizer() {
           return photos.filter(p => (p.day === selectedDay || p.day === null) && !p.archived);
         }
         return photos.filter(p => p.day !== null && !p.archived);
+      case 'folders':
+        // When a day is selected from the Days list inside the Folders sidebar we should
+        // filter the grid to that day's photos (and loose/root photos) while remaining
+        // in the Folders workflow — this supports inline editing and confirmation of
+        // inferred days without switching context.
+        if (selectedDay !== null) {
+          return photos.filter(p => (p.day === selectedDay || p.day === null) && !p.archived);
+        }
+        return photos.filter(p => !p.archived);
       case 'root':
         if (selectedRootFolder !== null) {
-          return photos.filter(p => !p.archived && ((p.filePath || p.originalName).split('/')[0] || '(root)') === selectedRootFolder);
+          return photos.filter(
+            p =>
+              !p.archived &&
+              ((p.filePath || p.originalName).split('/')[0] || '(root)') === selectedRootFolder,
+          );
         }
         return [];
       case 'favorites':
@@ -323,6 +484,22 @@ export default function PhotoOrganizer() {
         return photos;
     }
   }, [photos, currentView, selectedDay]);
+
+  // Auto-select first folder when project is newly loaded and no folder is selected
+  useEffect(() => {
+    if (
+      projectRootPath &&
+      photos.length > 0 &&
+      selectedRootFolder === null &&
+      currentView === 'folders'
+    ) {
+      // Select the first available root folder
+      const firstFolder = rootGroups[0]?.[0];
+      if (firstFolder) {
+        setSelectedRootFolder(firstFolder);
+      }
+    }
+  }, [projectRootPath, photos.length, selectedRootFolder, currentView, rootGroups]);
 
   // Save state to history
   const persistState = useCallback(
@@ -364,7 +541,11 @@ export default function PhotoOrganizer() {
         if (ids.includes(photo.id)) {
           // Prefer an explicit dayNum, then the photo's existing day, then the currently selected day in the UI,
           // then fall back to a date-derived day.
-          const day = dayNum || photo.day || selectedDay || Math.ceil(new Date(photo.timestamp).getDate() / 1);
+          const day =
+            dayNum ||
+            photo.day ||
+            selectedDay ||
+            Math.ceil(new Date(photo.timestamp).getDate() / 1);
           const key = `${day}_${bucket}`;
           const existing = photos.filter(p => p.day === day && p.bucket === bucket).length;
           const next = (counters[key] || existing) + 1;
@@ -436,12 +617,12 @@ export default function PhotoOrganizer() {
           projectName: state.projectName,
           rootLabel: state.rootPath,
         });
-          const hydratedPhotos = state.mappings?.length
-            ? applyFolderMappings(initResult.photos, state.mappings)
-            : applySuggestedDays(initResult.photos, initResult.suggestedDays);
-          const selectedDayContainers = (state.mappings || [])
-            .filter((m: any) => !m.skip)
-            .map((m: any) => m.folder);
+        const hydratedPhotos = state.mappings?.length
+          ? applyFolderMappings(initResult.photos, state.mappings)
+          : applySuggestedDays(initResult.photos, initResult.suggestedDays);
+        const selectedDayContainers = (state.mappings || [])
+          .filter((m: any) => !m.skip)
+          .map((m: any) => m.folder);
         const nextProjectName = state.projectName?.trim() || deriveProjectName(state.rootPath);
         const nextProjectId = initResult.projectId;
         const nextState: ProjectState = {
@@ -464,6 +645,8 @@ export default function PhotoOrganizer() {
         setLastSelectedIndex(null);
         lastSelectedIndexRef.current = null;
         setSelectedDay(null);
+        setSelectedRootFolder(null); // Reset folder selection
+        setCurrentView('folders'); // Ensure we're in folders view
         setShowOnboarding(false);
         setShowWelcome(false);
         safeLocalStorage.set(ACTIVE_PROJECT_KEY, nextProjectId);
@@ -775,7 +958,11 @@ export default function PhotoOrganizer() {
             {(() => {
               // Determine the current step for the header stepper
               // map to an index so we can show completed/active/inactive states
-              const step = showExportScript ? 'export' : currentView === 'review' ? 'review' : 'organize';
+              const step = showExportScript
+                ? 'export'
+                : currentView === 'review'
+                ? 'review'
+                : 'organize';
               const activeIndex = step === 'export' ? 3 : step === 'review' ? 2 : 1;
               const steps = ['Import', 'Organize', 'Review', 'Export'];
               return (
@@ -787,7 +974,11 @@ export default function PhotoOrganizer() {
                           aria-hidden="true"
                           className={`w-6 h-6 flex items-center justify-center rounded-full text-xs font-bold ${
                             // Completed = green, ongoing (active) = blue, todo = empty with border
-                            i < activeIndex ? 'bg-green-600 text-white' : i === activeIndex ? 'bg-blue-700 text-white' : 'border border-gray-700 text-gray-400 bg-transparent'
+                            i < activeIndex
+                              ? 'bg-green-600 text-white'
+                              : i === activeIndex
+                              ? 'bg-blue-700 text-white'
+                              : 'border border-gray-700 text-gray-400 bg-transparent'
                           }`}
                         >
                           {i + 1}
@@ -795,7 +986,9 @@ export default function PhotoOrganizer() {
                         <div className="text-xs text-gray-400 mt-1">{label}</div>
                       </div>
 
-                      {i < steps.length - 1 && <div aria-hidden="true" className="flex-1 h-px bg-gray-800 mx-3" />}
+                      {i < steps.length - 1 && (
+                        <div aria-hidden="true" className="flex-1 h-px bg-gray-800 mx-3" />
+                      )}
                     </div>
                   ))}
                 </nav>
@@ -844,7 +1037,7 @@ export default function PhotoOrganizer() {
             <div className="p-4">
               <h3 className="text-xs font-semibold text-gray-400 uppercase mb-3">Days</h3>
               <div className="space-y-1">
-                {days.map(([day, dayPhotos], idx) => (
+                {visibleDays.map(([day, dayPhotos], idx) => (
                   <div
                     key={day}
                     role="button"
@@ -897,7 +1090,9 @@ export default function PhotoOrganizer() {
                             onClick={e => {
                               e.stopPropagation();
                               setEditingDay(day);
-                              setEditingDayName(dayLabels[day] || `Day ${String(day).padStart(2, '0')}`);
+                              setEditingDayName(
+                                dayLabels[day] || `Day ${String(day).padStart(2, '0')}`,
+                              );
                             }}
                             className="p-1 ml-2"
                             aria-label={`Edit day ${day}`}
@@ -920,97 +1115,217 @@ export default function PhotoOrganizer() {
               {/* Days grouping at top when viewing folders */}
               <h3 className="text-xs font-semibold text-gray-400 uppercase mb-3">Days</h3>
               <div className="space-y-1 mb-4">
-                {days.map(([day, dayPhotos]) => (
-                  <div
-                    key={`day-${day}`}
-                    role="button"
-                    tabIndex={0}
-                    onClick={() => {
-                      setSelectedDay(day);
-                      setCurrentView('days');
-                    }}
-                    onKeyDown={e => e.key === 'Enter' && (setSelectedDay(day), setCurrentView('days'))}
-                    className={`w-full text-left px-3 py-2 rounded text-sm transition-colors ${
-                      selectedDay === day ? 'bg-blue-600 text-white' : 'hover:bg-gray-800 text-gray-300'
-                    }`}
-                  >
-                    <div className="flex items-center justify-between">
-                      {editingDay === day ? (
-                        <div className="flex items-center gap-2 w-full">
-                          <input
-                            value={editingDayName}
-                            onChange={e => setEditingDayName(e.target.value)}
-                            className="w-full px-2 py-1 rounded bg-gray-800 text-sm text-gray-100"
-                          />
-                          <button
-                            onClick={e => {
-                              e.stopPropagation();
-                              setDayLabels(prev => ({ ...prev, [day]: editingDayName }));
-                              persistState(photos);
-                              setEditingDay(null);
-                            }}
-                            className="p-1 bg-green-600 rounded"
-                            aria-label={`Save day name`}
-                          >
-                            <Save className="w-4 h-4" />
-                          </button>
-                          <button
-                            onClick={e => {
-                              e.stopPropagation();
-                              setEditingDay(null);
-                            }}
-                            className="p-1 bg-gray-800 rounded"
-                            aria-label={`Cancel`}
-                          >
-                            <XIcon className="w-4 h-4" />
-                          </button>
+                {(() => {
+                  // Show explicitly configured days + auto-detected day-like folders
+                  const daysByNumber = new Map<
+                    number,
+                    { dayNumber: number; photos: ProjectPhoto[]; folderName: string | null }
+                  >();
+
+                  // First add explicitly labeled days
+                  visibleDays.forEach(([d, photos]) => {
+                    daysByNumber.set(d, { dayNumber: d, photos, folderName: null });
+                  });
+
+                  // Then add inferred days from selected day containers
+                  const selectedContainers = dayContainers || [];
+                  selectedContainers.forEach(containerName => {
+                    const containerPhotos =
+                      rootGroups.find(([name]) => name === containerName)?.[1] || [];
+                    const cat = categorizeFolder(containerName, containerPhotos);
+                    if (cat.dayNumber !== null && !daysByNumber.has(cat.dayNumber)) {
+                      daysByNumber.set(cat.dayNumber, {
+                        dayNumber: cat.dayNumber,
+                        photos: containerPhotos,
+                        folderName: containerName,
+                      });
+                    }
+                  });
+
+                  // Also auto-detect day-like folders and add them to the Days section
+                  // Filter photos to only include those actually assigned to this day (or unassigned)
+                  rootGroups.forEach(([folderName, folderPhotos]) => {
+                    const cat = categorizeFolder(folderName, folderPhotos);
+                    if (
+                      cat.isDayLike &&
+                      cat.dayNumber !== null &&
+                      !daysByNumber.has(cat.dayNumber)
+                    ) {
+                      // Auto-detect: if folder looks like a day and has a day number, show in Days section
+                      // But only include photos assigned to this day (plus unassigned/loose photos)
+                      const photosForDay = folderPhotos.filter(
+                        p => p.day === cat.dayNumber || p.day === null,
+                      );
+                      daysByNumber.set(cat.dayNumber, {
+                        dayNumber: cat.dayNumber,
+                        photos: photosForDay,
+                        folderName,
+                      });
+                    }
+                  });
+
+                  const displayDays = Array.from(daysByNumber.values()).sort(
+                    (a, b) => a.dayNumber - b.dayNumber,
+                  );
+
+                  // Show selected containers that don't map to a day number
+                  const selectedWithoutDay = selectedContainers.filter(containerName => {
+                    const containerPhotos =
+                      rootGroups.find(([name]) => name === containerName)?.[1] || [];
+                    const cat = categorizeFolder(containerName, containerPhotos);
+                    return cat.dayNumber === null;
+                  });
+
+                  return (
+                    <>
+                      {displayDays.map(entry => (
+                        <div
+                          key={`day-${entry.dayNumber}`}
+                          role="button"
+                          tabIndex={0}
+                          onClick={() => setSelectedDay(entry.dayNumber)}
+                          onKeyDown={e => e.key === 'Enter' && setSelectedDay(entry.dayNumber)}
+                          className={`w-full text-left px-3 py-2 rounded text-sm transition-colors ${
+                            selectedDay === entry.dayNumber
+                              ? 'bg-blue-600 text-white'
+                              : 'hover:bg-gray-800 text-gray-300'
+                          }`}
+                        >
+                          <div className="flex items-center justify-between">
+                            {editingDay === entry.dayNumber ? (
+                              <div className="flex items-center gap-2 w-full">
+                                <input
+                                  value={editingDayName}
+                                  onChange={e => setEditingDayName(e.target.value)}
+                                  className="w-full px-2 py-1 rounded bg-gray-800 text-sm text-gray-100"
+                                />
+                                <button
+                                  onClick={e => {
+                                    e.stopPropagation();
+                                    setDayLabels(prev => ({
+                                      ...prev,
+                                      [entry.dayNumber]: editingDayName,
+                                    }));
+                                    persistState(photos);
+                                    setEditingDay(null);
+                                  }}
+                                  className="p-1 bg-green-600 rounded"
+                                  aria-label={`Save day name`}
+                                >
+                                  <Save className="w-4 h-4" />
+                                </button>
+                                <button
+                                  onClick={e => {
+                                    e.stopPropagation();
+                                    setEditingDay(null);
+                                  }}
+                                  className="p-1 bg-gray-800 rounded"
+                                  aria-label={`Cancel`}
+                                >
+                                  <XIcon className="w-4 h-4" />
+                                </button>
+                              </div>
+                            ) : (
+                              <>
+                                <div className="font-medium">
+                                  {dayLabels[entry.dayNumber] ||
+                                    `Day ${String(entry.dayNumber).padStart(2, '0')}`}
+                                </div>
+                                <button
+                                  onClick={e => {
+                                    e.stopPropagation();
+                                    setEditingDay(entry.dayNumber);
+                                    setEditingDayName(
+                                      dayLabels[entry.dayNumber] ||
+                                        `Day ${String(entry.dayNumber).padStart(2, '0')}`,
+                                    );
+                                  }}
+                                  className="p-1 ml-2"
+                                  aria-label={`Edit day ${entry.dayNumber}`}
+                                >
+                                  <Pencil className="w-4 h-4 text-gray-400" />
+                                </button>
+                              </>
+                            )}
+                          </div>
+                          <div className="text-xs opacity-70">{entry.photos.length} photos</div>
                         </div>
-                      ) : (
-                        <>
-                          <div className="font-medium">{dayLabels[day] || `Day ${String(day).padStart(2, '0')}`}</div>
-                          <button
-                            onClick={e => {
-                              e.stopPropagation();
-                              setEditingDay(day);
-                              setEditingDayName(dayLabels[day] || `Day ${String(day).padStart(2, '0')}`);
-                            }}
-                            className="p-1 ml-2"
-                            aria-label={`Edit day ${day}`}
-                          >
-                            <Pencil className="w-4 h-4 text-gray-400" />
-                          </button>
-                        </>
-                      )}
-                    </div>
-                    <div className="text-xs opacity-70">{dayPhotos.length} photos</div>
-                  </div>
-                ))}
+                      ))}
+
+                      {selectedWithoutDay.map(containerName => (
+                        <div
+                          key={`container-${containerName}`}
+                          role="button"
+                          tabIndex={0}
+                          onClick={() => setSelectedRootFolder(containerName)}
+                          className={`w-full text-left px-3 py-2 rounded text-sm transition-colors ${
+                            selectedRootFolder === containerName
+                              ? 'bg-blue-600 text-white'
+                              : 'hover:bg-gray-800 text-gray-300'
+                          }`}
+                        >
+                          <div className="flex items-center justify-between">
+                            <div className="font-medium">{containerName}</div>
+                            <div className="text-xs px-2 py-0.5 rounded bg-gray-700 text-gray-300">
+                              Container
+                            </div>
+                          </div>
+                          <div className="text-xs opacity-70">
+                            {rootGroups.find(([name]) => name === containerName)?.[1].length || 0}{' '}
+                            photos
+                          </div>
+                        </div>
+                      ))}
+                    </>
+                  );
+                })()}
               </div>
 
-              <h3 className="text-xs font-semibold text-gray-400 uppercase mb-3">Folders</h3>
+              <h3 className="text-xs font-semibold text-gray-400 uppercase mb-3">Other</h3>
               <div className="space-y-1">
-                {displayRootGroups.map(([folder, items]) => (
-                  <div
-                    key={folder}
-                    role="button"
-                    tabIndex={0}
-                    onClick={() => {
-                      setSelectedRootFolder(folder);
-                    }}
-                    className={`w-full text-left px-3 py-2 rounded text-sm transition-colors ${
-                      selectedRootFolder === folder ? 'bg-blue-600 text-white' : 'hover:bg-gray-800 text-gray-300'
-                    }`}
-                  >
-                    <div className="flex items-center justify-between">
-                      <div className="font-medium">{folder}</div>
-                      <div className="flex gap-2">
-                        {/* Quick actions removed: selection and folder-assign moved to contextual workflows */}
-                      </div>
-                    </div>
-                    <div className="text-xs opacity-70">{items.length} photos ({items.filter(p => p.day === null).length} unsorted)</div>
-                  </div>
-                ))}
-                {rootGroups.length === 0 && <div className="text-xs text-gray-400">No root folders</div>}
+                {(() => {
+                  const { selected, nonDay, dayLike } = sortFolders(displayRootGroups);
+                  console.debug('[PhotoOrganizer] Folder categorization:', {
+                    selected: selected.map(f => f.folder),
+                    nonDay: nonDay.map(f => f.folder),
+                    dayLike: dayLike.map(f => f.folder),
+                  });
+
+                  // Show only non-day folders in Other section
+                  // All day-like folders (dayLike) are now shown in the Days section
+                  const nonSelectedFolders = nonDay;
+
+                  return (
+                    <>
+                      {nonSelectedFolders.map(f => (
+                        <div
+                          key={f.folder}
+                          role="button"
+                          tabIndex={0}
+                          onClick={() => setSelectedRootFolder(f.folder)}
+                          className={`w-full text-left px-3 py-2 rounded text-sm transition-colors ${
+                            selectedRootFolder === f.folder
+                              ? 'bg-blue-600 text-white'
+                              : 'hover:bg-gray-800 text-gray-300'
+                          }`}
+                        >
+                          <div className="flex items-center justify-between">
+                            <div className="font-medium">{f.folder}</div>
+                            <div className="flex gap-2" />
+                          </div>
+                          <div className="text-xs opacity-70">
+                            {f.items.length} photos ({f.items.filter(p => p.day === null).length}{' '}
+                            unsorted)
+                          </div>
+                        </div>
+                      ))}
+
+                      {nonSelectedFolders.length === 0 && (
+                        <div className="text-xs text-gray-400">No other folders</div>
+                      )}
+                    </>
+                  );
+                })()}
               </div>
             </div>
           </aside>
@@ -1026,7 +1341,7 @@ export default function PhotoOrganizer() {
                   <p>Select a day to view photos</p>
                 </div>
               </div>
-            ) : currentView === 'folders' && selectedRootFolder === null ? (
+            ) : currentView === 'folders' && selectedRootFolder === null && selectedDay === null ? (
               <div className="flex items-center justify-center h-96 text-gray-500">
                 <div className="text-center">
                   <FolderOpen className="w-12 h-12 mx-auto mb-4 opacity-50" />
@@ -1035,7 +1350,10 @@ export default function PhotoOrganizer() {
               </div>
             ) : (
               (() => {
-                const rootPhotos = currentView === 'folders' && selectedRootFolder ? (rootGroups.find(r => r[0] === selectedRootFolder)?.[1] || []) : null;
+                const rootPhotos =
+                  currentView === 'folders' && selectedRootFolder
+                    ? rootGroups.find(r => r[0] === selectedRootFolder)?.[1] || []
+                    : null;
                 const displayPhotos = rootPhotos !== null ? rootPhotos : filteredPhotos;
                 if (displayPhotos.length === 0) {
                   return (
@@ -1069,7 +1387,11 @@ export default function PhotoOrganizer() {
                         } ${photo.bucket || photo.archived ? 'opacity-60 saturate-50' : ''}`}
                       >
                         {photo.thumbnail ? (
-                          <img src={photo.thumbnail} alt={photo.currentName} className="w-full aspect-[4/3] object-cover" />
+                          <img
+                            src={photo.thumbnail}
+                            alt={photo.currentName}
+                            className="w-full aspect-[4/3] object-cover"
+                          />
                         ) : (
                           <div className="w-full aspect-[4/3] bg-gray-900 flex items-center justify-center text-xs text-gray-400 px-2 text-center">
                             {photo.currentName}
@@ -1182,10 +1504,23 @@ export default function PhotoOrganizer() {
                     onChange={e => {
                       const val = e.target.value;
                       if (!val) return;
-                      const dayNum = val === 'new' ? Math.max(0, ...days.map(d => d[0])) + 1 : Number(val);
+                      const dayNum =
+                        val === 'new' ? Math.max(0, ...days.map(d => d[0])) + 1 : Number(val);
                       const targets = Array.from(selectedPhotos);
-                      const newPhotos = photos.map(ph => (targets.includes(ph.id) ? { ...ph, day: dayNum } : ph));
+                      const newPhotos = photos.map(ph =>
+                        targets.includes(ph.id) ? { ...ph, day: dayNum } : ph,
+                      );
                       saveToHistory(newPhotos);
+                      // If creating a new day via the Assign control, treat that as an
+                      // explicit confirmation and create a default day label so it
+                      // appears in the Days list (visibleDays filters by labels).
+                      if (val === 'new') {
+                        setDayLabels(prev => ({
+                          ...prev,
+                          [dayNum]: `Day ${String(dayNum).padStart(2, '0')}`,
+                        }));
+                        persistState(newPhotos);
+                      }
                       setSelectedDay(dayNum);
                       setCurrentView('days');
                       // clear selection after assign
@@ -1200,7 +1535,9 @@ export default function PhotoOrganizer() {
                     ))}
                     <option value="new">Create new day</option>
                   </select>
-                  <div className="text-xs text-gray-400">Assign selected photos to a day folder</div>
+                  <div className="text-xs text-gray-400">
+                    Assign selected photos to a day folder
+                  </div>
                 </div>
               </div>
 

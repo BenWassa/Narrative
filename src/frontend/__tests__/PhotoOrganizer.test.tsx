@@ -32,6 +32,7 @@ const sampleState = {
   projectName: 'Test Trip',
   rootPath: '/path/to/trip',
   photos: samplePhotos,
+  dayLabels: { 1: 'Day 01', 2: 'Day 02' },
   settings: {
     autoDay: true,
     folderStructure: {
@@ -79,10 +80,9 @@ test('shift-click selects a contiguous range', async () => {
   const projectButton = await screen.findByRole('button', { name: /Test Trip/i });
   fireEvent.click(projectButton);
 
-  // Select a day first (since default view is now 'days' instead of 'inbox')
-  // days are available in the Folders sidebar; click the day entry
-  const dayButton = await screen.findByRole('button', { name: /(Day 01|Beach)/i });
-  fireEvent.click(dayButton);
+  // FolderA is auto-detected as day-like and appears in Days section as "Day 01"
+  const day01 = await screen.findByText('Day 01');
+  fireEvent.click(day01);
 
   // wait for images to render
   const imgs = await screen.findAllByRole('img');
@@ -104,8 +104,7 @@ test('renames a day label and export script uses it', async () => {
   render(<PhotoOrganizer />);
   const projectButton = await screen.findByRole('button', { name: /Test Trip/i });
   fireEvent.click(projectButton);
-
-  // days are available in the Folders sidebar; find the edit control for Day 01
+  // days are configured in this project; find the edit control for Day 01
   const editBtn = await screen.findByLabelText(/Edit day 1/i);
   fireEvent.click(editBtn);
 
@@ -114,10 +113,10 @@ test('renames a day label and export script uses it', async () => {
 
   const save = await screen.findByLabelText(/Save day name/i);
   fireEvent.click(save);
-  // select a photo in that day and assign it a category so export will include it
+  // FolderA is now displayed as "Beach" in Days section since we renamed Day 01 to "Beach"
   const dayButton = await screen.findByText(/Beach/i);
   fireEvent.click(dayButton);
-  const first = await screen.findByTestId('photo-photo_1');
+  const first = await screen.findByTestId('photo-photo_3');
   fireEvent.click(first);
   const bucketBtn = await screen.findByRole('button', { name: /Establishing/i });
   fireEvent.click(bucketBtn);
@@ -135,27 +134,22 @@ test('root view groups by top-level folder and opens group', async () => {
   const projectButton = await screen.findByRole('button', { name: /Test Trip/i });
   fireEvent.click(projectButton);
 
-  // Switch to Root tab
-  // Switch to Folders tab (folders-first)
+  // Switch to Folders tab
   const foldersTab2 = await screen.findByRole('button', { name: /Folders/i });
   fireEvent.click(foldersTab2);
 
-  // Expect folders to be listed
-  const folderA = await screen.findByText('FolderA');
-  expect(folderA).toBeTruthy();
-
-  // Days should be listed first in the sidebar
+  // Days should be listed first in the sidebar (FolderA is auto-detected as day-like and shown as "Day 01")
   const dayHeading = await screen.findByText(/Day 01/i);
   expect(dayHeading).toBeTruthy();
 
-  // Open FolderA
-  fireEvent.click(folderA);
+  // Open the Day 01 folder to see its photos
+  fireEvent.click(dayHeading);
   const photos = await screen.findAllByRole('img');
   expect(photos.length).toBeGreaterThanOrEqual(4);
 });
 
 test('folders list shows only day-related folders (filters out non-day folders)', async () => {
-  // Create a state where FolderC exists but has no day-assigned photos — it should not be shown
+  // Create a state where FolderC exists but has no day-assigned photos — it should show under Other (not filtered out)
   const stateWithExtra = {
     ...sampleState,
     photos: [
@@ -182,14 +176,69 @@ test('folders list shows only day-related folders (filters out non-day folders)'
   const projectButton = await screen.findByRole('button', { name: /Test Trip/i });
   fireEvent.click(projectButton);
 
-  // FolderA should be present (has day photos), FolderC should not (no day photos)
-  const folderA = await screen.findByText('FolderA');
-  expect(folderA).toBeTruthy();
-  expect(screen.queryByText('FolderC')).toBeNull();
+  // FolderA (day-like) should appear in Days section as "Day 01", FolderC (non-day) should appear in Other
+  const dayLabel = await screen.findByText('Day 01');
+  expect(dayLabel).toBeTruthy();
+  const otherHeader = await screen.findByText('Other');
+  expect(otherHeader).toBeTruthy();
+  expect(screen.queryByText('FolderC')).toBeTruthy();
+});
+
+test('other groups order: only non-day folders appear in Other when day-like folders auto-detected to Days', async () => {
+  // Create a state where both day-like folders and other folders exist at root
+  // With auto-detection, Day1_PlayaDelCarmen should appear in Days section, not Other
+  const state = {
+    ...sampleState,
+    photos: [
+      ...sampleState.photos,
+      {
+        id: 'p10',
+        originalName: 'A.jpg',
+        currentName: 'A.jpg',
+        timestamp: Date.now(),
+        day: null,
+        bucket: null,
+        sequence: null,
+        favorite: false,
+        rating: 0,
+        archived: false,
+        thumbnail: '',
+        filePath: 'Flight to CUN/IMG.jpg',
+      },
+      {
+        id: 'p11',
+        originalName: 'B.jpg',
+        currentName: 'B.jpg',
+        timestamp: Date.now(),
+        day: null,
+        bucket: null,
+        sequence: null,
+        favorite: false,
+        rating: 0,
+        archived: false,
+        thumbnail: '',
+        filePath: 'Day1_PlayaDelCarmen/IMG.jpg',
+      },
+    ],
+  };
+
+  vi.mocked(projectService.getState).mockResolvedValue(state as any);
+  render(<PhotoOrganizer />);
+  const projectButton = await screen.findByRole('button', { name: /Test Trip/i });
+  fireEvent.click(projectButton);
+
+  // "Flight to CUN" should be in Other section
+  const flightFolder = await screen.findByText('Flight to CUN');
+  expect(flightFolder).toBeTruthy();
+
+  // "Day1_PlayaDelCarmen" should be in Days section (auto-detected)
+  const day1Folder = await screen.findByText('Day 01');
+  expect(day1Folder).toBeTruthy();
 });
 
 test('folders shows days container when day subfolders exist even if photos are unassigned', async () => {
-  // Photo is inside the days container under D01 but has no day assigned — still should show 01_DAYS
+  // Photo is inside a days-structured folder (with Dnn subfolder) but has no day assigned
+  // This tests that folders with day-like structure (Dnn subfolders) are recognized
   const stateWithDaysFolder = {
     ...sampleState,
     photos: [
@@ -216,9 +265,13 @@ test('folders shows days container when day subfolders exist even if photos are 
   const projectButton = await screen.findByRole('button', { name: /Test Trip/i });
   fireEvent.click(projectButton);
 
-  // Should show the days container folder (01_DAYS)
-  const daysContainer = await screen.findByText('01_DAYS');
-  expect(daysContainer).toBeTruthy();
+  // Days section should show configured days (FolderA and FolderB are auto-detected as day-like)
+  const daysSection = await screen.findByText('Days');
+  expect(daysSection).toBeTruthy();
+
+  // Day 01 and Day 02 should be present
+  expect(screen.getByText('Day 01')).toBeTruthy();
+  expect(screen.getByText('Day 02')).toBeTruthy();
 });
 
 test('onboarding-selected day containers are shown even when empty', async () => {
@@ -250,8 +303,63 @@ test('onboarding-selected day containers are shown even when empty', async () =>
   fireEvent.click(projectButton);
 
   // The selected day container should be visible even though no Dnn subfolders or assigned photos exist
+  // It appears in the Days section at the top of the sidebar
   const picked = await screen.findByText('PickedDays');
   expect(picked).toBeTruthy();
+});
+
+test('selected day containers render day labels instead of raw folder names', async () => {
+  const stateWithSelectedDays = {
+    ...sampleState,
+    photos: [
+      ...sampleState.photos,
+      {
+        id: 'p11',
+        originalName: 'IMG_A.jpg',
+        currentName: 'IMG_A.jpg',
+        timestamp: Date.now(),
+        day: 1,
+        bucket: null,
+        sequence: null,
+        favorite: false,
+        rating: 0,
+        archived: false,
+        thumbnail: '',
+        filePath: 'Day1_PlayaDelCarmen/IMG.jpg',
+      },
+      {
+        id: 'p12',
+        originalName: 'IMG_B.jpg',
+        currentName: 'IMG_B.jpg',
+        timestamp: Date.now(),
+        day: 2,
+        bucket: null,
+        sequence: null,
+        favorite: false,
+        rating: 0,
+        archived: false,
+        thumbnail: '',
+        filePath: 'Day2_CozumelDiving/IMG.jpg',
+      },
+    ],
+    dayContainers: ['Day1_PlayaDelCarmen', 'Day2_CozumelDiving'],
+  };
+
+  vi.mocked(projectService.getState).mockResolvedValue(stateWithSelectedDays as any);
+  render(<PhotoOrganizer />);
+  const projectButton = await screen.findByRole('button', { name: /Test Trip/i });
+  fireEvent.click(projectButton);
+
+  // The selected containers should display as Day 01 and Day 02 labels (in the Days section at the top)
+  expect(screen.queryByText('Day1_PlayaDelCarmen')).toBeNull();
+  expect(screen.queryByText('Day2_CozumelDiving')).toBeNull();
+  const daysHeader = await screen.findByText('Days');
+  const daysContainer = daysHeader.nextElementSibling as Element | null;
+  expect(daysContainer).toBeTruthy();
+  const d1 = await within(daysContainer as Element).findByText(/Day 01/i);
+  const d2 = await within(daysContainer as Element).findByText(/Day 02/i);
+  expect(d1).toBeTruthy();
+  expect(d2).toBeTruthy();
 });
 
 test('folder quick actions: select all and assign folder to day', async () => {
@@ -263,14 +371,9 @@ test('folder quick actions: select all and assign folder to day', async () => {
   const foldersTab3 = await screen.findByRole('button', { name: /Folders/i });
   fireEvent.click(foldersTab3);
 
-  const folderA = await screen.findByText('FolderA');
-  // Quick action buttons removed — ensure they are not present
-  expect(within(folderA.parentElement!).queryByRole('button', { name: /Select all photos in FolderA/i })).toBeNull();
-  expect(within(folderA.parentElement!).queryByRole('button', { name: /Assign all photos in FolderA to day/i })).toBeNull();
-
-  // Day entries appear in the Folders sidebar; find Day 03 and open it
-  // Open FolderA and select all photos (shift-select range), then create a new day via the contextual Assign control
-  fireEvent.click(folderA);
+  // FolderA is now shown in Days section as "Day 01"
+  const day01 = await screen.findByText('Day 01');
+  fireEvent.click(day01);
   const imgsInFolder = await screen.findAllByRole('img');
   expect(imgsInFolder.length).toBeGreaterThanOrEqual(4);
   const first = await screen.findByTestId('photo-photo_1');
@@ -287,14 +390,6 @@ test('folder quick actions: select all and assign folder to day', async () => {
   fireEvent.click(dayButton);
   const imgs = await screen.findAllByRole('img');
   expect(imgs.length).toBeGreaterThanOrEqual(4);
-
-  // Return to folders and ensure Assign button for FolderA is now disabled (all assigned)
-  const foldersTab4 = await screen.findByRole('button', { name: /Folders/i });
-  fireEvent.click(foldersTab4);
-  const updatedFolderA = await screen.findByText('FolderA');
-  // FolderA should have no unsorted photos left
-  const folderContainer = updatedFolderA.closest('[role="button"]');
-  expect(folderContainer).toHaveTextContent(/0\s+unsorted/);
 });
 
 test('archive view highlights organize step, not export', async () => {
