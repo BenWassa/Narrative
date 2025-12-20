@@ -54,7 +54,8 @@ const DEFAULT_SETTINGS: ProjectSettings = {
 
 export default function PhotoOrganizer() {
   const [photos, setPhotos] = useState<ProjectPhoto[]>([]);
-  const [currentView, setCurrentView] = useState('days');
+  // Default to 'folders' to encourage folder-first workflow
+  const [currentView, setCurrentView] = useState('folders');
   // Support multi-selection: set of IDs, and a focused photo for keyboard actions
   const [selectedPhotos, setSelectedPhotos] = useState<Set<string>>(new Set());
   const [focusedPhoto, setFocusedPhoto] = useState<string | null>(null);
@@ -362,6 +363,20 @@ export default function PhotoOrganizer() {
       persistState(nextPhotos);
     }
   }, [history, historyIndex, persistState]);
+
+  // Folder quick actions (defined after saveToHistory to avoid TDZ)
+  const selectFolderPhotos = useCallback((folder: string) => {
+    const ids = photos.filter(p => ((p.filePath || p.originalName).split('/')[0] || '(root)') === folder).map(p => p.id);
+    setSelectedPhotos(new Set(ids));
+    if (ids.length > 0) setFocusedPhoto(ids[0]);
+  }, [photos]);
+
+  const assignFolderToDay = useCallback((folder: string) => {
+    const day = selectedDay ?? ((photos.reduce((max, p) => (p.day && p.day > max ? p.day : max), 0) || 0) + 1);
+    const ids = photos.filter(p => ((p.filePath || p.originalName).split('/')[0] || '(root)') === folder).map(p => p.id);
+    const newPhotos = photos.map(p => (ids.includes(p.id) ? { ...p, day } : p));
+    saveToHistory(newPhotos);
+  }, [photos, selectedDay, saveToHistory]);
 
   const handleOnboardingComplete = useCallback(
     async (state: OnboardingState) => {
@@ -728,12 +743,26 @@ export default function PhotoOrganizer() {
               </button>
             </div>
           </div>
+          {/* Process Stepper (Folders-first workflow) */}
+          <div className="flex items-center gap-3 px-6 py-2">
+            {(() => {
+              const step = currentView === 'folders' || currentView === 'days' ? 'organize' : currentView === 'review' ? 'review' : 'export';
+              return (
+                <div className="flex items-center gap-2 text-xs text-gray-400">
+                  <div className={`px-2 py-1 rounded ${step === 'organize' ? 'bg-blue-700 text-white' : 'bg-gray-800'}`}>Import</div>
+                  <div className={`px-2 py-1 rounded ${step === 'organize' ? 'bg-blue-700 text-white' : 'bg-gray-800'}`}>Organize</div>
+                  <div className={`px-2 py-1 rounded ${step === 'review' ? 'bg-blue-700 text-white' : 'bg-gray-800'}`}>Review</div>
+                  <div className={`px-2 py-1 rounded ${step === 'export' ? 'bg-blue-700 text-white' : 'bg-gray-800'}`}>Export</div>
+                </div>
+              );
+            })()}
+          </div>
 
           {/* View Tabs */}
           <div className="flex gap-1 px-6 pb-2">
             {[
+              { id: 'folders', label: 'Folders', count: stats.root },
               { id: 'days', label: 'Days', count: days.length },
-              { id: 'root', label: 'Root', count: stats.root },
               { id: 'favorites', label: 'Favorites', count: stats.favorites },
               { id: 'archive', label: 'Archive', count: stats.archived },
               { id: 'review', label: 'Review', count: stats.sorted },
@@ -841,7 +870,7 @@ export default function PhotoOrganizer() {
             </div>
           </aside>
         )}
-        {currentView === 'root' && (
+        {currentView === 'folders' && (
           <aside className="w-48 border-r border-gray-800 bg-gray-900 overflow-y-auto">
             <div className="p-4">
               <h3 className="text-xs font-semibold text-gray-400 uppercase mb-3">Folders</h3>
@@ -858,8 +887,32 @@ export default function PhotoOrganizer() {
                       selectedRootFolder === folder ? 'bg-blue-600 text-white' : 'hover:bg-gray-800 text-gray-300'
                     }`}
                   >
-                    <div className="font-medium">{folder}</div>
-                    <div className="text-xs opacity-70">{items.length} photos</div>
+                    <div className="flex items-center justify-between">
+                      <div className="font-medium">{folder}</div>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={e => {
+                            e.stopPropagation();
+                            selectFolderPhotos(folder);
+                          }}
+                          className="px-2 py-1 rounded bg-gray-800 text-xs"
+                          aria-label={`Select all photos in ${folder}`}
+                        >
+                          Select
+                        </button>
+                        <button
+                          onClick={e => {
+                            e.stopPropagation();
+                            assignFolderToDay(folder);
+                          }}
+                          className="px-2 py-1 rounded bg-green-700 text-xs"
+                          aria-label={`Assign all photos in ${folder} to day`}
+                        >
+                          Assign
+                        </button>
+                      </div>
+                    </div>
+                    <div className="text-xs opacity-70">{items.length} photos ({items.filter(p => p.day === null).length} unsorted)</div>
                   </div>
                 ))}
                 {rootGroups.length === 0 && <div className="text-xs text-gray-400">No root folders</div>}
@@ -878,7 +931,7 @@ export default function PhotoOrganizer() {
                   <p>Select a day to view photos</p>
                 </div>
               </div>
-            ) : currentView === 'root' && selectedRootFolder === null ? (
+            ) : currentView === 'folders' && selectedRootFolder === null ? (
               <div className="flex items-center justify-center h-96 text-gray-500">
                 <div className="text-center">
                   <FolderOpen className="w-12 h-12 mx-auto mb-4 opacity-50" />
@@ -887,7 +940,7 @@ export default function PhotoOrganizer() {
               </div>
             ) : (
               (() => {
-                const rootPhotos = currentView === 'root' && selectedRootFolder ? (rootGroups.find(r => r[0] === selectedRootFolder)?.[1] || []) : null;
+                const rootPhotos = currentView === 'folders' && selectedRootFolder ? (rootGroups.find(r => r[0] === selectedRootFolder)?.[1] || []) : null;
                 const displayPhotos = rootPhotos !== null ? rootPhotos : filteredPhotos;
                 if (displayPhotos.length === 0) {
                   return (

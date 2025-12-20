@@ -1,5 +1,5 @@
 import React from 'react';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, within } from '@testing-library/react';
 import { test, expect, beforeEach, afterEach, vi } from 'vitest';
 import PhotoOrganizer from '../PhotoOrganizer';
 import * as projectService from '../services/projectService';
@@ -80,6 +80,9 @@ test('shift-click selects a contiguous range', async () => {
   fireEvent.click(projectButton);
 
   // Select a day first (since default view is now 'days' instead of 'inbox')
+  // switch to Days tab (Folders is the default view)
+  const daysTab = await screen.findByRole('button', { name: /Days/i });
+  fireEvent.click(daysTab);
   const dayButton = await screen.findByRole('button', { name: /(Day 01|Beach)/i });
   fireEvent.click(dayButton);
 
@@ -104,7 +107,9 @@ test('renames a day label and export script uses it', async () => {
   const projectButton = await screen.findByRole('button', { name: /Test Trip/i });
   fireEvent.click(projectButton);
 
-  // ensure Day 01 exists and open edit
+  // switch to Days tab and ensure Day 01 exists and open edit
+  const daysTab = await screen.findByRole('button', { name: /Days/i });
+  fireEvent.click(daysTab);
   const editBtn = await screen.findByLabelText(/Edit day 1/i);
   fireEvent.click(editBtn);
 
@@ -135,8 +140,9 @@ test('root view groups by top-level folder and opens group', async () => {
   fireEvent.click(projectButton);
 
   // Switch to Root tab
-  const rootTab = await screen.findByRole('button', { name: /Root/i });
-  fireEvent.click(rootTab);
+  // Switch to Folders tab (folders-first)
+  const foldersTab = await screen.findByRole('button', { name: /Folders/i });
+  fireEvent.click(foldersTab);
 
   // Expect folders to be listed
   const folderA = await screen.findByText('FolderA');
@@ -146,6 +152,36 @@ test('root view groups by top-level folder and opens group', async () => {
   fireEvent.click(folderA);
   const photos = await screen.findAllByRole('img');
   expect(photos.length).toBeGreaterThanOrEqual(4);
+});
+
+test('folder quick actions: select all and assign folder to day', async () => {
+  render(<PhotoOrganizer />);
+  const projectButton = await screen.findByRole('button', { name: /Test Trip/i });
+  fireEvent.click(projectButton);
+
+  // Ensure we're viewing folders
+  const foldersTab = await screen.findByRole('button', { name: /Folders/i });
+  fireEvent.click(foldersTab);
+
+  const folderA = await screen.findByText('FolderA');
+  // Select all in folder
+  const selectBtn = within(folderA.parentElement!).getByRole('button', { name: /Select all photos in FolderA/i });
+  fireEvent.click(selectBtn);
+
+  // Right panel should show 4 selected
+  expect(await screen.findByText(/4 selected/i)).toBeTruthy();
+
+  // Assign folder to a day (this will create a new day)
+  const assignBtn = within(folderA.parentElement!).getByRole('button', { name: /Assign all photos in FolderA to day/i });
+  fireEvent.click(assignBtn);
+
+  // Switch to Days tab and expect Day 03 to exist and contain at least 4 photos
+  const daysTab = await screen.findByRole('button', { name: /Days/i });
+  fireEvent.click(daysTab);
+  const dayButton = await screen.findByRole('button', { name: /Day 03/i });
+  fireEvent.click(dayButton);
+  const imgs = await screen.findAllByRole('img');
+  expect(imgs.length).toBeGreaterThanOrEqual(4);
 });
 
 test('handles localStorage failures gracefully when updating recents', async () => {
