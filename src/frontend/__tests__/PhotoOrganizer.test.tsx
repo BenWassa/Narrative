@@ -80,9 +80,7 @@ test('shift-click selects a contiguous range', async () => {
   fireEvent.click(projectButton);
 
   // Select a day first (since default view is now 'days' instead of 'inbox')
-  // switch to Days tab (Folders is the default view)
-  const daysTab = await screen.findByRole('button', { name: /Days/i });
-  fireEvent.click(daysTab);
+  // days are available in the Folders sidebar; click the day entry
   const dayButton = await screen.findByRole('button', { name: /(Day 01|Beach)/i });
   fireEvent.click(dayButton);
 
@@ -107,9 +105,7 @@ test('renames a day label and export script uses it', async () => {
   const projectButton = await screen.findByRole('button', { name: /Test Trip/i });
   fireEvent.click(projectButton);
 
-  // switch to Days tab and ensure Day 01 exists and open edit
-  const daysTab = await screen.findByRole('button', { name: /Days/i });
-  fireEvent.click(daysTab);
+  // days are available in the Folders sidebar; find the edit control for Day 01
   const editBtn = await screen.findByLabelText(/Edit day 1/i);
   fireEvent.click(editBtn);
 
@@ -179,9 +175,7 @@ test('folder quick actions: select all and assign folder to day', async () => {
   const assignBtn = within(folderA.parentElement!).getByRole('button', { name: /Assign all photos in FolderA to day/i });
   fireEvent.click(assignBtn);
 
-  // Switch to Days tab and expect Day 03 to exist and contain at least 4 photos
-  const daysTab = await screen.findByRole('button', { name: /Days/i });
-  fireEvent.click(daysTab);
+  // Day entries appear in the Folders sidebar; find Day 03 and open it
   const dayButton = await screen.findByRole('button', { name: /Day 03/i });
   fireEvent.click(dayButton);
   const imgs = await screen.findAllByRole('img');

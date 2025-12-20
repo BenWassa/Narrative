@@ -737,7 +737,6 @@ export default function PhotoOrganizer() {
           <div className="flex gap-1 px-6 pb-2">
             {[
               { id: 'folders', label: 'Folders', count: stats.root },
-              { id: 'days', label: 'Days', count: days.length },
               { id: 'favorites', label: 'Favorites', count: stats.favorites },
               { id: 'archive', label: 'Archive', count: stats.archived },
               { id: 'review', label: 'Review', count: stats.sorted },
@@ -866,7 +865,52 @@ export default function PhotoOrganizer() {
                     }`}
                   >
                     <div className="flex items-center justify-between">
-                      <div className="font-medium">{dayLabels[day] || `Day ${String(day).padStart(2, '0')}`}</div>
+                      {editingDay === day ? (
+                        <div className="flex items-center gap-2 w-full">
+                          <input
+                            value={editingDayName}
+                            onChange={e => setEditingDayName(e.target.value)}
+                            className="w-full px-2 py-1 rounded bg-gray-800 text-sm text-gray-100"
+                          />
+                          <button
+                            onClick={e => {
+                              e.stopPropagation();
+                              setDayLabels(prev => ({ ...prev, [day]: editingDayName }));
+                              persistState(photos);
+                              setEditingDay(null);
+                            }}
+                            className="p-1 bg-green-600 rounded"
+                            aria-label={`Save day name`}
+                          >
+                            <Save className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={e => {
+                              e.stopPropagation();
+                              setEditingDay(null);
+                            }}
+                            className="p-1 bg-gray-800 rounded"
+                            aria-label={`Cancel`}
+                          >
+                            <XIcon className="w-4 h-4" />
+                          </button>
+                        </div>
+                      ) : (
+                        <>
+                          <div className="font-medium">{dayLabels[day] || `Day ${String(day).padStart(2, '0')}`}</div>
+                          <button
+                            onClick={e => {
+                              e.stopPropagation();
+                              setEditingDay(day);
+                              setEditingDayName(dayLabels[day] || `Day ${String(day).padStart(2, '0')}`);
+                            }}
+                            className="p-1 ml-2"
+                            aria-label={`Edit day ${day}`}
+                          >
+                            <Pencil className="w-4 h-4 text-gray-400" />
+                          </button>
+                        </>
+                      )}
                     </div>
                     <div className="text-xs opacity-70">{dayPhotos.length} photos</div>
                   </div>
