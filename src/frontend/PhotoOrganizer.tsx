@@ -938,6 +938,7 @@ export default function PhotoOrganizer() {
             </div>
 
             <div className="flex items-center gap-2">
+              <span className="text-xs text-gray-500">v{__APP_VERSION__}</span>
               <button
                 onClick={() => {
                   setShowProjectMenu(false);

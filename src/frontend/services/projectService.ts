@@ -305,10 +305,12 @@ function applyEdits(photos: ProjectPhoto[], edits: Array<any>) {
 
 function isArchiveFolderSegment(segment: string, archiveFolder: string) {
   const normalized = segment.toLowerCase();
+  const simplified = normalized.replace(/[^a-z0-9]+/g, ' ').trim();
   const explicit = archiveFolder.toLowerCase();
   if (explicit && normalized === explicit) return true;
   if (normalized === 'archive' || normalized === 'archives') return true;
   if (normalized.endsWith('_archive') || normalized.endsWith('-archive')) return true;
+  if (normalized.includes('archive') || simplified.includes('archive')) return true;
   return false;
 }
 
