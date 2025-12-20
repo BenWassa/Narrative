@@ -34,6 +34,7 @@ const sampleState = {
   rootPath: '/path/to/trip',
   photos: samplePhotos,
   dayLabels: { 1: 'Day 01', 2: 'Day 02' },
+  dayContainers: ['FolderA', 'FolderB'], // FolderA is Day 1, FolderB is Day 2
   settings: {
     autoDay: true,
     folderStructure: {

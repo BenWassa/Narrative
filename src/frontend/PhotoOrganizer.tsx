@@ -306,6 +306,7 @@ export default function PhotoOrganizer() {
 
   const applyFolderMappings = useCallback((sourcePhotos: ProjectPhoto[], mappings: any[]) => {
     // Apply mappings from onboarding: assign detected day numbers to photos
+    // Only assign days to folders that were NOT skipped during onboarding
     // Also detect day numbers from Dnn subfolders (e.g., 01_DAYS/D01/...)
     const folderByName = new Map<string, any>();
     mappings.forEach(m => folderByName.set(m.folder, m));
@@ -324,10 +325,10 @@ export default function PhotoOrganizer() {
         }
       }
 
-      // Otherwise check top-level mapping
+      // Otherwise check top-level mapping - ONLY if folder was not skipped
       const top = parts[0];
       const mapping = folderByName.get(top);
-      if (mapping && mapping.detectedDay != null) {
+      if (mapping && mapping.detectedDay != null && !mapping.skip) {
         return { ...p, day: mapping.detectedDay };
       }
 
@@ -338,17 +339,18 @@ export default function PhotoOrganizer() {
   const applyDayContainers = useCallback(
     (sourcePhotos: ProjectPhoto[], dayContainers: string[]) => {
       // Reapply day assignments based on stored day containers
+      // Clear day assignments from photos NOT in day containers
       const containerDayMap = new Map<string, number>();
       dayContainers.forEach((container, index) => {
         containerDayMap.set(container, index + 1); // Day 1, 2, 3, etc.
       });
 
       return sourcePhotos.map(p => {
-        if (!p.filePath || p.day !== null) return p; // Don't override existing assignments
+        if (!p.filePath) return p;
         const parts = p.filePath.split('/');
+        const top = parts[0];
 
         // Check if it's in a day container
-        const top = parts[0];
         const assignedDay = containerDayMap.get(top);
         if (assignedDay != null) {
           return { ...p, day: assignedDay };
@@ -364,7 +366,9 @@ export default function PhotoOrganizer() {
           }
         }
 
-        return p;
+        // If photo is not in a day container or Dnn subfolder, clear day assignment
+        // This ensures photos from OTHER folders don't keep stale day assignments
+        return { ...p, day: null };
       });
     },
     [],
@@ -653,9 +657,16 @@ export default function PhotoOrganizer() {
     switch (currentView) {
       case 'days':
         if (selectedDay !== null) {
-          // Show photos assigned to the selected day, and also surface unassigned (root) photos
-          // so users can easily pick from loose photos when curating a day.
-          return photos.filter(p => (p.day === selectedDay || p.day === null) && !p.archived);
+          // Show ONLY photos from day container folders assigned to the selected day
+          // This ensures photos from OTHER folders don't appear in day views
+          return photos.filter(p => {
+            if (p.archived || p.day !== selectedDay) return false;
+            // Check if photo is from a day container folder
+            const topFolder = (p.filePath || p.originalName || '').split('/')[0];
+            return dayContainers.includes(topFolder) || 
+                   topFolder === projectSettings?.folderStructure?.daysFolder ||
+                   (p.filePath || '').includes('/D');
+          });
         }
         return photos.filter(p => p.day !== null && !p.archived);
       case 'folders':
@@ -685,7 +696,7 @@ export default function PhotoOrganizer() {
       default:
         return photos;
     }
-  }, [photos, currentView, selectedDay]);
+  }, [photos, currentView, selectedDay, selectedRootFolder, dayContainers, projectSettings]);
 
   // Auto-select first folder when project is newly loaded and no folder is selected
   useEffect(() => {
