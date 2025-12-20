@@ -663,9 +663,11 @@ export default function PhotoOrganizer() {
             if (p.archived || p.day !== selectedDay) return false;
             // Check if photo is from a day container folder
             const topFolder = (p.filePath || p.originalName || '').split('/')[0];
-            return dayContainers.includes(topFolder) || 
-                   topFolder === projectSettings?.folderStructure?.daysFolder ||
-                   (p.filePath || '').includes('/D');
+            return (
+              dayContainers.includes(topFolder) ||
+              topFolder === projectSettings?.folderStructure?.daysFolder ||
+              (p.filePath || '').includes('/D')
+            );
           });
         }
         return photos.filter(p => p.day !== null && !p.archived);
@@ -1788,8 +1790,8 @@ export default function PhotoOrganizer() {
               (() => {
                 const rootPhotos =
                   currentView === 'folders' && selectedRootFolder
-                    ? (rootGroups.find(r => r[0] === selectedRootFolder)?.[1] || []).filter(p =>
-                        selectedDay === null || p.day === selectedDay || p.day === null,
+                    ? (rootGroups.find(r => r[0] === selectedRootFolder)?.[1] || []).filter(
+                        p => selectedDay === null || p.day === selectedDay || p.day === null,
                       )
                     : null;
                 const displayPhotos = rootPhotos !== null ? rootPhotos : filteredPhotos;
