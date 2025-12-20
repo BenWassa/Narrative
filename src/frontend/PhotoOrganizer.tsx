@@ -239,6 +239,20 @@ export default function PhotoOrganizer() {
     return Array.from(map.entries()).sort((a, b) => a[0].localeCompare(b[0]));
   }, [photos]);
 
+  // Filtered root groups for display in the Folders sidebar.
+  // Show only folders that are relevant day folders: either they contain photos with a day assigned,
+  // they match the configured days container, or they match an explicit day label (custom names).
+  const displayRootGroups = React.useMemo(() => {
+    const dayNames = new Set(days.map(([d]) => dayLabels[d] || `Day ${String(d).padStart(2, '0')}`));
+    const daysContainer = projectSettings?.folderStructure?.daysFolder;
+    return rootGroups.filter(([folder, items]) => {
+      const hasDayAssigned = items.some(p => p.day !== null);
+      const isDaysContainer = folder === daysContainer;
+      const isDayName = dayNames.has(folder);
+      return hasDayAssigned || isDaysContainer || isDayName;
+    });
+  }, [rootGroups, days, dayLabels, projectSettings]);
+
   // Filter photos based on current view
   const filteredPhotos = React.useMemo(() => {
     switch (currentView) {
@@ -926,7 +940,7 @@ export default function PhotoOrganizer() {
 
               <h3 className="text-xs font-semibold text-gray-400 uppercase mb-3">Folders</h3>
               <div className="space-y-1">
-                {rootGroups.map(([folder, items]) => (
+                {displayRootGroups.map(([folder, items]) => (
                   <div
                     key={folder}
                     role="button"

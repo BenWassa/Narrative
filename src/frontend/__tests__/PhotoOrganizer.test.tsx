@@ -154,6 +154,40 @@ test('root view groups by top-level folder and opens group', async () => {
   expect(photos.length).toBeGreaterThanOrEqual(4);
 });
 
+test('folders list shows only day-related folders (filters out non-day folders)', async () => {
+  // Create a state where FolderC exists but has no day-assigned photos — it should not be shown
+  const stateWithExtra = {
+    ...sampleState,
+    photos: [
+      ...sampleState.photos,
+      {
+        id: 'photo_7',
+        originalName: 'IMG_2007.jpg',
+        currentName: 'IMG_2007.jpg',
+        timestamp: Date.now(),
+        day: null,
+        bucket: null,
+        sequence: null,
+        favorite: false,
+        rating: 0,
+        archived: false,
+        thumbnail: 'https://picsum.photos/seed/7/400/300',
+        filePath: 'FolderC/IMG_2007.jpg',
+      },
+    ],
+  };
+
+  vi.mocked(projectService.getState).mockResolvedValue(stateWithExtra as any);
+  render(<PhotoOrganizer />);
+  const projectButton = await screen.findByRole('button', { name: /Test Trip/i });
+  fireEvent.click(projectButton);
+
+  // FolderA should be present (has day photos), FolderC should not (no day photos)
+  const folderA = await screen.findByText('FolderA');
+  expect(folderA).toBeTruthy();
+  expect(screen.queryByText('FolderC')).toBeNull();
+});
+
 test('folder quick actions: select all and assign folder to day', async () => {
   render(<PhotoOrganizer />);
   const projectButton = await screen.findByRole('button', { name: /Test Trip/i });
