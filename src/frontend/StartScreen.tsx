@@ -10,6 +10,7 @@ interface StartScreenProps {
   onOpenProject: (projectId: string) => void;
   recentProjects?: RecentProject[];
   canClose?: boolean;
+  errorMessage?: string | null;
 }
 
 export default function StartScreen({
@@ -19,6 +20,7 @@ export default function StartScreen({
   onOpenProject,
   recentProjects = [],
   canClose = false,
+  errorMessage = null,
 }: StartScreenProps) {
   const [showOnboarding, setShowOnboarding] = useState(false);
 
@@ -43,6 +45,12 @@ export default function StartScreen({
               </button>
             )}
           </div>
+
+          {errorMessage && (
+            <div className="rounded-lg border border-red-800 bg-red-950/60 px-4 py-3 text-sm text-red-200">
+              {errorMessage}
+            </div>
+          )}
 
           <div className="flex gap-6">
             <div className="w-40 flex-shrink-0">

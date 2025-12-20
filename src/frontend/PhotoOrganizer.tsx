@@ -279,7 +279,9 @@ export default function PhotoOrganizer() {
           });
         }
       } catch (err) {
-        setProjectError(err instanceof Error ? err.message : 'Failed to load project');
+        const message = err instanceof Error ? err.message : 'Failed to load project';
+        setProjectError(message);
+        showToast(message, 'error');
         safeLocalStorage.remove(ACTIVE_PROJECT_KEY);
         // Show the welcome page so the user can try other options
         setShowWelcome(true);
@@ -287,7 +289,7 @@ export default function PhotoOrganizer() {
         setLoadingProject(false);
       }
     },
-    [setProjectFromState, updateRecentProjects],
+    [setProjectFromState, showToast, updateRecentProjects],
   );
 
   useEffect(() => {
@@ -1887,6 +1889,7 @@ export default function PhotoOrganizer() {
         }}
         recentProjects={recentProjects}
         canClose={Boolean(projectRootPath)}
+        errorMessage={projectError}
       />
       <OnboardingModal
         isOpen={showOnboarding}
