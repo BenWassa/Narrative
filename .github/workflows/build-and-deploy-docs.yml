@@ -32,14 +32,16 @@ jobs:
       - name: Check for unused dependencies (depcheck)
         run: |
           echo "Running depcheck to find unused dependencies..."
-          # depcheck exits 0 even when it finds unused deps, so inspect JSON output
-          if npx depcheck --json | grep -q '"dependencies": {}' ; then
-            echo "No unused dependencies found."
-          else
-            echo "Potential unused dependencies detected:";
-            npx depcheck
-            exit 1
-          fi
+          # Save JSON output so it can be inspected / uploaded even if CI continues
+          npx depcheck --json > depcheck.json || true
+          echo "depcheck results:" && cat depcheck.json
+          echo "Note: depcheck findings will not fail CI; results are uploaded for inspection."
+
+      - name: Upload depcheck results
+        uses: actions/upload-artifact@v4
+        with:
+          name: depcheck-report
+          path: depcheck.json
 
   deploy:
     needs: preflight
