@@ -886,16 +886,26 @@ export default function PhotoOrganizer() {
   const handleOnboardingComplete = useCallback(
     async (state: OnboardingState) => {
       setLoadingProject(true);
+      setLoadingProgress(0);
+      setLoadingMessage('Initializing project...');
       setProjectError(null);
       try {
+        setLoadingProgress(20);
+        setLoadingMessage('Scanning folder structure...');
         const initResult = await initProject({
           dirHandle: state.dirHandle,
           projectName: state.projectName,
           rootLabel: state.rootPath,
         });
+
+        setLoadingProgress(40);
+        setLoadingMessage('Analyzing photos...');
         const hydratedPhotos = state.mappings?.length
           ? applyFolderMappings(initResult.photos, state.mappings)
           : applySuggestedDays(initResult.photos, initResult.suggestedDays);
+
+        setLoadingProgress(60);
+        setLoadingMessage('Organizing by days...');
         const selectedDayContainers = (state.mappings || [])
           .filter((m: any) => !m.skip)
           .map((m: any) => m.folder);
@@ -909,6 +919,8 @@ export default function PhotoOrganizer() {
           dayContainers: selectedDayContainers,
         };
 
+        setLoadingProgress(75);
+        setLoadingMessage('Saving project...');
         setPhotos(hydratedPhotos);
         setProjectName(nextProjectName);
         setProjectRootPath(nextProjectId);
@@ -926,6 +938,9 @@ export default function PhotoOrganizer() {
         setShowOnboarding(false);
         setShowWelcome(false);
         safeLocalStorage.set(ACTIVE_PROJECT_KEY, nextProjectId);
+
+        setLoadingProgress(90);
+        setLoadingMessage('Finalizing...');
         updateRecentProjects({
           projectName: nextProjectName,
           projectId: nextProjectId,
@@ -937,6 +952,7 @@ export default function PhotoOrganizer() {
         await saveState(nextProjectId, nextState);
         // Hide the welcome view after successfully creating a project
         setShowWelcome(false);
+        setLoadingProgress(100);
       } catch (err) {
         setProjectError(err instanceof Error ? err.message : 'Failed to initialize project');
         setShowOnboarding(true);
@@ -944,6 +960,7 @@ export default function PhotoOrganizer() {
         setShowWelcome(true);
       } finally {
         setLoadingProject(false);
+        setLoadingProgress(0);
       }
     },
     [applyFolderMappings, applySuggestedDays, deriveProjectName, updateRecentProjects],
