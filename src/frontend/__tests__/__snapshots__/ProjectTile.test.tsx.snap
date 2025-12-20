@@ -32,21 +32,6 @@ exports[`ProjectTile > renders an image when coverUrl is present 1`] = `
           120 photos
         </div>
       </div>
-      <div
-        class="flex items-center gap-2"
-      >
-        <input
-          accept="image/*"
-          class="hidden"
-          type="file"
-        />
-        <button
-          class="text-xs text-gray-400 hover:text-gray-200"
-          type="button"
-        >
-          Change cover
-        </button>
-      </div>
     </div>
   </div>
 </div>
@@ -78,21 +63,6 @@ exports[`ProjectTile > renders with a fallback gradient when no coverUrl 1`] = `
         >
           Test
         </div>
-      </div>
-      <div
-        class="flex items-center gap-2"
-      >
-        <input
-          accept="image/*"
-          class="hidden"
-          type="file"
-        />
-        <button
-          class="text-xs text-gray-400 hover:text-gray-200"
-          type="button"
-        >
-          Change cover
-        </button>
       </div>
     </div>
   </div>

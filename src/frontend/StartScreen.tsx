@@ -8,7 +8,6 @@ interface StartScreenProps {
   onClose: () => void;
   onCreateComplete: (state: OnboardingState) => void;
   onOpenProject: (projectId: string) => void;
-  onSetCover: (projectId: string, coverUrl: string) => void;
   recentProjects?: RecentProject[];
   canClose?: boolean;
 }
@@ -18,7 +17,6 @@ export default function StartScreen({
   onClose,
   onCreateComplete,
   onOpenProject,
-  onSetCover,
   recentProjects = [],
   canClose = false,
 }: StartScreenProps) {
@@ -65,12 +63,7 @@ export default function StartScreen({
                 <div aria-hidden className="w-px bg-gray-700 rounded h-40" />
                 <div className="flex-1 grid grid-cols-2 gap-4">
                   {recentProjects.map(project => (
-                    <ProjectTile
-                      key={project.projectId}
-                      project={project}
-                      onOpen={onOpenProject}
-                      onSetCover={onSetCover}
-                    />
+                    <ProjectTile key={project.projectId} project={project} onOpen={onOpenProject} />
                   ))}
                 </div>
               </>

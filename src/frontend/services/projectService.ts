@@ -303,13 +303,21 @@ function applyEdits(photos: ProjectPhoto[], edits: Array<any>) {
   });
 }
 
+function isArchiveFolderSegment(segment: string, archiveFolder: string) {
+  const normalized = segment.toLowerCase();
+  const explicit = archiveFolder.toLowerCase();
+  if (explicit && normalized === explicit) return true;
+  if (normalized === 'archive' || normalized === 'archives') return true;
+  if (normalized.endsWith('_archive') || normalized.endsWith('-archive')) return true;
+  return false;
+}
+
 function applyArchiveFolder(photos: ProjectPhoto[], archiveFolder: string): ProjectPhoto[] {
   if (!archiveFolder) return photos;
-  const normalized = archiveFolder.toLowerCase();
   return photos.map(photo => {
     if (!photo.filePath) return photo;
-    const topFolder = photo.filePath.split('/')[0] || '';
-    if (topFolder.toLowerCase() === normalized) {
+    const segments = photo.filePath.split(/[\\/]/).filter(Boolean);
+    if (segments.some(segment => isArchiveFolderSegment(segment, archiveFolder))) {
       return { ...photo, archived: true, bucket: 'X' };
     }
     return photo;

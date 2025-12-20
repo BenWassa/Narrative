@@ -15,7 +15,6 @@ import {
 import { Pencil, Save, X as XIcon } from 'lucide-react';
 import OnboardingModal, { OnboardingState, RecentProject } from './OnboardingModal';
 import StartScreen from './StartScreen';
-import CoverPicker from './ui/CoverPicker';
 import {
   initProject,
   getState,
@@ -87,6 +86,12 @@ export default function PhotoOrganizer() {
   const [showExportScript, setShowExportScript] = useState(false);
   const [exportScriptText, setExportScriptText] = useState('');
   const [exportCopyStatus, setExportCopyStatus] = useState<'idle' | 'copied' | 'failed'>('idle');
+  const [toast, setToast] = useState<{ message: string; tone: 'info' | 'error' } | null>(null);
+  const toastTimerRef = useRef<number | null>(null);
+  const foldersViewStateRef = useRef<{
+    selectedRootFolder: string | null;
+    selectedDay: number | null;
+  }>({ selectedRootFolder: null, selectedDay: null });
 
   const deriveProjectName = useCallback((rootPath: string) => {
     const parts = rootPath.split(/[/\\]/).filter(Boolean);
@@ -157,6 +162,70 @@ export default function PhotoOrganizer() {
       });
     return lines.join('\n');
   }, [photos, dayLabels]);
+
+  const showToast = useCallback((message: string, tone: 'info' | 'error' = 'info') => {
+    setToast({ message, tone });
+    if (toastTimerRef.current) {
+      window.clearTimeout(toastTimerRef.current);
+    }
+    toastTimerRef.current = window.setTimeout(() => {
+      setToast(null);
+      toastTimerRef.current = null;
+    }, 2500);
+  }, []);
+
+  const setCoverFromSelection = useCallback(async () => {
+    if (!projectRootPath) return;
+    if (selectedPhotos.size === 0) {
+      showToast('Select a photo to set as cover.');
+      return;
+    }
+    if (selectedPhotos.size > 1) {
+      showToast('Select a single photo to set as cover.');
+      return;
+    }
+
+    const selectedId = Array.from(selectedPhotos)[0];
+    const selectedPhoto = photos.find(p => p.id === selectedId);
+    if (!selectedPhoto) {
+      showToast('Selected photo is no longer available.', 'error');
+      return;
+    }
+
+    const toDataUrl = (blob: Blob) =>
+      new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => {
+          if (typeof reader.result === 'string') resolve(reader.result);
+          else reject(new Error('Failed to read image'));
+        };
+        reader.onerror = () => reject(reader.error || new Error('Failed to read image'));
+        reader.readAsDataURL(blob);
+      });
+
+    try {
+      if (selectedPhoto.fileHandle) {
+        const file = await selectedPhoto.fileHandle.getFile();
+        const dataUrl = await toDataUrl(file);
+        updateRecentProject(projectRootPath, { coverUrl: dataUrl });
+        showToast('Cover photo updated.');
+        return;
+      }
+
+      if (selectedPhoto.thumbnail) {
+        const response = await fetch(selectedPhoto.thumbnail);
+        const blob = await response.blob();
+        const dataUrl = await toDataUrl(blob);
+        updateRecentProject(projectRootPath, { coverUrl: dataUrl });
+        showToast('Cover photo updated.');
+        return;
+      }
+
+      showToast('Cover photo could not be created for this selection.', 'error');
+    } catch (err) {
+      showToast('Failed to set cover photo.', 'error');
+    }
+  }, [photos, projectRootPath, selectedPhotos, showToast, updateRecentProject]);
 
   const applyFolderMappings = useCallback((sourcePhotos: ProjectPhoto[], mappings: any[]) => {
     // Apply mappings from onboarding: assign detected day numbers to photos
@@ -883,14 +952,13 @@ export default function PhotoOrganizer() {
                 Main Menu
               </button>
               {projectRootPath && (
-                <CoverPicker
-                  projectId={projectRootPath}
-                  onSetCover={(projectId, coverUrl) => {
-                    updateRecentProject(projectId, { coverUrl });
-                  }}
-                  label="Set Cover"
-                  buttonClassName="px-3 py-1 bg-gray-800 hover:bg-gray-700 rounded text-sm font-medium"
-                />
+                <button
+                  onClick={setCoverFromSelection}
+                  className="px-3 py-1 bg-gray-800 hover:bg-gray-700 rounded text-sm font-medium"
+                  title="Set cover from selected photo"
+                >
+                  Set Cover
+                </button>
               )}
               <div className="relative">
                 <button
@@ -1047,8 +1115,16 @@ export default function PhotoOrganizer() {
               <button
                 key={view.id}
                 onClick={() => {
+                  if (currentView === 'folders') {
+                    foldersViewStateRef.current = { selectedRootFolder, selectedDay };
+                  }
                   setCurrentView(view.id);
-                  setSelectedDay(null);
+                  if (view.id === 'folders') {
+                    setSelectedRootFolder(foldersViewStateRef.current.selectedRootFolder);
+                    setSelectedDay(foldersViewStateRef.current.selectedDay);
+                  } else {
+                    setSelectedDay(null);
+                  }
                 }}
                 className={`px-4 py-2 rounded-t text-sm font-medium transition-colors ${
                   currentView === view.id
@@ -1781,6 +1857,20 @@ export default function PhotoOrganizer() {
         </div>
       )}
 
+      {toast && (
+        <div className="fixed bottom-6 right-6 z-50">
+          <div
+            className={`px-4 py-2 rounded-lg text-sm shadow-lg ${
+              toast.tone === 'error' ? 'bg-red-600 text-white' : 'bg-gray-800 text-gray-100'
+            }`}
+            role="status"
+            aria-live="polite"
+          >
+            {toast.message}
+          </div>
+        </div>
+      )}
+
       {/* Onboarding Modal */}
       <StartScreen
         isOpen={showWelcome}
@@ -1796,9 +1886,6 @@ export default function PhotoOrganizer() {
         }}
         recentProjects={recentProjects}
         canClose={Boolean(projectRootPath)}
-        onSetCover={(projectId, coverUrl) => {
-          updateRecentProject(projectId, { coverUrl });
-        }}
       />
       <OnboardingModal
         isOpen={showOnboarding}

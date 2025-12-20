@@ -1,5 +1,4 @@
 import React from 'react';
-import CoverPicker from './CoverPicker';
 
 interface RecentProject {
   projectName: string;
@@ -12,10 +11,9 @@ interface RecentProject {
 interface ProjectTileProps {
   project: RecentProject;
   onOpen: (projectId: string) => void;
-  onSetCover: (projectId: string, coverUrl: string) => void;
 }
 
-export default function ProjectTile({ project, onOpen, onSetCover }: ProjectTileProps) {
+export default function ProjectTile({ project, onOpen }: ProjectTileProps) {
   return (
     <div className="relative rounded-lg overflow-hidden border border-gray-800 bg-gray-950">
       <button
@@ -40,10 +38,9 @@ export default function ProjectTile({ project, onOpen, onSetCover }: ProjectTile
         <div className="min-w-0">
           <div className="text-sm font-medium truncate">{project.projectName}</div>
           {typeof project.totalPhotos === 'number' && (
-            <div className="text-xs text-gray-500">{project.totalPhotos} photos</div>
+            <div className="text-xs text-gray-500">{`${project.totalPhotos} photos`}</div>
           )}
         </div>
-        <CoverPicker projectId={project.projectId} onSetCover={onSetCover} />
       </div>
     </div>
   );
