@@ -33,10 +33,20 @@ export async function exportAsZip(photos: Array<ProjectPhoto | { file?: File; bl
   return content;
 }
 
-export function generateShellScript(photos: Array<{ originalName: string; newName: string; day: number }>, opts?: { move?: boolean }) {
+export function generateShellScript(
+  photos: Array<{ originalName: string; newName: string; day: number }>,
+  opts?: { move?: boolean; rootPath?: string; includeShebang?: boolean },
+) {
   const lines: string[] = [];
-  lines.push('#!/usr/bin/env bash');
+  const includeShebang = opts?.includeShebang !== false;
+  if (includeShebang) {
+    lines.push('#!/usr/bin/env bash');
+  }
   lines.push('set -euo pipefail');
+  if (opts?.rootPath) {
+    lines.push('');
+    lines.push(`cd "${opts.rootPath}"`);
+  }
   lines.push('');
   photos.forEach(p => {
     const dayDir = `Day ${p.day}`;

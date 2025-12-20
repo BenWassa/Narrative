@@ -33,6 +33,13 @@ describe('fileSystemService', () => {
     expect(scriptMove).toContain('mv -- "IMG_001.jpg"');
   });
 
+  it('generateShellScript can omit shebang for clipboard use', () => {
+    const items = [{ originalName: 'IMG_001.jpg', newName: 'D01_IMG_001.jpg', day: 1 }];
+    const script = generateShellScript(items, { includeShebang: false });
+    expect(script.startsWith('#!/usr/bin/env bash')).toBe(false);
+    expect(script).toContain('set -euo pipefail');
+  });
+
   it('applyOrganizationInPlace iterates and writes files', async () => {
     // Mock directory and file handles
     const writes: Array<{ name: string; content: string }> = [];

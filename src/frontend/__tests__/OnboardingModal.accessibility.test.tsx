@@ -71,7 +71,7 @@ describe('OnboardingModal accessibility (contrast-related helpers)', () => {
     expect(activeBubble).toHaveTextContent('2');
   });
 
-  it('exports shell script and zip without applying', async () => {
+  it('shows script for manual copy without applying', async () => {
     const onDetect = vi.fn(async () => []);
     render(
       <OnboardingModal
@@ -129,15 +129,11 @@ describe('OnboardingModal accessibility (contrast-related helpers)', () => {
     expect(screen.getByText(/Review suggested mappings/i)).toBeInTheDocument();
     expect(screen.getByText(/Default mode:.*Copy/i)).toBeInTheDocument();
 
-    // Now on preview - export script and zip
-    const exportScriptBtn = screen.getByRole('button', { name: /Export script/i });
-    expect(exportScriptBtn).toBeInTheDocument();
-    const exportZipBtn = screen.getByRole('button', { name: /Export ZIP/i });
-    expect(exportZipBtn).toBeInTheDocument();
-    fireEvent.click(exportZipBtn);
-    // clicking will trigger download - ensure no errors
-    fireEvent.click(exportScriptBtn);
+    const showScriptBtn = screen.getByRole('button', { name: /Show script/i });
+    expect(showScriptBtn).toBeInTheDocument();
+    fireEvent.click(showScriptBtn);
     expect(await screen.findByText(/Run the script locally/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/Script/i)).toBeInTheDocument();
   });
 
   it('calls onComplete after successful script verification', async () => {
@@ -172,7 +168,7 @@ describe('OnboardingModal accessibility (contrast-related helpers)', () => {
     const nextBtn = screen.getByRole('button', { name: /Next/i });
     fireEvent.click(nextBtn);
 
-    const exportBtn = await screen.findByRole('button', { name: /Export script/i });
+    const exportBtn = await screen.findByRole('button', { name: /Show script/i });
     fireEvent.click(exportBtn);
 
     const ranBtn = await screen.findByRole('button', { name: /I ran the script/i });

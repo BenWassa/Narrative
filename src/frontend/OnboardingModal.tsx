@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 import StepIndicator from './ui/StepIndicator';
 import { detectFolderStructure, generateDryRunSummary } from '../services/folderDetectionService';
+import { generateShellScript } from './services/fileSystemService';
 
 // Data structure for folder mapping
 export interface FolderMapping {
@@ -87,6 +88,8 @@ export default function OnboardingModal({
   const [tripEnd, setTripEnd] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [scriptText, setScriptText] = useState('');
+  const [copyStatus, setCopyStatus] = useState<'idle' | 'copied' | 'failed'>('idle');
   const fileInputRef = React.useRef<HTMLInputElement | null>(null);
   const selectedFilesRef = React.useRef<FileList | null>(null);
   const derivedSelectionRef = React.useRef<{
@@ -237,21 +240,19 @@ export default function OnboardingModal({
     onClose();
   }, [projectName, rootPath, mappings, tripStart, tripEnd, dryRunMode, onClose, onComplete]);
 
-  const downloadOrganizeScript = useCallback(async () => {
+  const buildScriptText = useCallback(() => {
     const items = mappings.filter(m => !m.skip).map(m => ({
       originalName: m.folderPath.split('/').pop() || m.folder,
       newName: m.suggestedName || m.folder,
       day: m.detectedDay || 0,
     }));
-    const { generateShellScript } = await import('./services/fileSystemService');
-    const script = generateShellScript(items as any, { move: applyMode === 'move' });
-    const blob = new Blob([script], { type: 'text/x-shellscript' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `${projectName || 'project'}-organize.sh`;
-    a.click();
-  }, [applyMode, mappings, projectName]);
+    const script = generateShellScript(items as any, {
+      move: applyMode === 'move',
+      rootPath: rootPath.trim() || undefined,
+      includeShebang: false,
+    });
+    return script;
+  }, [applyMode, mappings, projectName, rootPath]);
 
   const handleVerifyAndComplete = useCallback(async () => {
     setLoading(true);
@@ -511,7 +512,7 @@ export default function OnboardingModal({
                 <ul className="mt-3 text-sm text-gray-600 list-disc list-inside space-y-1">
                   <li><strong>Step 1:</strong> Inspect the detected folder names and counts.</li>
                   <li><strong>Step 2:</strong> Edit day numbers or mark folders to <em>skip</em> if needed.</li>
-                  <li><strong>Step 3:</strong> Use <em>Export script</em> or <em>Export ZIP</em> to test locally, then export the script to perform the reorganization.</li>
+                  <li><strong>Step 3:</strong> Use <em>Show script</em> to copy and run the commands locally.</li>
                 </ul>
               </div>
 
@@ -662,44 +663,14 @@ export default function OnboardingModal({
 
                   <div className="mt-3 flex items-center gap-2">
                     <button
-                      onClick={async () => {
-                        const items = mappings.filter(m => !m.skip).map(m => ({
-                          originalName: m.folderPath.split('/').pop() || m.folder,
-                          newName: m.suggestedName || m.folder,
-                          day: m.detectedDay || 0,
-                        }));
-                        const { generateShellScript } = await import('./services/fileSystemService');
-                        const script = generateShellScript(items as any, { move: false });
-                        const blob = new Blob([script], { type: 'text/x-shellscript' });
-                        const url = URL.createObjectURL(blob);
-                        const a = document.createElement('a');
-                        a.href = url;
-                        a.download = `${projectName || 'project'}-organize.sh`;
-                        a.click();
+                      onClick={() => {
+                        setScriptText(buildScriptText());
+                        setCopyStatus('idle');
+                        setStep('run-script');
                       }}
                       className="px-3 py-1 bg-gray-100 text-gray-700 rounded-md text-sm hover:bg-gray-200"
                     >
-                      Export organize script
-                    </button>
-
-                    <button
-                      onClick={async () => {
-                        const items = mappings.filter(m => !m.skip).map(m => ({
-                          originalName: m.folderPath.split('/').pop() || m.folder,
-                          newName: m.suggestedName || m.folder,
-                          day: m.detectedDay || 0,
-                        }));
-                        const { exportAsZip } = await import('./services/fileSystemService');
-                        const blob = await exportAsZip(items as any);
-                        const url = URL.createObjectURL(blob);
-                        const a = document.createElement('a');
-                        a.href = url;
-                        a.download = `${projectName || 'project'}-organized.zip`;
-                        a.click();
-                      }}
-                      className="px-3 py-1 bg-gray-100 text-gray-700 rounded-md text-sm hover:bg-gray-200"
-                    >
-                      Export ZIP (dry-run)
+                      View script
                     </button>
                   </div>
                 </div>
@@ -707,7 +678,7 @@ export default function OnboardingModal({
                 <div className="flex items-start gap-2 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
                   <AlertCircle size={18} className="text-yellow-700 flex-shrink-0 mt-0.5" />
                   <span className="text-sm text-yellow-800">
-                    ⚠ This dry-run summary is generated locally; run the Export script or ZIP to test changes on your machine, then export the script to apply changes for real.
+                    ⚠ This dry-run summary is generated locally; use the script to apply changes on your machine.
                   </span>
                 </div>
               </div>
@@ -723,11 +694,24 @@ export default function OnboardingModal({
                 </p>
                 <div className="mt-3 flex items-center gap-2">
                   <button
-                    onClick={downloadOrganizeScript}
+                    onClick={async () => {
+                      try {
+                        await navigator.clipboard.writeText(scriptText);
+                        setCopyStatus('copied');
+                      } catch {
+                        setCopyStatus('failed');
+                      }
+                    }}
                     className="px-3 py-1 bg-gray-100 text-gray-700 rounded-md text-sm hover:bg-gray-200"
                   >
-                    Download script again
+                    Copy script
                   </button>
+                  {copyStatus === 'copied' && (
+                    <span className="text-xs text-green-700">Copied.</span>
+                  )}
+                  {copyStatus === 'failed' && (
+                    <span className="text-xs text-red-700">Copy failed. Select and copy below.</span>
+                  )}
                   <button
                     onClick={() => setShowApplyDebug(prev => !prev)}
                     className="px-3 py-1 bg-white text-gray-700 border rounded-md text-sm hover:bg-gray-50"
@@ -735,12 +719,23 @@ export default function OnboardingModal({
                     {showApplyDebug ? 'Hide script tips' : 'Show script tips'}
                   </button>
                 </div>
+                <div className="mt-3">
+                  <label className="block text-xs font-medium text-gray-600 mb-1" htmlFor="script-output">
+                    Script
+                  </label>
+                  <textarea
+                    id="script-output"
+                    readOnly
+                    value={scriptText}
+                    className="w-full h-48 rounded-md border border-gray-200 bg-white px-3 py-2 text-xs font-mono text-gray-800"
+                  />
+                </div>
                 {showApplyDebug && (
                   <div className="mt-3 p-3 bg-gray-100 rounded text-xs text-gray-700 font-mono">
                     <div>Example:</div>
-                    <div>1) cd /path/to/your/project</div>
-                    <div>2) chmod +x project-organize.sh</div>
-                    <div>3) ./project-organize.sh</div>
+                    <div>1) Open Terminal</div>
+                    <div>2) Paste script</div>
+                    <div>3) Press Enter</div>
                   </div>
                 )}
               </div>
@@ -828,12 +823,13 @@ export default function OnboardingModal({
                     Default mode: Copy — originals are kept.
                   </div>
                   <button
-                    onClick={async () => {
+                    onClick={() => {
                       if (dryRunMode) {
                         handleDryRun();
                         return;
                       }
-                      await downloadOrganizeScript();
+                      setScriptText(buildScriptText());
+                      setCopyStatus('idle');
                       setStep('run-script');
                     }}
                     disabled={loading || mappings.every(m => m.skip)}
@@ -845,30 +841,11 @@ export default function OnboardingModal({
                     ) : (
                       <ChevronRight size={18} />
                     )}
-                    {dryRunMode ? 'Preview' : 'Export script'}
-                  </button>
-                  <button
-                    onClick={async () => {
-                      const items = mappings.filter(m => !m.skip).map(m => ({
-                        originalName: m.folderPath.split('/').pop() || m.folder,
-                        newName: m.suggestedName || m.folder,
-                        day: m.detectedDay || 0,
-                      }));
-                      const { exportAsZip } = await import('./services/fileSystemService');
-                      const blob = await exportAsZip(items as any);
-                      const url = URL.createObjectURL(blob);
-                      const a = document.createElement('a');
-                      a.href = url;
-                      a.download = `${projectName || 'project'}-organized.zip`;
-                      a.click();
-                    }}
-                    className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 font-medium"
-                  >
-                    Export ZIP (dry-run)
-                  </button>
-                </div>
-              </>
-            )}
+                  {dryRunMode ? 'Preview' : 'Show script'}
+                </button>
+              </div>
+            </>
+          )}
 
             {step === 'dry-run' && (
               <>
@@ -881,8 +858,9 @@ export default function OnboardingModal({
                   Back to Edit
                 </button>
                 <button
-                  onClick={async () => {
-                    await downloadOrganizeScript();
+                  onClick={() => {
+                    setScriptText(buildScriptText());
+                    setCopyStatus('idle');
                     setStep('run-script');
                   }}
                   disabled={loading}
@@ -894,7 +872,7 @@ export default function OnboardingModal({
                   ) : (
                     <ChevronRight size={18} />
                   )}
-                  Export script
+                  Show script
                 </button>
               </>
             )}
