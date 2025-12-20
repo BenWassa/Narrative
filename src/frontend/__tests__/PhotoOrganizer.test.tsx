@@ -17,13 +17,14 @@ const samplePhotos = Array.from({ length: 6 }, (_, index) => {
     originalName: `IMG_${1000 + index}.jpg`,
     currentName: `IMG_${1000 + index}.jpg`,
     timestamp: Date.now() + index * 1000,
-    day: index < 4 ? 1 : 2, // Assign first 4 photos to Day 1, rest to Day 2
+    day: index < 2 ? null : index < 4 ? 1 : 2, // first 2 are loose (root), next 2 Day 1, rest Day 2
     bucket: null,
     sequence: null,
     favorite: false,
     rating: 0,
     archived: false,
     thumbnail: `https://picsum.photos/seed/${index + 1}/400/300`,
+    filePath: index < 4 ? `FolderA/IMG_${1000 + index}.jpg` : `FolderB/IMG_${1000 + index}.jpg`,
   };
 });
 
@@ -126,6 +127,25 @@ test('renames a day label and export script uses it', async () => {
 
   const textarea = await screen.findByRole('textbox');
   expect(textarea.value).toContain('Beach');
+});
+
+test('root view groups by top-level folder and opens group', async () => {
+  render(<PhotoOrganizer />);
+  const projectButton = await screen.findByRole('button', { name: /Test Trip/i });
+  fireEvent.click(projectButton);
+
+  // Switch to Root tab
+  const rootTab = await screen.findByRole('button', { name: /Root/i });
+  fireEvent.click(rootTab);
+
+  // Expect folders to be listed
+  const folderA = await screen.findByText('FolderA');
+  expect(folderA).toBeTruthy();
+
+  // Open FolderA
+  fireEvent.click(folderA);
+  const photos = await screen.findAllByRole('img');
+  expect(photos.length).toBeGreaterThanOrEqual(4);
 });
 
 test('handles localStorage failures gracefully when updating recents', async () => {
