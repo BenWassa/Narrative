@@ -8,7 +8,8 @@
   "scripts": {
     "dev": "vite",
     "dev:all": "node ./scripts/start-dev.js",
-    "build": "npm run lint && npm run test && vite build",
+    "build": "npm run lint && npm run test && npm run build:site",
+    "build:site": "node ./scripts/clean-docs-assets.js && vite build",
     "preview": "vite preview",
     "format": "prettier --write \"src/**/*.{ts,tsx,js,jsx,css,md,html}\" \"README.md\" \"docs/**/*.md\" \"docs/index.html\"",
     "lint": "prettier --check \"src/**/*.{ts,tsx,js,jsx,css,md,html}\" \"README.md\" \"docs/**/*.md\" \"docs/index.html\"",
