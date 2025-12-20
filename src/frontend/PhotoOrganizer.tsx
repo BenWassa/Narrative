@@ -14,6 +14,7 @@ import {
 import { Pencil, Save, X as XIcon } from 'lucide-react';
 import OnboardingModal, { OnboardingState, RecentProject } from './OnboardingModal';
 import StartScreen from './StartScreen';
+import LoadingModal from './ui/LoadingModal';
 import { versionManager } from '../utils/versionManager';
 import {
   initProject,
@@ -86,6 +87,8 @@ export default function PhotoOrganizer() {
   const [showProjectMenu, setShowProjectMenu] = useState(false);
   const [projectError, setProjectError] = useState<string | null>(null);
   const [loadingProject, setLoadingProject] = useState(false);
+  const [loadingProgress, setLoadingProgress] = useState(0);
+  const [loadingMessage, setLoadingMessage] = useState('Loading project...');
   const [showExportScript, setShowExportScript] = useState(false);
   const [exportScriptText, setExportScriptText] = useState('');
   const [exportCopyStatus, setExportCopyStatus] = useState<'idle' | 'copied' | 'failed'>('idle');
@@ -375,18 +378,30 @@ export default function PhotoOrganizer() {
   const loadProject = useCallback(
     async (projectId: string, options?: { addRecent?: boolean }) => {
       setLoadingProject(true);
+      setLoadingProgress(0);
+      setLoadingMessage('Loading project...');
       setProjectError(null);
       try {
+        setLoadingProgress(25);
+        setLoadingMessage('Reading project data...');
         const state = await getState(projectId);
+
+        setLoadingProgress(50);
+        setLoadingMessage('Processing photos...');
         // Reapply day assignments based on stored day containers
         const photosWithDays = applyDayContainers(state.photos, state.dayContainers || []);
         const stateWithDays = { ...state, photos: photosWithDays };
+
+        setLoadingProgress(75);
+        setLoadingMessage('Initializing view...');
         setProjectFromState(stateWithDays);
         setProjectRootPath(projectId);
         setShowOnboarding(false);
         // Hide the welcome view when a project is successfully loaded
         setShowWelcome(false);
         safeLocalStorage.set(ACTIVE_PROJECT_KEY, projectId);
+
+        setLoadingProgress(90);
         if (options?.addRecent !== false) {
           updateRecentProjects({
             projectName: state.projectName || 'Untitled Project',
@@ -396,6 +411,7 @@ export default function PhotoOrganizer() {
             totalPhotos: state.photos?.length || 0,
           });
         }
+        setLoadingProgress(100);
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Failed to load project';
         setProjectError(message);
@@ -405,6 +421,7 @@ export default function PhotoOrganizer() {
         setShowWelcome(true);
       } finally {
         setLoadingProject(false);
+        setLoadingProgress(0);
       }
     },
     [getState, applyDayContainers, setProjectFromState, showToast, updateRecentProjects],
@@ -2224,6 +2241,15 @@ export default function PhotoOrganizer() {
           setProjectError(null);
           loadProject(rootPath);
         }}
+      />
+
+      {/* Loading Modal */}
+      <LoadingModal
+        isOpen={loadingProject}
+        title="Loading Project"
+        message={loadingMessage}
+        progress={loadingProgress}
+        showProgressBar={true}
       />
     </div>
   );

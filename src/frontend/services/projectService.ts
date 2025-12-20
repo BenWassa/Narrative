@@ -314,12 +314,27 @@ async function buildPhotosFromHandle(
 ): Promise<ProjectPhoto[]> {
   const files = await collectFiles(dirHandle);
   const photos: ProjectPhoto[] = [];
+  // Track seen files by (name + timestamp) to detect duplicates
+  // (same file copied/symlinked to multiple locations)
+  const seenFiles = new Set<string>();
 
   for (const entry of files) {
     const file = await entry.handle.getFile();
     const timestamp = file.lastModified;
-    const id = generateId();
     const originalName = file.name;
+    
+    // Create a fingerprint to detect duplicates
+    // Use filename + timestamp + size to identify same file in multiple locations
+    const fileFingerprint = `${originalName}|${timestamp}|${file.size}`;
+    
+    // Skip if we've already seen this exact file
+    if (seenFiles.has(fileFingerprint)) {
+      console.debug(`[ProjectService] Skipping duplicate file: ${entry.path} (matches ${originalName})`);
+      continue;
+    }
+    seenFiles.add(fileFingerprint);
+
+    const id = generateId();
     const ext = file.name.split('.').pop()?.toLowerCase() || '';
     const isHeic = ext === 'heic' || ext === 'heif' || file.type.toLowerCase().includes('heic');
 
