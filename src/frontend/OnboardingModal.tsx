@@ -71,15 +71,13 @@ export default function OnboardingModal({
   recentProjects = [],
   onSelectRecent,
 }: OnboardingModalProps) {
-  const [step, setStep] = useState<'folder-select' | 'preview' | 'dry-run' | 'apply' | 'complete'>(
-    'folder-select',
-  );
+  const [step, setStep] = useState<
+    'folder-select' | 'preview' | 'dry-run' | 'run-script' | 'complete'
+  >('folder-select');
   const [projectName, setProjectName] = useState('');
   const [rootPath, setRootPath] = useState('');
   const [mappings, setMappings] = useState<FolderMapping[]>([]);
   const [dryRunMode, setDryRunMode] = useState(false);
-  const [applyInProgress, setApplyInProgress] = useState(false);
-  const [applyProgress, setApplyProgress] = useState({ done: 0, total: 0 });
   const [applyMode, setApplyMode] = useState<'copy' | 'move'>('copy');
   const [dryRunSummary, setDryRunSummary] = useState<{
     summary: string;
@@ -97,6 +95,7 @@ export default function OnboardingModal({
   } | null>(null);
   const [detectionDebug, setDetectionDebug] = useState<string[]>([]);
   const [showDebug, setShowDebug] = useState(false);
+  const [showApplyDebug, setShowApplyDebug] = useState(false);
 
   const pushDebug = useCallback((...parts: any[]) => {
     const msg = parts.map(p => (typeof p === 'string' ? p : JSON.stringify(p))).join(' ');
@@ -176,7 +175,7 @@ export default function OnboardingModal({
     { key: 'folder-select', label: 'Select folder' },
     { key: 'preview', label: 'Preview' },
     { key: 'dry-run', label: 'Dry run' },
-    { key: 'apply', label: 'Apply' },
+    { key: 'run-script', label: 'Run script' },
     { key: 'complete', label: 'Complete' },
   ];
 
@@ -224,71 +223,6 @@ export default function OnboardingModal({
     }
   }, [mappings, onApply]);
 
-  // Step 3: Handle apply
-  const handleApply = useCallback(async () => {
-    setApplyInProgress(true);
-    setError(null);
-
-    try {
-      if (onApply) {
-        await onApply(
-          mappings.filter(m => !m.skip),
-          false, // dryRun = false
-        );
-      }
-      setStep('complete');
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to apply mappings');
-    } finally {
-      setApplyInProgress(false);
-    }
-  }, [mappings, onApply]);
-
-  // New: Apply with file system support or zip fallback
-  const handleApplyWithFS = useCallback(
-    async (dirHandle?: any) => {
-      setApplyInProgress(true);
-      setError(null);
-      try {
-        const items = mappings.filter(m => !m.skip).map(m => ({
-          originalName: m.folderPath.split('/').pop() || m.folder,
-          newName: m.suggestedName || m.folder,
-          day: m.detectedDay || 0,
-        }));
-
-        if (dirHandle) {
-          // in-place
-            await import('./services/fileSystemService').then(svc =>
-              svc.applyOrganizationInPlace(
-                dirHandle,
-                items,
-                (done, total) => {
-                  setApplyProgress({ done, total });
-                },
-                { move: applyMode === 'move' },
-              ),
-            );
-        } else {
-          // fallback to zip
-          const { exportAsZip } = await import('./services/fileSystemService');
-          const blob = await exportAsZip(items as any);
-          const url = URL.createObjectURL(blob);
-          const a = document.createElement('a');
-          a.href = url;
-          a.download = `${projectName || 'project'}-organized.zip`;
-          a.click();
-        }
-
-        setStep('complete');
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to apply organization');
-      } finally {
-        setApplyInProgress(false);
-      }
-    },
-    [mappings, projectName],
-  );
-
   // Handle completion
   const handleComplete = useCallback(() => {
     onComplete({
@@ -303,6 +237,41 @@ export default function OnboardingModal({
     onClose();
   }, [projectName, rootPath, mappings, tripStart, tripEnd, dryRunMode, onClose, onComplete]);
 
+  const downloadOrganizeScript = useCallback(async () => {
+    const items = mappings.filter(m => !m.skip).map(m => ({
+      originalName: m.folderPath.split('/').pop() || m.folder,
+      newName: m.suggestedName || m.folder,
+      day: m.detectedDay || 0,
+    }));
+    const { generateShellScript } = await import('./services/fileSystemService');
+    const script = generateShellScript(items as any, { move: applyMode === 'move' });
+    const blob = new Blob([script], { type: 'text/x-shellscript' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${projectName || 'project'}-organize.sh`;
+    a.click();
+  }, [applyMode, mappings, projectName]);
+
+  const handleVerifyAndComplete = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      if (onDetect) {
+        const detected = await onDetect(rootPath);
+        if (!detected || detected.length === 0) {
+          setError('No new folders detected yet. Please confirm the script ran successfully.');
+          return;
+        }
+      }
+      handleComplete();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to verify updated folders');
+    } finally {
+      setLoading(false);
+    }
+  }, [handleComplete, onDetect, rootPath]);
+
   if (!isOpen) return null;
 
   return (
@@ -316,7 +285,7 @@ export default function OnboardingModal({
                 {step === 'folder-select' && 'Import Trip'}
                 {step === 'preview' && 'Review Folder Structure'}
                 {step === 'dry-run' && 'Dry-Run Preview'}
-                {step === 'apply' && 'Applying Changes...'}
+                {step === 'run-script' && 'Run Script Locally'}
                 {step === 'complete' && 'Import Complete'}
               </h2>
               <p className="text-sm text-gray-500 mt-1">
@@ -324,49 +293,13 @@ export default function OnboardingModal({
               </p>
             </div>
             <div className="flex items-center gap-3">
-              {step !== 'apply' && (
-                <button
-                  onClick={onClose}
-                  className="text-gray-600 hover:text-gray-800 rounded-md px-2 py-1"
-                  aria-label="Close"
-                >
-                  <X size={20} />
-                </button>
-              )}
-
-              {step === 'apply' && (
-                <div className="flex items-center gap-4">
-                  <div className="flex items-center gap-2">
-                    <label className="text-sm text-gray-500">Mode:</label>
-                    <select
-                      value={applyMode}
-                      onChange={e => setApplyMode(e.target.value as any)}
-                      className="px-2 py-1 rounded-md border-gray-200"
-                    >
-                      <option value="copy">Copy (keep originals)</option>
-                      <option value="move">Move (remove originals)</option>
-                    </select>
-                  </div>
-
-                  <div className="flex flex-col items-end">
-                    <button
-                      onClick={async () => {
-                        if ('showDirectoryPicker' in window) {
-                          // @ts-ignore
-                          const dirHandle = await (window as any).showDirectoryPicker();
-                          await handleApplyWithFS(dirHandle);
-                        } else {
-                          await handleApplyWithFS(undefined);
-                        }
-                      }}
-                      className="px-3 py-1 bg-sky-600 text-white rounded-md text-sm"
-                    >
-                      Apply and Organize
-                    </button>
-                    <div className="text-xs text-gray-500 mt-2">Default mode: Copy — originals are kept. Change mode in the header before applying.</div>
-                  </div>
-                </div>
-              )}
+              <button
+                onClick={onClose}
+                className="text-gray-600 hover:text-gray-800 rounded-md px-2 py-1"
+                aria-label="Close"
+              >
+                <X size={20} />
+              </button>
             </div>
           </div>
 
@@ -578,7 +511,7 @@ export default function OnboardingModal({
                 <ul className="mt-3 text-sm text-gray-600 list-disc list-inside space-y-1">
                   <li><strong>Step 1:</strong> Inspect the detected folder names and counts.</li>
                   <li><strong>Step 2:</strong> Edit day numbers or mark folders to <em>skip</em> if needed.</li>
-                  <li><strong>Step 3:</strong> Use <em>Export script</em> or <em>Export ZIP</em> to test locally, or click <em>Apply</em> to perform the reorganization.</li>
+                  <li><strong>Step 3:</strong> Use <em>Export script</em> or <em>Export ZIP</em> to test locally, then export the script to perform the reorganization.</li>
                 </ul>
               </div>
 
@@ -685,6 +618,20 @@ export default function OnboardingModal({
                   Dry-run (preview without making changes)
                 </label>
               </div>
+              <div className="flex items-center gap-3 text-sm text-gray-700">
+                <label className="font-medium" htmlFor="script-mode">
+                  Script mode:
+                </label>
+                <select
+                  id="script-mode"
+                  value={applyMode}
+                  onChange={e => setApplyMode(e.target.value as any)}
+                  className="px-2 py-1 rounded-md border border-gray-200 text-gray-900"
+                >
+                  <option value="copy">Copy (keep originals)</option>
+                  <option value="move">Move (remove originals)</option>
+                </select>
+              </div>
             </div>
           )}
 
@@ -692,7 +639,7 @@ export default function OnboardingModal({
           {step === 'dry-run' && dryRunSummary && (
               <div className="space-y-4">
                 <p className="text-sm text-gray-600">
-                  This preview shows what WILL happen if you apply these changes:
+                  This preview shows what WILL happen if you run the script:
                 </p>
 
                 <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 space-y-3">
@@ -760,29 +707,50 @@ export default function OnboardingModal({
                 <div className="flex items-start gap-2 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
                   <AlertCircle size={18} className="text-yellow-700 flex-shrink-0 mt-0.5" />
                   <span className="text-sm text-yellow-800">
-                    ⚠ This dry-run summary is generated locally; run the Export script or ZIP to test changes on your machine or click Apply to perform these changes.
+                    ⚠ This dry-run summary is generated locally; run the Export script or ZIP to test changes on your machine, then export the script to apply changes for real.
                   </span>
                 </div>
               </div>
             )}
 
-          {/* Step 4: Apply Progress */}
-          {step === 'apply' && (
+          {step === 'run-script' && (
             <div className="space-y-4">
-              <div className="text-center">
-                <Loader className="inline-block animate-spin text-blue-600" size={32} />
-                <p className="text-gray-700 font-medium">Applying changes...</p>
-                <p className="text-sm text-gray-600">Please wait, this may take a moment.</p>
+              <div className="rounded-lg border border-gray-200 bg-gray-50 p-4">
+                <p className="text-sm text-gray-700 font-medium">Run the script locally</p>
+                <p className="text-sm text-gray-600 mt-2">
+                  We generated a shell script that will organize your photos into day folders. Run
+                  it in the selected root folder, then come back here to verify the result.
+                </p>
+                <div className="mt-3 flex items-center gap-2">
+                  <button
+                    onClick={downloadOrganizeScript}
+                    className="px-3 py-1 bg-gray-100 text-gray-700 rounded-md text-sm hover:bg-gray-200"
+                  >
+                    Download script again
+                  </button>
+                  <button
+                    onClick={() => setShowApplyDebug(prev => !prev)}
+                    className="px-3 py-1 bg-white text-gray-700 border rounded-md text-sm hover:bg-gray-50"
+                  >
+                    {showApplyDebug ? 'Hide script tips' : 'Show script tips'}
+                  </button>
+                </div>
+                {showApplyDebug && (
+                  <div className="mt-3 p-3 bg-gray-100 rounded text-xs text-gray-700 font-mono">
+                    <div>Example:</div>
+                    <div>1) cd /path/to/your/project</div>
+                    <div>2) chmod +x project-organize.sh</div>
+                    <div>3) ./project-organize.sh</div>
+                  </div>
+                )}
               </div>
 
-              <div className="w-full">
-                <div className="w-full bg-gray-100 h-3 rounded overflow-hidden">
-                  <div
-                    className="h-3 bg-sky-500"
-                    style={{ width: applyProgress.total ? `${(applyProgress.done / applyProgress.total) * 100}%` : '0%' }}
-                  />
-                </div>
-                <div className="text-xs text-gray-500 mt-2">{applyProgress.done} / {applyProgress.total} files processed</div>
+              <div className="flex items-start gap-2 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                <AlertCircle size={18} className="text-yellow-700 flex-shrink-0 mt-0.5" />
+                <span className="text-sm text-yellow-800">
+                  After running the script, click “I ran the script” so Narrative can verify the
+                  updated folder structure.
+                </span>
               </div>
             </div>
           )}
@@ -820,8 +788,7 @@ export default function OnboardingModal({
         </div>
 
         {/* Footer: Navigation Buttons */}
-        {step !== 'apply' && (
-          <div className="sticky bottom-0 bg-white border-t border-gray-200 px-6 py-4 flex justify-between gap-3">
+        <div className="sticky bottom-0 bg-white border-t border-gray-200 px-6 py-4 flex justify-between gap-3">
             {step === 'folder-select' && (
               <>
                 <button
@@ -857,46 +824,28 @@ export default function OnboardingModal({
                   Cancel
                 </button>
                 <div className="flex items-center gap-2">
-                  <div className="text-xs text-gray-500 mr-4 hidden sm:block">Default mode: Copy — originals are kept.</div>
-                  <button
-                    onClick={() => {
-                      if (dryRunMode) {
-                        handleDryRun();
-                      } else {
-                        setStep('apply');
-                        handleApply();
-                      }
-                    }}
-                  disabled={loading || mappings.every(m => m.skip)}
-                  aria-disabled={loading || mappings.every(m => m.skip)}
-                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium disabled:bg-gray-200 disabled:text-gray-500 disabled:cursor-not-allowed flex items-center gap-2"
-                >
-                  {loading ? (
-                    <Loader size={18} className="animate-spin" />
-                  ) : (
-                    <ChevronRight size={18} />
-                  )}
-                  {dryRunMode ? 'Preview' : 'Apply'}
-                </button>
+                  <div className="text-xs text-gray-500 mr-4 hidden sm:block">
+                    Default mode: Copy — originals are kept.
+                  </div>
                   <button
                     onClick={async () => {
-                      const items = mappings.filter(m => !m.skip).map(m => ({
-                        originalName: m.folderPath.split('/').pop() || m.folder,
-                        newName: m.suggestedName || m.folder,
-                        day: m.detectedDay || 0,
-                      }));
-                      const { generateShellScript } = await import('./services/fileSystemService');
-                      const script = generateShellScript(items as any, { move: false });
-                      const blob = new Blob([script], { type: 'text/x-shellscript' });
-                      const url = URL.createObjectURL(blob);
-                      const a = document.createElement('a');
-                      a.href = url;
-                      a.download = `${projectName || 'project'}-organize.sh`;
-                      a.click();
+                      if (dryRunMode) {
+                        handleDryRun();
+                        return;
+                      }
+                      await downloadOrganizeScript();
+                      setStep('run-script');
                     }}
-                    className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 font-medium"
+                    disabled={loading || mappings.every(m => m.skip)}
+                    aria-disabled={loading || mappings.every(m => m.skip)}
+                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium disabled:bg-gray-200 disabled:text-gray-500 disabled:cursor-not-allowed flex items-center gap-2"
                   >
-                    Export organize script
+                    {loading ? (
+                      <Loader size={18} className="animate-spin" />
+                    ) : (
+                      <ChevronRight size={18} />
+                    )}
+                    {dryRunMode ? 'Preview' : 'Export script'}
                   </button>
                   <button
                     onClick={async () => {
@@ -932,9 +881,9 @@ export default function OnboardingModal({
                   Back to Edit
                 </button>
                 <button
-                  onClick={() => {
-                    setStep('apply');
-                    handleApply();
+                  onClick={async () => {
+                    await downloadOrganizeScript();
+                    setStep('run-script');
                   }}
                   disabled={loading}
                   aria-disabled={loading}
@@ -945,7 +894,33 @@ export default function OnboardingModal({
                   ) : (
                     <ChevronRight size={18} />
                   )}
-                  Apply for Real
+                  Export script
+                </button>
+              </>
+            )}
+
+            {step === 'run-script' && (
+              <>
+                <button
+                  onClick={() => setStep('preview')}
+                  className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 font-medium flex items-center gap-2"
+                  disabled={loading}
+                >
+                  <ChevronLeft size={18} />
+                  Back to Preview
+                </button>
+                <button
+                  onClick={handleVerifyAndComplete}
+                  disabled={loading}
+                  aria-disabled={loading}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium disabled:bg-gray-200 disabled:text-gray-500 disabled:cursor-not-allowed flex items-center gap-2"
+                >
+                  {loading ? (
+                    <Loader size={18} className="animate-spin" />
+                  ) : (
+                    <ChevronRight size={18} />
+                  )}
+                  I ran the script
                 </button>
               </>
             )}
@@ -959,7 +934,6 @@ export default function OnboardingModal({
               </button>
             )}
           </div>
-        )}
       </div>
     </div>
   );

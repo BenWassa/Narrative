@@ -1,5 +1,5 @@
 import React from 'react';
-import { render, screen, fireEvent, within } from '@testing-library/react';
+import { render, screen, fireEvent, within, waitFor } from '@testing-library/react';
 import { vi } from 'vitest';
 import OnboardingModal from '../OnboardingModal';
 
@@ -58,7 +58,11 @@ describe('OnboardingModal accessibility (contrast-related helpers)', () => {
     fireEvent.change(folderInput, { target: { value: '/tmp/test' } });
 
     const nextBtn = screen.getByRole('button', { name: /Next/i });
+    await waitFor(() => expect(nextBtn).not.toBeDisabled());
     fireEvent.click(nextBtn);
+
+    // Wait for preview to render
+    await screen.findByText(/Detected folder structure for/i);
 
     // after clicking Next, preview step should be active (aria-current="step")
     const active = await screen.findByRole('region', { hidden: true }).catch(() => null);
@@ -121,19 +125,61 @@ describe('OnboardingModal accessibility (contrast-related helpers)', () => {
     expect(within(miscRow as HTMLElement).getByText('-')).toBeInTheDocument();
     expect(within(miscRow as HTMLElement).getByRole('button', { name: /Include/i })).toBeInTheDocument();
 
-    // Now on preview - export script and zip
-    const exportScriptBtn = screen.getByRole('button', { name: /Export organize script/i });
-    expect(exportScriptBtn).toBeInTheDocument();
-    // clicking will trigger download - ensure no errors
-    fireEvent.click(exportScriptBtn);
-
-    const exportZipBtn = screen.getByRole('button', { name: /Export ZIP/i });
-    expect(exportZipBtn).toBeInTheDocument();
-    fireEvent.click(exportZipBtn);
-
     // Preview explanation should be present
     expect(screen.getByText(/Review suggested mappings/i)).toBeInTheDocument();
     expect(screen.getByText(/Default mode:.*Copy/i)).toBeInTheDocument();
+
+    // Now on preview - export script and zip
+    const exportScriptBtn = screen.getByRole('button', { name: /Export script/i });
+    expect(exportScriptBtn).toBeInTheDocument();
+    const exportZipBtn = screen.getByRole('button', { name: /Export ZIP/i });
+    expect(exportZipBtn).toBeInTheDocument();
+    fireEvent.click(exportZipBtn);
+    // clicking will trigger download - ensure no errors
+    fireEvent.click(exportScriptBtn);
+    expect(await screen.findByText(/Run the script locally/i)).toBeInTheDocument();
+  });
+
+  it('calls onComplete after successful script verification', async () => {
+    const onDetect = vi.fn(async () => [
+      {
+        folder: 'Day 1',
+        folderPath: 'Day 1',
+        detectedDay: 1,
+        confidence: 'high',
+        patternMatched: 'day_prefix',
+        suggestedName: 'Day 01',
+        manual: false,
+        photoCount: 2,
+      },
+    ]);
+    const onComplete = vi.fn();
+
+    render(
+      <OnboardingModal
+        isOpen={true}
+        onClose={() => {}}
+        onComplete={onComplete}
+        onDetect={onDetect}
+      />,
+    );
+
+    const projectInput = screen.getByPlaceholderText('e.g., Iceland Trip 2024');
+    fireEvent.change(projectInput, { target: { value: 'Test Trip' } });
+    const pathInput = screen.getByPlaceholderText('/Users/you/trips/iceland');
+    fireEvent.change(pathInput, { target: { value: '/tmp/test' } });
+
+    const nextBtn = screen.getByRole('button', { name: /Next/i });
+    fireEvent.click(nextBtn);
+
+    const exportBtn = await screen.findByRole('button', { name: /Export script/i });
+    fireEvent.click(exportBtn);
+
+    const ranBtn = await screen.findByRole('button', { name: /I ran the script/i });
+    fireEvent.click(ranBtn);
+
+    // Wait for onComplete to be called
+    await waitFor(() => expect(onComplete).toHaveBeenCalled());
   });
 
   it('shows helpful message when dry-run is unavailable', async () => {
