@@ -178,7 +178,6 @@ export default function PhotoOrganizer() {
 
     setPhotos(state.photos || []);
     setProjectName(state.projectName || 'No Project');
-    setProjectRootPath(state.rootPath || null);
     setProjectFolderLabel(state.rootPath || null);
     setProjectSettings(state.settings || DEFAULT_SETTINGS);
     setDayLabels((state as any).dayLabels || {});
