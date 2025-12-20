@@ -211,8 +211,8 @@ test('archive view highlights organize step, not export', async () => {
   const organizeCircle = within(progress).getByText('2');
   const exportCircle = within(progress).getByText('4');
 
-  // Import should be shown as completed, Organize active, Export not active
-  expect(importCircle).toHaveClass('bg-blue-600');
+  // Import should be shown as completed (green), Organize active (blue), Export not active
+  expect(importCircle).toHaveClass('bg-green-600');
   expect(organizeCircle).toHaveClass('bg-blue-700');
   expect(exportCircle).not.toHaveClass('bg-blue-700');
 });

@@ -723,7 +723,8 @@ export default function PhotoOrganizer() {
                         <div
                           aria-hidden="true"
                           className={`w-6 h-6 flex items-center justify-center rounded-full text-xs font-bold ${
-                            i < activeIndex ? 'bg-blue-600 text-white' : i === activeIndex ? 'bg-blue-700 text-white' : 'border border-gray-700 text-gray-400 bg-transparent'
+                            // Completed = green, ongoing (active) = blue, todo = empty with border
+                            i < activeIndex ? 'bg-green-600 text-white' : i === activeIndex ? 'bg-blue-700 text-white' : 'border border-gray-700 text-gray-400 bg-transparent'
                           }`}
                         >
                           {i + 1}
