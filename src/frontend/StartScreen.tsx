@@ -35,15 +35,10 @@ export default function StartScreen({
               <Camera className="w-6 h-6 text-blue-400" />
               <h2 className="text-lg font-bold">Welcome</h2>
             </div>
-            {canClose && (
-              <button
-                onClick={onClose}
-                className="text-sm text-gray-300 hover:text-gray-100"
-                aria-label="Close welcome"
-              >
-                Close
-              </button>
-            )}
+            {/* App version badge — non-interactive, stylized */}
+            <div className="px-2 py-1 bg-gray-800 text-gray-200 rounded-md text-xs font-medium tracking-wide">
+              <span className="uppercase">{`v${__APP_VERSION__}`}</span>
+            </div>
           </div>
 
           {errorMessage && (

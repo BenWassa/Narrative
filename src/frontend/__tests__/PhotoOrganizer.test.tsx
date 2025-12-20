@@ -1,5 +1,5 @@
 import React from 'react';
-import { render, screen, fireEvent, within } from '@testing-library/react';
+import { render, screen, fireEvent, within, waitFor } from '@testing-library/react';
 import { test, expect, beforeEach, afterEach, vi } from 'vitest';
 import PhotoOrganizer from '../PhotoOrganizer';
 import * as projectService from '../services/projectService';
@@ -8,6 +8,7 @@ vi.mock('../services/projectService', () => ({
   initProject: vi.fn(),
   getState: vi.fn(),
   saveState: vi.fn(),
+  deleteProject: vi.fn(),
 }));
 
 const samplePhotos = Array.from({ length: 6 }, (_, index) => {
@@ -392,6 +393,30 @@ test('folder quick actions: select all and assign folder to day', async () => {
   expect(imgs.length).toBeGreaterThanOrEqual(4);
 });
 
+test('selecting a day clears selected root folder so day photos display', async () => {
+  const { container } = render(<PhotoOrganizer />);
+  const projectButton = await screen.findByRole('button', { name: /Test Trip/i });
+  fireEvent.click(projectButton);
+
+  // Ensure we're viewing folders and a root folder becomes selected
+  const foldersTab = await screen.findByRole('button', { name: /Folders/i });
+  fireEvent.click(foldersTab);
+
+  // Wait for the initially-selected folder images to render
+  await screen.findAllByRole('img');
+
+  // Click Day 01 and assert day photos are shown (photo_3 and photo_4 belong to Day 01)
+  const day01 = await screen.findByText('Day 01');
+  fireEvent.click(day01);
+
+  // Collect visible photo tile test ids
+  const tileEls = container.querySelectorAll('[data-testid^="photo-"]');
+  const ids = Array.from(tileEls).map(el => el.getAttribute('data-testid'));
+
+  expect(ids).toContain('photo-photo_3');
+  expect(ids).toContain('photo-photo_4');
+});
+
 test('archive view highlights organize step, not export', async () => {
   render(<PhotoOrganizer />);
   const projectButton = await screen.findByRole('button', { name: /Test Trip/i });
@@ -448,4 +473,104 @@ test('handles localStorage failures gracefully when updating recents', async () 
   } finally {
     localStorage.setItem = origSet;
   }
+});
+
+test('main menu shows app version badge and has no close button', async () => {
+  render(<PhotoOrganizer />);
+  // Start screen should be visible by default in tests
+  const versionBadges = await screen.findAllByText(/v\d+\.\d+\.\d+/i);
+  // Only a single, stylized version badge should be visible on the main menu
+  expect(versionBadges.length).toBe(1);
+
+  // Ensure no Close button is present on the main menu
+  expect(screen.queryByRole('button', { name: /Close welcome|Close/i })).toBeNull();
+});
+
+test('clicking Set Cover enters selection mode and clicking a photo sets cover', async () => {
+  render(<PhotoOrganizer />);
+  const projectButton = await screen.findByRole('button', { name: /Test Trip/i });
+  fireEvent.click(projectButton);
+
+  // Open Day 01 to see photos
+  const day01 = await screen.findByText('Day 01');
+  fireEvent.click(day01);
+
+  // Mock fetch to return a blob for the thumbnail
+  const fetchMock = vi
+    .spyOn(global as any, 'fetch')
+    .mockResolvedValue({ blob: async () => new Blob(['x'], { type: 'image/jpeg' }) });
+
+  const setCoverBtn = await screen.findByRole('button', { name: /Set Cover/i });
+  fireEvent.click(setCoverBtn);
+
+  // Instruction banner should show (has a Cancel button)
+  expect(await screen.findByRole('button', { name: /Cancel/i })).toBeTruthy();
+
+  // Click a photo to set as cover
+  const first = await screen.findByTestId('photo-photo_1');
+  fireEvent.click(first);
+
+  // Toast should indicate success
+  expect(await screen.findByText(/Cover photo updated/i)).toBeTruthy();
+
+  // Recent projects should have a small coverUrl persisted (not giant data URLs)
+  const recentsRaw = localStorage.getItem('narrative:recentProjects');
+  expect(recentsRaw).toBeTruthy();
+  const recents = JSON.parse(recentsRaw!);
+  const thisProject = recents.find((r: any) => r.projectId === 'project-1');
+  expect(thisProject).toBeTruthy();
+  expect(typeof thisProject.coverUrl === 'string').toBeTruthy();
+  expect(thisProject.coverUrl.startsWith('data:image/jpeg;base64,')).toBeTruthy();
+  // Ensure resized cover is reasonably small (<= 20k chars)
+  expect(thisProject.coverUrl.length).toBeLessThan(20000);
+  // Recent entry should not contain full project photos
+  expect(thisProject.photos).toBeUndefined();
+
+  // Banner should be gone and button back to normal
+  expect(screen.queryByText(/Select a photo to set as cover/i)).toBeNull();
+  expect(screen.getByRole('button', { name: /Set Cover/i })).toBeTruthy();
+
+  fetchMock.mockRestore();
+});
+
+test('pressing Escape cancels cover selection mode', async () => {
+  render(<PhotoOrganizer />);
+  const projectButton = await screen.findByRole('button', { name: /Test Trip/i });
+  fireEvent.click(projectButton);
+
+  const setCoverBtn = await screen.findByRole('button', { name: /Set Cover/i });
+  fireEvent.click(setCoverBtn);
+
+  // Instruction banner should show (has a Cancel button)
+  expect(await screen.findByRole('button', { name: /Cancel/i })).toBeTruthy();
+
+  // Press Escape to cancel
+  fireEvent.keyDown(window, { key: 'Escape' });
+
+  expect(await screen.findByText(/Cover selection cancelled/i)).toBeTruthy();
+  expect(screen.queryByText(/Select a photo to set as cover/i)).toBeNull();
+});
+
+test('deleting a project removes recent entry and returns to welcome', async () => {
+  render(<PhotoOrganizer />);
+  const projectButton = await screen.findByRole('button', { name: /Test Trip/i });
+  fireEvent.click(projectButton);
+
+  // Mock confirm and deleteProject
+  const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
+  const deleteMock = vi.spyOn(projectService as any, 'deleteProject').mockResolvedValue(undefined);
+
+  const deleteBtn = await screen.findByRole('button', { name: /Delete/i });
+  fireEvent.click(deleteBtn);
+
+  await waitFor(() => {
+    expect(screen.queryByRole('button', { name: /Test Trip/i })).toBeNull();
+  });
+
+  const recentsRaw = localStorage.getItem('narrative:recentProjects');
+  const recents = recentsRaw ? JSON.parse(recentsRaw) : [];
+  expect(recents.find((r: any) => r.projectId === 'project-1')).toBeUndefined();
+
+  confirmSpy.mockRestore();
+  deleteMock.mockRestore();
 });

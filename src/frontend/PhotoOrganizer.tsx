@@ -19,6 +19,7 @@ import {
   initProject,
   getState,
   saveState,
+  deleteProject as deleteProjectService,
   ProjectPhoto,
   ProjectSettings,
   ProjectState,
@@ -65,6 +66,8 @@ export default function PhotoOrganizer() {
   const [selectedDay, setSelectedDay] = useState<number | null>(null);
   const [history, setHistory] = useState<ProjectPhoto[][]>([]);
   const [historyIndex, setHistoryIndex] = useState(-1);
+  // Track thumbnails created with URL.createObjectURL so we can revoke them
+  const prevThumbnailsRef = useRef<string[]>([]);
   const [showHelp, setShowHelp] = useState(false);
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [showWelcome, setShowWelcome] = useState(() => !safeLocalStorage.get(ACTIVE_PROJECT_KEY));
@@ -87,6 +90,7 @@ export default function PhotoOrganizer() {
   const [exportScriptText, setExportScriptText] = useState('');
   const [exportCopyStatus, setExportCopyStatus] = useState<'idle' | 'copied' | 'failed'>('idle');
   const [toast, setToast] = useState<{ message: string; tone: 'info' | 'error' } | null>(null);
+  const [coverSelectionMode, setCoverSelectionMode] = useState(false);
   const toastTimerRef = useRef<number | null>(null);
   const foldersViewStateRef = useRef<{
     selectedRootFolder: string | null;
@@ -97,6 +101,47 @@ export default function PhotoOrganizer() {
     const parts = rootPath.split(/[/\\]/).filter(Boolean);
     return parts[parts.length - 1] || 'Untitled Project';
   }, []);
+
+  // Resize/compress a blob to a reasonably small data URL for storage
+  const toResizedDataUrl = useCallback(
+    async (blob: Blob, maxWidth = 800, maxHeight = 600, quality = 0.65): Promise<string> => {
+      try {
+        const bitmap = await (global as any).createImageBitmap?.(blob);
+        if (bitmap) {
+          let { width, height } = bitmap as any;
+          const aspect = width / height;
+          if (width > maxWidth) {
+            width = maxWidth;
+            height = Math.round(width / aspect);
+          }
+          if (height > maxHeight) {
+            height = maxHeight;
+            width = Math.round(height * aspect);
+          }
+          const canvas = document.createElement('canvas');
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          if (!ctx) throw new Error('Canvas is not supported');
+          ctx.drawImage(bitmap, 0, 0, width, height);
+          return canvas.toDataURL('image/jpeg', quality);
+        }
+      } catch (err) {
+        // fallthrough to FileReader fallback
+      }
+
+      return await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => {
+          if (typeof reader.result === 'string') resolve(reader.result);
+          else reject(new Error('Failed to read image'));
+        };
+        reader.onerror = () => reject(reader.error || new Error('Failed to read image'));
+        reader.readAsDataURL(blob);
+      });
+    },
+    [],
+  );
 
   const applySuggestedDays = useCallback(
     (sourcePhotos: ProjectPhoto[], suggestedDays?: Record<string, string[]>) => {
@@ -114,6 +159,23 @@ export default function PhotoOrganizer() {
   );
 
   const setProjectFromState = useCallback((state: ProjectState) => {
+    // Revoke thumbnails that are no longer present to free memory
+    try {
+      const newThumbs = (state.photos || []).map(p => p.thumbnail).filter(Boolean) as string[];
+      prevThumbnailsRef.current.forEach(url => {
+        if (url && !newThumbs.includes(url) && url.startsWith('blob:')) {
+          try {
+            URL.revokeObjectURL(url);
+          } catch (e) {
+            // ignore
+          }
+        }
+      });
+      prevThumbnailsRef.current = newThumbs;
+    } catch (e) {
+      // ignore
+    }
+
     setPhotos(state.photos || []);
     setProjectName(state.projectName || 'No Project');
     setProjectRootPath(state.rootPath || null);
@@ -146,7 +208,8 @@ export default function PhotoOrganizer() {
       safeLocalStorage.set(RECENT_PROJECTS_KEY, JSON.stringify(next));
       setRecentProjects(next);
     } catch (err) {
-      // Ignore storage errors
+      // Notify user — storage may be full or unavailable and cover won't persist
+      showToast('Failed to persist recent project updates. Changes may not be saved.', 'error');
     }
   }, []);
 
@@ -175,6 +238,7 @@ export default function PhotoOrganizer() {
   }, []);
 
   const setCoverFromSelection = useCallback(async () => {
+    // Use the selected photo if one is selected
     if (!projectRootPath) return;
     if (selectedPhotos.size === 0) {
       showToast('Select a photo to set as cover.');
@@ -186,46 +250,59 @@ export default function PhotoOrganizer() {
     }
 
     const selectedId = Array.from(selectedPhotos)[0];
-    const selectedPhoto = photos.find(p => p.id === selectedId);
-    if (!selectedPhoto) {
-      showToast('Selected photo is no longer available.', 'error');
-      return;
-    }
-
-    const toDataUrl = (blob: Blob) =>
-      new Promise<string>((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => {
-          if (typeof reader.result === 'string') resolve(reader.result);
-          else reject(new Error('Failed to read image'));
-        };
-        reader.onerror = () => reject(reader.error || new Error('Failed to read image'));
-        reader.readAsDataURL(blob);
-      });
-
-    try {
-      if (selectedPhoto.fileHandle) {
-        const file = await selectedPhoto.fileHandle.getFile();
-        const dataUrl = await toDataUrl(file);
-        updateRecentProject(projectRootPath, { coverUrl: dataUrl });
-        showToast('Cover photo updated.');
-        return;
-      }
-
-      if (selectedPhoto.thumbnail) {
-        const response = await fetch(selectedPhoto.thumbnail);
-        const blob = await response.blob();
-        const dataUrl = await toDataUrl(blob);
-        updateRecentProject(projectRootPath, { coverUrl: dataUrl });
-        showToast('Cover photo updated.');
-        return;
-      }
-
-      showToast('Cover photo could not be created for this selection.', 'error');
-    } catch (err) {
-      showToast('Failed to set cover photo.', 'error');
-    }
+    await setCoverForPhotoId(selectedId);
   }, [photos, projectRootPath, selectedPhotos, showToast, updateRecentProject]);
+
+  const setCoverForPhotoId = useCallback(
+    async (photoId: string) => {
+      if (!projectRootPath) return;
+      const selectedPhoto = photos.find(p => p.id === photoId);
+      if (!selectedPhoto) {
+        showToast('Selected photo is no longer available.', 'error');
+        return;
+      }
+
+      try {
+        // Use a smaller/resized cover for the main menu (recents) to avoid storing
+        // very large base64 strings in localStorage and the global JS heap.
+        const COVER_MAX_W = 320;
+        const COVER_MAX_H = 240;
+        const COVER_QUALITY = 0.5;
+
+        if (selectedPhoto.fileHandle) {
+          const file = await selectedPhoto.fileHandle.getFile();
+          const smallDataUrl = await toResizedDataUrl(
+            file,
+            COVER_MAX_W,
+            COVER_MAX_H,
+            COVER_QUALITY,
+          );
+          updateRecentProject(projectRootPath, { coverUrl: smallDataUrl });
+          showToast('Cover photo updated.');
+          return;
+        }
+
+        if (selectedPhoto.thumbnail) {
+          const response = await fetch(selectedPhoto.thumbnail);
+          const blob = await response.blob();
+          const smallDataUrl = await toResizedDataUrl(
+            blob,
+            COVER_MAX_W,
+            COVER_MAX_H,
+            COVER_QUALITY,
+          );
+          updateRecentProject(projectRootPath, { coverUrl: smallDataUrl });
+          showToast('Cover photo updated.');
+          return;
+        }
+
+        showToast('Cover photo could not be created for this selection.', 'error');
+      } catch (err) {
+        showToast('Failed to set cover photo.', 'error');
+      }
+    },
+    [photos, projectRootPath, toResizedDataUrl, showToast, updateRecentProject],
+  );
 
   const applyFolderMappings = useCallback((sourcePhotos: ProjectPhoto[], mappings: any[]) => {
     // Apply mappings from onboarding: assign detected day numbers to photos
@@ -257,13 +334,51 @@ export default function PhotoOrganizer() {
       return p;
     });
   }, []);
+
+  const applyDayContainers = useCallback(
+    (sourcePhotos: ProjectPhoto[], dayContainers: string[]) => {
+      // Reapply day assignments based on stored day containers
+      const containerDayMap = new Map<string, number>();
+      dayContainers.forEach((container, index) => {
+        containerDayMap.set(container, index + 1); // Day 1, 2, 3, etc.
+      });
+
+      return sourcePhotos.map(p => {
+        if (!p.filePath || p.day !== null) return p; // Don't override existing assignments
+        const parts = p.filePath.split('/');
+
+        // Check if it's in a day container
+        const top = parts[0];
+        const assignedDay = containerDayMap.get(top);
+        if (assignedDay != null) {
+          return { ...p, day: assignedDay };
+        }
+
+        // Also check for Dnn subfolders
+        if (parts.length > 1) {
+          const sub = parts[1];
+          const match = sub.match(/^D(\d{1,2})/i);
+          if (match) {
+            const d = parseInt(match[1], 10);
+            if (!Number.isNaN(d)) return { ...p, day: d };
+          }
+        }
+
+        return p;
+      });
+    },
+    [],
+  );
   const loadProject = useCallback(
     async (projectId: string, options?: { addRecent?: boolean }) => {
       setLoadingProject(true);
       setProjectError(null);
       try {
         const state = await getState(projectId);
-        setProjectFromState(state);
+        // Reapply day assignments based on stored day containers
+        const photosWithDays = applyDayContainers(state.photos, state.dayContainers || []);
+        const stateWithDays = { ...state, photos: photosWithDays };
+        setProjectFromState(stateWithDays);
         setProjectRootPath(projectId);
         setShowOnboarding(false);
         // Hide the welcome view when a project is successfully loaded
@@ -289,7 +404,7 @@ export default function PhotoOrganizer() {
         setLoadingProject(false);
       }
     },
-    [setProjectFromState, showToast, updateRecentProjects],
+    [getState, applyDayContainers, setProjectFromState, showToast, updateRecentProjects],
   );
 
   useEffect(() => {
@@ -608,10 +723,45 @@ export default function PhotoOrganizer() {
 
   const saveToHistory = useCallback(
     (newPhotos: ProjectPhoto[]) => {
+      // Snapshot only editable fields (no thumbnails/fileHandles) to keep history small
+      const snapshot = photos.map(p => ({
+        id: p.id,
+        filePath: p.filePath,
+        day: p.day,
+        bucket: p.bucket,
+        sequence: p.sequence,
+        favorite: p.favorite,
+        rating: p.rating,
+        archived: p.archived,
+        currentName: p.currentName,
+        originalName: p.originalName,
+        timestamp: p.timestamp,
+      }));
+
       const newHistory = history.slice(0, historyIndex + 1);
-      newHistory.push(JSON.parse(JSON.stringify(photos)));
-      setHistory(newHistory);
-      setHistoryIndex(newHistory.length - 1);
+      newHistory.push(snapshot as any);
+      // Cap history to 30 entries to avoid unbounded memory growth
+      const capped = newHistory.slice(-30);
+      setHistory(capped as any);
+      setHistoryIndex(capped.length - 1);
+
+      // When applying the new photos, revoke thumbnails that are no longer used
+      try {
+        const newThumbs = newPhotos.map(p => p.thumbnail).filter(Boolean) as string[];
+        prevThumbnailsRef.current.forEach(url => {
+          if (url && !newThumbs.includes(url) && url.startsWith('blob:')) {
+            try {
+              URL.revokeObjectURL(url);
+            } catch (e) {
+              // ignore
+            }
+          }
+        });
+        prevThumbnailsRef.current = newThumbs;
+      } catch (e) {
+        // ignore
+      }
+
       setPhotos(newPhotos);
       persistState(newPhotos);
     },
@@ -675,7 +825,12 @@ export default function PhotoOrganizer() {
   // Undo/Redo
   const undo = useCallback(() => {
     if (historyIndex > 0) {
-      const nextPhotos = history[historyIndex - 1];
+      const snapshot = history[historyIndex - 1] as Array<any>;
+      // Apply snapshot fields to current photos (preserve thumbnails/fileHandles)
+      const nextPhotos = photos.map(photo => {
+        const snap = snapshot.find((s: any) => s.id === photo.id);
+        return snap ? { ...photo, ...snap } : photo;
+      });
       setHistoryIndex(historyIndex - 1);
       setPhotos(nextPhotos);
       persistState(nextPhotos);
@@ -684,7 +839,11 @@ export default function PhotoOrganizer() {
 
   const redo = useCallback(() => {
     if (historyIndex < history.length - 1) {
-      const nextPhotos = history[historyIndex + 1];
+      const snapshot = history[historyIndex + 1] as Array<any>;
+      const nextPhotos = photos.map(photo => {
+        const snap = snapshot.find((s: any) => s.id === photo.id);
+        return snap ? { ...photo, ...snap } : photo;
+      });
       setHistoryIndex(historyIndex + 1);
       setPhotos(nextPhotos);
       persistState(nextPhotos);
@@ -763,10 +922,30 @@ export default function PhotoOrganizer() {
   // Keyboard shortcuts
   useEffect(() => {
     const handleKeyPress = e => {
+      const target = e.target as HTMLElement | null;
+      if (
+        showWelcome ||
+        showOnboarding ||
+        showExportScript ||
+        (target &&
+          (target.tagName === 'INPUT' ||
+            target.tagName === 'TEXTAREA' ||
+            target.tagName === 'SELECT' ||
+            target.isContentEditable))
+      ) {
+        return;
+      }
+
       if (showHelp) {
         if (e.key === 'Escape' || e.key === '?') {
           setShowHelp(false);
         }
+        return;
+      }
+
+      if (coverSelectionMode && e.key === 'Escape') {
+        setCoverSelectionMode(false);
+        showToast('Cover selection cancelled.');
         return;
       }
 
@@ -865,6 +1044,10 @@ export default function PhotoOrganizer() {
     redo,
     showHelp,
     fullscreenPhoto,
+    showWelcome,
+    showOnboarding,
+    showExportScript,
+    coverSelectionMode,
   ]);
 
   // Stats
@@ -882,7 +1065,7 @@ export default function PhotoOrganizer() {
 
   // Selection helpers
   const handleSelectPhoto = useCallback(
-    (e, photoId, index) => {
+    async (e, photoId, index) => {
       // Shift-range selection (use ref for synchronous access)
       if (
         e.shiftKey &&
@@ -916,8 +1099,14 @@ export default function PhotoOrganizer() {
       setFocusedPhoto(photoId);
       setLastSelectedIndex(index);
       lastSelectedIndexRef.current = index;
+
+      // If we're in cover selection mode, use this click to set the cover and exit mode
+      if (coverSelectionMode) {
+        await setCoverForPhotoId(photoId);
+        setCoverSelectionMode(false);
+      }
     },
-    [selectedPhotos, lastSelectedIndex, filteredPhotos],
+    [selectedPhotos, lastSelectedIndex, filteredPhotos, coverSelectionMode, setCoverForPhotoId],
   );
 
   return (
@@ -941,6 +1130,8 @@ export default function PhotoOrganizer() {
 
             <div className="flex items-center gap-2">
               <span className="text-xs text-gray-500">v{__APP_VERSION__}</span>
+
+              {/* Main Menu button - always available */}
               <button
                 onClick={() => {
                   setShowProjectMenu(false);
@@ -954,15 +1145,56 @@ export default function PhotoOrganizer() {
               >
                 Main Menu
               </button>
+
+              {/* Set Cover button - only show when project is open */}
               {projectRootPath && (
                 <button
-                  onClick={setCoverFromSelection}
-                  className="px-3 py-1 bg-gray-800 hover:bg-gray-700 rounded text-sm font-medium"
+                  onClick={() => {
+                    setCoverSelectionMode(true);
+                    showToast(
+                      'Select a photo to set as cover. Click a photo to set, or press Esc to cancel.',
+                      'info',
+                    );
+                  }}
+                  className={`px-3 py-1 rounded text-sm font-medium ${
+                    coverSelectionMode
+                      ? 'bg-yellow-200 text-yellow-900'
+                      : 'bg-gray-800 hover:bg-gray-700 text-gray-100'
+                  }`}
                   title="Set cover from selected photo"
                 >
-                  Set Cover
+                  {coverSelectionMode ? 'Selecting…' : 'Set Cover'}
                 </button>
               )}
+
+              {/* Cover selection feedback - shows when in selection mode */}
+              {coverSelectionMode && (
+                <div className="px-3 py-1 bg-yellow-50 text-yellow-900 rounded text-sm flex items-center gap-3">
+                  <span>Select a photo to set as cover</span>
+                  {selectedPhotos.size === 1 && (
+                    <button
+                      onClick={async () => {
+                        await setCoverFromSelection();
+                        setCoverSelectionMode(false);
+                      }}
+                      className="underline"
+                    >
+                      Use selection
+                    </button>
+                  )}
+                  <button
+                    onClick={() => {
+                      setCoverSelectionMode(false);
+                      showToast('Cover selection cancelled.');
+                    }}
+                    className="underline"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              )}
+
+              {/* Project management buttons */}
               <div className="relative">
                 <button
                   onClick={() => setShowProjectMenu(prev => !prev)}
@@ -1011,6 +1243,48 @@ export default function PhotoOrganizer() {
                   </div>
                 )}
               </div>
+
+              {/* Delete project button - separate from Projects dropdown */}
+              {projectRootPath && (
+                <button
+                  onClick={async () => {
+                    if (!projectRootPath) return;
+                    const confirmed = window.confirm(
+                      `Delete project '${projectName}'? This will remove local state and stored folder access. This cannot be undone.`,
+                    );
+                    if (!confirmed) return;
+                    try {
+                      await deleteProjectService(projectRootPath);
+                    } catch (err) {
+                      showToast('Failed to delete project.', 'error');
+                      return;
+                    }
+
+                    // Remove from recent projects and clear active project
+                    try {
+                      const raw = safeLocalStorage.get(RECENT_PROJECTS_KEY);
+                      const parsed = raw ? (JSON.parse(raw) as RecentProject[]) : [];
+                      const filtered = parsed.filter(p => p.projectId !== projectRootPath);
+                      safeLocalStorage.set(RECENT_PROJECTS_KEY, JSON.stringify(filtered));
+                      setRecentProjects(filtered);
+                    } catch (e) {
+                      // ignore
+                    }
+
+                    safeLocalStorage.remove(ACTIVE_PROJECT_KEY);
+                    setPhotos([]);
+                    setProjectRootPath(null);
+                    setProjectName('No Project');
+                    setShowWelcome(true);
+                    showToast('Project deleted.');
+                  }}
+                  className="px-3 py-1 bg-red-700 hover:bg-red-800 rounded text-sm font-medium"
+                  title="Delete project"
+                >
+                  Delete
+                </button>
+              )}
+
               <button
                 onClick={() => {
                   setProjectError(null);
@@ -1161,8 +1435,18 @@ export default function PhotoOrganizer() {
                     key={day}
                     role="button"
                     tabIndex={0}
-                    onClick={() => setSelectedDay(day)}
-                    onKeyDown={e => e.key === 'Enter' && setSelectedDay(day)}
+                    onClick={() => {
+                      // Selecting a day should clear any selected root folder so the day
+                      // filter is applied consistently.
+                      setSelectedRootFolder(null);
+                      setSelectedDay(day);
+                    }}
+                    onKeyDown={e => {
+                      if (e.key === 'Enter') {
+                        setSelectedRootFolder(null);
+                        setSelectedDay(day);
+                      }
+                    }}
                     className={`w-full text-left px-3 py-2 rounded text-sm transition-colors ${
                       selectedDay === day
                         ? 'bg-blue-600 text-white'
@@ -1302,8 +1586,16 @@ export default function PhotoOrganizer() {
                           key={`day-${entry.dayNumber}`}
                           role="button"
                           tabIndex={0}
-                          onClick={() => setSelectedDay(entry.dayNumber)}
-                          onKeyDown={e => e.key === 'Enter' && setSelectedDay(entry.dayNumber)}
+                          onClick={() => {
+                            setSelectedRootFolder(null);
+                            setSelectedDay(entry.dayNumber);
+                          }}
+                          onKeyDown={e => {
+                            if (e.key === 'Enter') {
+                              setSelectedRootFolder(null);
+                              setSelectedDay(entry.dayNumber);
+                            }
+                          }}
                           className={`w-full text-left px-3 py-2 rounded text-sm transition-colors ${
                             selectedDay === entry.dayNumber
                               ? 'bg-blue-600 text-white'
