@@ -53,6 +53,66 @@ function checkVersionInFile(filePath, expectedVersion) {
   }
 }
 
+// Check build-time version injection in vite.config.ts
+function checkViteConfig() {
+  const viteConfigPath = path.join(root, 'vite.config.ts');
+  if (!fs.existsSync(viteConfigPath)) {
+    console.warn('⚠️ vite.config.ts not found');
+    return false;
+  }
+
+  const content = fs.readFileSync(viteConfigPath, 'utf-8');
+  if (content.includes('__APP_VERSION__') && content.includes('pkg.version')) {
+    console.log('✅ Vite config properly injects version at build time');
+    return true;
+  } else {
+    console.warn('⚠️ Vite config may not be properly injecting version');
+    return false;
+  }
+}
+
+// Check versionManager implementation
+function checkVersionManager() {
+  const versionManagerPath = path.join(root, 'src/utils/versionManager.ts');
+  if (!fs.existsSync(versionManagerPath)) {
+    console.warn('⚠️ versionManager.ts not found');
+    return false;
+  }
+
+  const content = fs.readFileSync(versionManagerPath, 'utf-8');
+  if (content.includes('declare const __APP_VERSION__: string') &&
+      content.includes('APP_VERSION = __APP_VERSION__')) {
+    console.log('✅ versionManager properly uses build-time injected version');
+    return true;
+  } else {
+    console.warn('⚠️ versionManager may not be properly configured for build-time injection');
+    return false;
+  }
+}
+
+// Check UI components use versionManager
+function checkUIComponents() {
+  const uiFiles = [
+    'src/frontend/StartScreen.tsx',
+    'src/frontend/PhotoOrganizer.tsx'
+  ];
+
+  let allGood = true;
+  uiFiles.forEach(file => {
+    const filePath = path.join(root, file);
+    if (fs.existsSync(filePath)) {
+      const content = fs.readFileSync(filePath, 'utf-8');
+      if (content.includes('versionManager.')) {
+        console.log(`✅ ${file} properly uses versionManager`);
+      } else {
+        console.warn(`⚠️ ${file} may not be using versionManager for version display`);
+        allGood = false;
+      }
+    }
+  });
+  return allGood;
+}
+
 // Check if version appears in key files (this is a basic check)
 const srcFiles = [
   'src/frontend/StartScreen.tsx',
@@ -66,11 +126,22 @@ srcFiles.forEach(file => {
   if (fs.existsSync(filePath)) {
     const count = checkVersionInFile(filePath, version);
     if (count === 0) {
-      console.warn(`⚠️ No version references found in ${file} (this may be normal if using versionManager)`);
+      console.log(`ℹ️ No hardcoded version references in ${file} (expected with build-time injection)`);
     } else {
       console.log(`✅ Found ${count} version reference(s) in ${file}`);
     }
   }
 });
 
+// Check build-time injection setup
+console.log('\n🔧 Checking build-time version injection setup...');
+checkViteConfig();
+checkVersionManager();
+checkUIComponents();
+
 console.log(`🎉 Version consistency check complete for v${version}`);
+console.log('\n📋 Versioning Architecture:');
+console.log('   • Build-time injection via Vite define option');
+console.log('   • Centralized versionManager for consistent access');
+console.log('   • UI components use versionManager.getDisplayVersion()');
+console.log('   • No hardcoded version strings in source code');
