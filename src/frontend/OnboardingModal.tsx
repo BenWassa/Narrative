@@ -1,5 +1,5 @@
 import React, { useCallback, useState } from 'react';
-import { X } from 'lucide-react';
+import { FolderOpen, X } from 'lucide-react';
 
 export interface OnboardingState {
   projectName: string;
@@ -31,6 +31,7 @@ export default function OnboardingModal({
   const [projectName, setProjectName] = useState('');
   const [rootPath, setRootPath] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const fileInputRef = React.useRef<HTMLInputElement | null>(null);
 
   const handleCreate = useCallback(() => {
     if (!projectName.trim()) {
@@ -115,15 +116,43 @@ export default function OnboardingModal({
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">Folder Path</label>
-            <input
-              type="text"
-              value={rootPath}
-              onChange={e => setRootPath(e.target.value)}
-              placeholder="/Users/you/trips/mexico"
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder:text-gray-600 text-gray-900"
-            />
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={rootPath}
+                onChange={e => setRootPath(e.target.value)}
+                placeholder="/Users/you/trips/mexico"
+                className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder:text-gray-600 text-gray-900"
+              />
+              <input
+                ref={fileInputRef}
+                type="file"
+                webkitdirectory="true"
+                directory="true"
+                mozdirectory="true"
+                className="hidden"
+                onChange={e => {
+                  const files = e.currentTarget.files;
+                  if (!files || files.length === 0) return;
+                  const first = files[0] as File & { webkitRelativePath?: string };
+                  const rel = first.webkitRelativePath || first.name;
+                  const folder = rel.split('/')[0];
+                  setRootPath(folder);
+                  e.currentTarget.value = '';
+                }}
+              />
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                className="px-4 py-2 bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 flex items-center gap-2"
+              >
+                <FolderOpen size={18} />
+                Browse
+              </button>
+            </div>
             <p className="text-xs text-gray-500 mt-2">
-              Paste the full path to the folder that contains your photos.
+              Paste the full path to the folder that contains your photos. The browser folder
+              picker only supplies the folder name, so use a full path if your folder is outside
+              your home directory.
             </p>
           </div>
         </div>
