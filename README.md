@@ -101,7 +101,7 @@ Iceland2024/
 git clone https://github.com/yourusername/narrative.git
 cd narrative
 npm install
-npm start
+npm run dev
 ```
 
 ---
@@ -111,8 +111,8 @@ npm start
 ### 1. Create a New Project
 
 - Launch Narrative
-- Click "Select Trip Folder"
-- Choose your photo folder
+- Click "Create Project"
+- Choose your photo folder (directory picker)
 
 ### 2. Organize Photos
 
@@ -132,11 +132,7 @@ npm start
 
 ## Importing Existing Photo Collections
 
-If you already have photos organized into day-based folders, Narrative can detect and migrate them automatically.
-
-### Auto-Detection Smart Matching
-
-Narrative recognizes common folder naming patterns:
+Narrative reads your existing folder as-is and builds a local project view without changing files.
 
 - **Day Prefix**: `Day 1`, `D01`, `day_2`, `D-3`
 - **ISO Dates**: `2024-03-15`, `2024_03_16`
@@ -227,18 +223,15 @@ Export favorites with metadata to match photos to blog post sections.
 - **Tailwind CSS** - Styling
 - **Lucide Icons** - Icon library
 
-### Backend
+### Local-Only Viewer
 
-- **Electron/Tauri** - Desktop wrapper
-- **Node.js** - File operations
-- **exifr** - EXIF metadata parsing
-- **sharp** - Thumbnail generation
+- **Browser directory picker** - Read-only access to local files
+- **Local storage** - Persists project metadata and edits
 
 ### Data Storage
 
-- **JSON files** - Human-readable state
-- **Local filesystem** - No database needed
-- **Transaction log** - Undo/redo support
+- **Local storage** - Project state and edits
+- **IndexedDB handles** - Persisted folder access (reselect if permission revoked)
 
 ---
 
@@ -248,8 +241,10 @@ Export favorites with metadata to match photos to blog post sections.
 narrative/
 ├── src/
 │   ├── frontend/        # React app
-│   ├── backend/         # File operations API
 │   └── shared/          # Type definitions
+├── archive/
+│   ├── backend/         # Archived backend (no longer used)
+│   └── onboarding/      # Archived onboarding flows
 ├── docs/
 │   ├── COMMISSION.md    # Original project brief
 │   ├── BACKEND_SPEC.md  # API documentation

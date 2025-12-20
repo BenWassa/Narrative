@@ -75,6 +75,9 @@ export default function PhotoOrganizer() {
   const [showProjectMenu, setShowProjectMenu] = useState(false);
   const [projectError, setProjectError] = useState<string | null>(null);
   const [loadingProject, setLoadingProject] = useState(false);
+  const [showExportScript, setShowExportScript] = useState(false);
+  const [exportScriptText, setExportScriptText] = useState('');
+  const [exportCopyStatus, setExportCopyStatus] = useState<'idle' | 'copied' | 'failed'>('idle');
 
   const deriveProjectName = useCallback((rootPath: string) => {
     const parts = rootPath.split(/[/\\]/).filter(Boolean);
@@ -97,6 +100,50 @@ export default function PhotoOrganizer() {
     },
     [],
   );
+
+  const applyFolderMappings = useCallback(
+    (sourcePhotos: ProjectPhoto[], mappings: Array<{ folder: string; detectedDay: number | null; skip?: boolean }>) => {
+      const dayByFolder = new Map<string, number>();
+      mappings.forEach(mapping => {
+        if (mapping.skip) return;
+        if (mapping.detectedDay) {
+          dayByFolder.set(mapping.folder, mapping.detectedDay);
+        }
+      });
+
+      return sourcePhotos.map(photo => {
+        if (!photo.filePath) return photo;
+        const folder = photo.filePath.split('/')[0];
+        if (!dayByFolder.has(folder)) return photo;
+        return { ...photo, day: dayByFolder.get(folder) ?? null };
+      });
+    },
+    [],
+  );
+
+  const buildExportScript = useCallback(() => {
+    const lines: string[] = [];
+    lines.push('set -euo pipefail');
+    lines.push('read -r -p "Trip folder path: " ROOT');
+    lines.push('cd "$ROOT"');
+    lines.push('');
+
+    const daysRoot = projectSettings.folderStructure.daysFolder || '01_DAYS';
+    lines.push(`mkdir -p "${daysRoot}"`);
+
+    photos.forEach(photo => {
+      if (!photo.day || !photo.bucket || photo.archived) return;
+      const dayLabel = `D${String(photo.day).padStart(2, '0')}`;
+      const destDir = `${daysRoot}/${dayLabel}`;
+      const destName = photo.currentName || photo.originalName;
+      const sourcePath = photo.filePath || photo.originalName;
+      lines.push(`mkdir -p "${destDir}"`);
+      lines.push(`cp -- "${sourcePath}" "${destDir}/${destName}"`);
+    });
+
+    lines.push('echo "Done"');
+    return lines.join('\n');
+  }, [photos, projectSettings.folderStructure.daysFolder]);
 
   const persistState = useCallback(
     async (nextPhotos: ProjectPhoto[]) => {
@@ -324,7 +371,9 @@ export default function PhotoOrganizer() {
           projectName: state.projectName,
           rootLabel: state.rootPath,
         });
-        const hydratedPhotos = applySuggestedDays(initResult.photos, initResult.suggestedDays);
+        const hydratedPhotos = state.mappings?.length
+          ? applyFolderMappings(initResult.photos, state.mappings)
+          : applySuggestedDays(initResult.photos, initResult.suggestedDays);
         const nextProjectName = state.projectName?.trim() || deriveProjectName(state.rootPath);
         const nextProjectId = initResult.projectId;
         const nextState: ProjectState = {
@@ -368,7 +417,7 @@ export default function PhotoOrganizer() {
         setLoadingProject(false);
       }
     },
-    [applySuggestedDays, deriveProjectName, updateRecentProjects],
+    [applyFolderMappings, applySuggestedDays, deriveProjectName, updateRecentProjects],
   );
 
   // Keyboard shortcuts
@@ -600,6 +649,18 @@ export default function PhotoOrganizer() {
                 Import Trip
               </button>
               <button
+                onClick={() => {
+                  setExportScriptText(buildExportScript());
+                  setExportCopyStatus('idle');
+                  setShowExportScript(true);
+                }}
+                className="px-3 py-1 bg-gray-800 hover:bg-gray-700 rounded text-sm font-medium"
+                title="Export rename script"
+                disabled={photos.length === 0}
+              >
+                Export Script
+              </button>
+              <button
                 onClick={undo}
                 disabled={historyIndex <= 0}
                 className="p-2 hover:bg-gray-800 rounded disabled:opacity-30"
@@ -721,11 +782,17 @@ export default function PhotoOrganizer() {
                         : 'hover:ring-2 hover:ring-gray-600'
                     }`}
                   >
-                    <img
-                      src={photo.thumbnail}
-                      alt={photo.currentName}
-                      className="w-full aspect-[4/3] object-cover"
-                    />
+                    {photo.thumbnail ? (
+                      <img
+                        src={photo.thumbnail}
+                        alt={photo.currentName}
+                        className="w-full aspect-[4/3] object-cover"
+                      />
+                    ) : (
+                      <div className="w-full aspect-[4/3] bg-gray-900 flex items-center justify-center text-xs text-gray-400 px-2 text-center">
+                        {photo.currentName}
+                      </div>
+                    )}
 
                     {/* Overlay info */}
                     <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity">
@@ -848,6 +915,55 @@ export default function PhotoOrganizer() {
             <p className="text-center text-xs text-gray-400 mt-2">
               Press ESC to close · Arrow keys to navigate
             </p>
+          </div>
+        </div>
+      )}
+
+      {showExportScript && (
+        <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-6">
+          <div className="bg-gray-900 rounded-lg max-w-2xl w-full overflow-hidden border border-gray-800">
+            <div className="px-5 py-4 border-b border-gray-800 flex items-center justify-between">
+              <h2 className="text-lg font-semibold text-gray-100">Export Rename Script</h2>
+              <button
+                onClick={() => setShowExportScript(false)}
+                className="p-2 hover:bg-gray-800 rounded"
+                aria-label="Close export script dialog"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="px-5 py-4 space-y-3">
+              <p className="text-sm text-gray-400">
+                This script copies your organized photos into day folders using the current bucket
+                naming. Originals are preserved.
+              </p>
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={async () => {
+                    try {
+                      await navigator.clipboard.writeText(exportScriptText);
+                      setExportCopyStatus('copied');
+                    } catch {
+                      setExportCopyStatus('failed');
+                    }
+                  }}
+                  className="px-3 py-2 rounded-lg bg-gray-800 text-gray-100 hover:bg-gray-700 text-sm"
+                >
+                  Copy Script
+                </button>
+                {exportCopyStatus === 'copied' && (
+                  <span className="text-xs text-green-400">Copied.</span>
+                )}
+                {exportCopyStatus === 'failed' && (
+                  <span className="text-xs text-red-400">Copy failed. Select and copy below.</span>
+                )}
+              </div>
+              <textarea
+                readOnly
+                value={exportScriptText}
+                className="w-full h-64 rounded-lg border border-gray-800 bg-gray-950 px-3 py-2 text-xs text-gray-100 font-mono"
+              />
+            </div>
           </div>
         </div>
       )}

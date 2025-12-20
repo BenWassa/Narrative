@@ -12,6 +12,7 @@ export interface ProjectPhoto {
   rating: number;
   archived: boolean;
   thumbnail: string;
+  mimeType?: string;
   fileHandle?: FileSystemFileHandle;
   filePath?: string;
   metadata?: {
@@ -122,7 +123,9 @@ async function buildPhotosFromHandle(dirHandle: FileSystemDirectoryHandle): Prom
     const timestamp = file.lastModified;
     const id = generateId();
     const originalName = file.name;
-    const thumbnail = URL.createObjectURL(file);
+    const ext = file.name.split('.').pop()?.toLowerCase() || '';
+    const isHeic = ext === 'heic' || ext === 'heif' || file.type.toLowerCase().includes('heic');
+    const thumbnail = isHeic ? '' : URL.createObjectURL(file);
 
     photos.push({
       id,
@@ -136,6 +139,7 @@ async function buildPhotosFromHandle(dirHandle: FileSystemDirectoryHandle): Prom
       rating: 0,
       archived: false,
       thumbnail,
+      mimeType: file.type || (isHeic ? 'image/heic' : ''),
       fileHandle: entry.handle,
       filePath: entry.path,
     });
