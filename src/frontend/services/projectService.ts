@@ -49,7 +49,7 @@ interface ProjectInitResponse {
   suggestedDays: Record<string, string[]>;
 }
 
-const SUPPORTED_EXT = ['jpg', 'jpeg', 'png', 'heic', 'webp'];
+const SUPPORTED_EXT = ['jpg', 'jpeg', 'png', 'heic', 'webp', 'mp4', 'mov', 'webm', 'avi', 'mkv'];
 const STATE_PREFIX = 'narrative:projectState:';
 const HANDLE_DB = 'narrative:handles';
 const HANDLE_STORE = 'projects';

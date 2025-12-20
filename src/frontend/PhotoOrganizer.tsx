@@ -1964,11 +1964,20 @@ export default function PhotoOrganizer() {
                         } ${photo.bucket || photo.archived ? 'opacity-60 saturate-50' : ''}`}
                       >
                         {photo.thumbnail ? (
-                          <img
-                            src={photo.thumbnail}
-                            alt={photo.currentName}
-                            className="w-full aspect-[4/3] object-cover"
-                          />
+                          photo.mimeType?.startsWith('video/') ? (
+                            <video
+                              src={photo.thumbnail}
+                              className="w-full aspect-[4/3] object-cover"
+                              muted
+                              preload="metadata"
+                            />
+                          ) : (
+                            <img
+                              src={photo.thumbnail}
+                              alt={photo.currentName}
+                              className="w-full aspect-[4/3] object-cover"
+                            />
+                          )
                         ) : (
                           <div className="w-full aspect-[4/3] bg-gray-900 flex items-center justify-center text-xs text-gray-400 px-2 text-center">
                             {photo.currentName}
@@ -2011,11 +2020,16 @@ export default function PhotoOrganizer() {
               <div className="mb-6">
                 {selectedPhotos.size === 1 ? (
                   <>
-                    <img
-                      src={photos.find(p => p.id === Array.from(selectedPhotos)[0])?.thumbnail}
-                      alt="Selected"
-                      className="w-full rounded-lg"
-                    />
+                    {(() => {
+                      const photo = photos.find(p => p.id === Array.from(selectedPhotos)[0]);
+                      if (!photo) return null;
+
+                      return photo.mimeType?.startsWith('video/') ? (
+                        <video src={photo.thumbnail} className="w-full rounded-lg" controls />
+                      ) : (
+                        <img src={photo.thumbnail} alt="Selected" className="w-full rounded-lg" />
+                      );
+                    })()}
                     <div className="mt-2 text-xs text-gray-400 font-mono break-all">
                       {!editingName ? (
                         <div className="flex items-center justify-between">
@@ -2183,11 +2197,25 @@ export default function PhotoOrganizer() {
             <X className="w-6 h-6" />
           </button>
 
-          <img
-            src={photos.find(p => p.id === fullscreenPhoto)?.thumbnail}
-            alt="Fullscreen"
-            className="max-w-full max-h-full object-contain"
-          />
+          {(() => {
+            const photo = photos.find(p => p.id === fullscreenPhoto);
+            if (!photo) return null;
+
+            return photo.mimeType?.startsWith('video/') ? (
+              <video
+                src={photo.thumbnail}
+                controls
+                className="max-w-full max-h-full object-contain"
+                autoPlay={false}
+              />
+            ) : (
+              <img
+                src={photo.thumbnail}
+                alt="Fullscreen"
+                className="max-w-full max-h-full object-contain"
+              />
+            );
+          })()}
 
           <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/90 to-transparent p-6">
             <p className="text-center text-sm font-mono">
