@@ -222,7 +222,7 @@ export function detectFolderStructure(
 /**
  * Generate a dry-run summary of what would happen
  */
-export function generateDryRunSummary(mappings: FolderMapping[]): string {
+function generateDryRunSummary(mappings: FolderMapping[]): string {
   const createCount = mappings.filter(m => m.detectedDay !== null).length;
   const totalPhotos = mappings.reduce((sum, m) => sum + m.photoCount, 0);
   const movedPhotos = mappings

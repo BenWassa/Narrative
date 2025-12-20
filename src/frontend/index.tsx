@@ -4,7 +4,7 @@ import PhotoOrganizer from './PhotoOrganizer';
 import '../styles/tailwind.css';
 
 // Minimal entry; assumes a bundler / dev server will provide an element with id 'root'.
-export default PhotoOrganizer;
+// Note: we do not export the component from this entry file (it's not used elsewhere)
 
 const rootEl = document.getElementById('root');
 if (rootEl) {

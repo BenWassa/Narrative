@@ -8,7 +8,7 @@ function isSameDay(a: Date, b: Date) {
   );
 }
 
-export interface ProjectGroup {
+interface ProjectGroup {
   label: string;
   projects: RecentProject[];
 }

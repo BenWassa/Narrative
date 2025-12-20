@@ -43,7 +43,7 @@ export interface ProjectState {
   lastModified?: number;
 }
 
-export interface ProjectInitResponse {
+interface ProjectInitResponse {
   projectId: string;
   photos: ProjectPhoto[];
   suggestedDays: Record<string, string[]>;
