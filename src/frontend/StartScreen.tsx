@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Camera, Plus } from 'lucide-react';
+import { Plus } from 'lucide-react';
 import OnboardingModal, { OnboardingState, RecentProject } from './OnboardingModal';
 import ProjectTile from './ui/ProjectTile';
 import { versionManager } from '../utils/versionManager';
@@ -33,7 +33,11 @@ export default function StartScreen({
       <div className="border-b border-gray-800 bg-gray-900/50 backdrop-blur-sm">
         <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <Camera className="w-6 h-6 text-blue-400" />
+            <img
+              src="/Narrative/assets/Narrative_icon.png"
+              alt="Narrative"
+              className="w-8 h-8 rounded"
+            />
             <h1 className="text-xl font-bold">Narrative</h1>
           </div>
           <div className="px-3 py-1 bg-gray-800 text-gray-300 rounded-md text-xs font-medium tracking-wide">

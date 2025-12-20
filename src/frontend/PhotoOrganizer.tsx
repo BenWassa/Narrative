@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import safeLocalStorage from './utils/safeLocalStorage';
 import {
-  Camera,
   ChevronDown,
   Calendar,
   Heart,
@@ -1130,7 +1129,11 @@ export default function PhotoOrganizer() {
         <header className="border-b border-gray-800 bg-gray-900">
           <div className="flex items-center justify-between px-6 py-3">
             <div className="flex items-center gap-4">
-              <Camera className="w-6 h-6 text-blue-400" />
+              <img
+                src="/Narrative/assets/Narrative_icon.png"
+                alt="Narrative"
+                className="w-8 h-8 rounded"
+              />
               <div>
                 {/* Ensure the project name has high contrast against the header */}
                 <h1 className="text-lg font-semibold text-gray-100">{projectName}</h1>
