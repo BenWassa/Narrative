@@ -35,7 +35,6 @@
     "@vitejs/plugin-react": "^4.0.0",
     "autoprefixer": "^10.4.0",
     "axe-core": "^4.11.0",
-    "concurrently": "^9.2.1",
     "jsdom": "^27.3.0",
     "jszip": "^3.10.1",
     "postcss": "^8.4.0",
@@ -45,4 +44,12 @@
     "vite": "^7.3.0",
     "vitest": "^4.0.16"
   }
+  "depcheck": {
+    "ignoreMatches": [
+      "autoprefixer",
+      "postcss",
+      "tailwindcss",
+      "typescript"
+    ]
+  },
 }
