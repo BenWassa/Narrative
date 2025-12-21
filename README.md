@@ -105,19 +105,33 @@ If your project includes a `98_ARCHIVE/` folder, those files are treated as arch
 
 ## Release Workflow
 
-To create a new patch release:
+To create a new release:
 
+### Patch Release (1.5.5 → 1.5.6)
 ```bash
-# Update version (patch increment)
 npm version patch
-
-# Sync version across all files
 node ./scripts/sync-version.js
-
-# Build and test
 npm run build
+git add .
+git commit -m "Release v$(node -p "require('./package.json').version") - [brief description]"
+git push
+```
 
-# Commit and push
+### Minor Release (1.5.5 → 1.6.0)
+```bash
+npm version minor
+node ./scripts/sync-version.js
+npm run build
+git add .
+git commit -m "Release v$(node -p "require('./package.json').version") - [brief description]"
+git push
+```
+
+### Major Release (1.5.5 → 2.0.0)
+```bash
+npm version major
+node ./scripts/sync-version.js
+npm run build
 git add .
 git commit -m "Release v$(node -p "require('./package.json').version") - [brief description]"
 git push
