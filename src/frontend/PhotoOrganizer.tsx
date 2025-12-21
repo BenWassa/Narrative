@@ -409,14 +409,19 @@ export default function PhotoOrganizer() {
         setLoadingProgress(90);
         if (options?.addRecent !== false) {
           // Preserve existing coverUrl when updating recent projects
-          const existingProject = recentProjects.find(p => p.projectId === projectId);
+          // Read directly from localStorage to avoid stale state during initial page load
+          const raw = safeLocalStorage.get(RECENT_PROJECTS_KEY);
+          const parsed = raw ? (JSON.parse(raw) as RecentProject[]) : [];
+          const existingProject = parsed.find(p => p.projectId === projectId);
+          const existingCoverUrl = existingProject?.coverUrl;
+
           updateRecentProjects({
             projectName: state.projectName || 'Untitled Project',
             projectId,
             rootPath: state.rootPath || 'Unknown location',
             lastOpened: Date.now(),
             totalPhotos: state.photos?.length || 0,
-            ...(existingProject?.coverUrl && { coverUrl: existingProject.coverUrl }),
+            ...(existingCoverUrl && { coverUrl: existingCoverUrl }),
           });
         }
         setLoadingProgress(100);
