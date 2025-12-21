@@ -209,13 +209,19 @@ export default function PhotoOrganizer() {
     try {
       const raw = safeLocalStorage.get(RECENT_PROJECTS_KEY);
       const parsed = raw ? (JSON.parse(raw) as RecentProject[]) : [];
-      // First try to find by projectId, then fallback to rootPath for backward compatibility
-      let projectIndex = parsed.findIndex(p => p.projectId === projectId);
+      // Normalize projectId for all projects in case they have undefined projectId
+      const normalized = parsed.map(p => ({
+        ...p,
+        projectId: p.projectId || p.rootPath,
+      }));
+      // Try to find by the provided projectId (could be rootPath if that's what was passed)
+      let projectIndex = normalized.findIndex(p => p.projectId === projectId);
+      // Also try matching by rootPath in case projectId is different
       if (projectIndex === -1) {
-        projectIndex = parsed.findIndex(p => p.rootPath === projectId);
+        projectIndex = normalized.findIndex(p => p.rootPath === projectId);
       }
       if (projectIndex !== -1) {
-        const next = [...parsed];
+        const next = [...normalized];
         next[projectIndex] = { ...next[projectIndex], ...updates };
         safeLocalStorage.set(RECENT_PROJECTS_KEY, JSON.stringify(next));
         setRecentProjects(next);
@@ -420,10 +426,16 @@ export default function PhotoOrganizer() {
           // Read directly from localStorage to avoid stale state during initial page load
           const raw = safeLocalStorage.get(RECENT_PROJECTS_KEY);
           const parsed = raw ? (JSON.parse(raw) as RecentProject[]) : [];
-          // First try to find by projectId, then fallback to rootPath for backward compatibility
-          let existingProject = parsed.find(p => p.projectId === projectId);
+          // Normalize projectId for all projects in case they have undefined projectId
+          const normalized = parsed.map(p => ({
+            ...p,
+            projectId: p.projectId || p.rootPath,
+          }));
+          // Try to find by the provided projectId
+          let existingProject = normalized.find(p => p.projectId === projectId);
+          // Also try matching by rootPath in case projectId is different
           if (!existingProject) {
-            existingProject = parsed.find(p => p.rootPath === projectId);
+            existingProject = normalized.find(p => p.rootPath === projectId);
           }
           const existingCoverUrl = existingProject?.coverUrl;
 
