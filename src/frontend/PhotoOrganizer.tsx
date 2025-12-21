@@ -372,13 +372,13 @@ export default function PhotoOrganizer() {
       }
 
       try {
-        // Resize options - try progressively smaller sizes
-        // Improved quality (0.65 WebP, 0.6 JPEG fallback) over size
+        // Resize options - prioritize quality over size
+        // Full quality (0.95 WebP, 0.9 JPEG) for best visual appearance
         const resizeOptions = [
-          { w: 64, h: 48, q: 0.65, useWebP: true }, // WebP preferred
-          { w: 56, h: 42, q: 0.65, useWebP: true }, // Smaller, WebP
-          { w: 48, h: 36, q: 0.6, useWebP: true }, // Even smaller, WebP
-          { w: 40, h: 30, q: 0.6, useWebP: false }, // Minimal, JPEG fallback
+          { w: 200, h: 150, q: 0.95, useWebP: true }, // Full quality WebP
+          { w: 160, h: 120, q: 0.95, useWebP: true }, // Slightly smaller, WebP
+          { w: 120, h: 90, q: 0.9, useWebP: true }, // Fallback size, WebP
+          { w: 80, h: 60, q: 0.9, useWebP: false }, // Last resort, JPEG
         ];
 
         let coverBlob: Blob | undefined;

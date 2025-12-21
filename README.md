@@ -2,7 +2,7 @@
 
 Fast, narrative-driven travel photo organizer. Sort your trip photos by story role with single keystrokes and export a safe rename script.
 
-![Version](https://img.shields.io/badge/version-1.6.0-blue)
+![Version](https://img.shields.io/badge/version-1.6.1-blue)
 
 ---
 
