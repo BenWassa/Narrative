@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import safeLocalStorage from './utils/safeLocalStorage';
+import * as coverStorage from './utils/coverStorageService';
+import { resizeImageBlob } from './utils/imageProcessing';
 import {
   ChevronDown,
   Calendar,
@@ -370,32 +372,43 @@ export default function PhotoOrganizer() {
       }
 
       try {
-        // Progressive cover sizing: try smaller sizes if storage quota exceeded
-        const coverOptions = [
+        // Resize options - try progressively smaller sizes
+        const resizeOptions = [
           { w: 120, h: 90, q: 0.2 }, // Default
           { w: 100, h: 75, q: 0.15 }, // Smaller
           { w: 80, h: 60, q: 0.1 }, // Even smaller
           { w: 60, h: 45, q: 0.05 }, // Minimal
         ];
 
-        let smallDataUrl: string | undefined;
+        let coverBlob: Blob | undefined;
+        let usedSize = '';
 
-        // Try to create cover with each size option until one works
-        for (const { w, h, q } of coverOptions) {
+        // Try to create and store cover with each size option until one works
+        for (const { w, h, q } of resizeOptions) {
           try {
+            // Get the source blob
+            let sourceBlob: Blob;
             if (selectedPhoto.fileHandle) {
-              const file = await selectedPhoto.fileHandle.getFile();
-              smallDataUrl = await toResizedDataUrl(file, w, h, q);
+              sourceBlob = await selectedPhoto.fileHandle.getFile();
             } else if (selectedPhoto.thumbnail) {
               const response = await fetch(selectedPhoto.thumbnail);
-              const blob = await response.blob();
-              smallDataUrl = await toResizedDataUrl(blob, w, h, q);
+              sourceBlob = await response.blob();
             } else {
               showToast('Cannot create cover from this photo.', 'error');
               return;
             }
 
-            // Check if project is already in recent projects
+            // Resize using Web Worker (or main thread fallback)
+            coverBlob = await resizeImageBlob(sourceBlob, w, h, q);
+            usedSize = `${w}x${h} @ ${Math.round(q * 100)}%`;
+
+            // Evict old covers if needed (keep max 10)
+            await coverStorage.evictOldCovers(10);
+
+            // Save to IndexedDB
+            const coverKey = await coverStorage.saveCover(projectRootPath, coverBlob, w, h);
+
+            // Update recent projects list (remove coverUrl field since it's now in IDB)
             const raw = safeLocalStorage.get(RECENT_PROJECTS_KEY);
             const parsed = raw ? (JSON.parse(raw) as RecentProject[]) : [];
             const normalized = parsed.map(p => ({
@@ -403,68 +416,53 @@ export default function PhotoOrganizer() {
               projectId: p.projectId || p.rootPath,
             }));
 
-            let existingProject = normalized.find(p => p.projectId === projectRootPath);
-            if (!existingProject) {
-              existingProject = normalized.find(p => p.rootPath === projectRootPath);
+            let existingIndex = normalized.findIndex(p => p.projectId === projectRootPath);
+            if (existingIndex === -1) {
+              existingIndex = normalized.findIndex(p => p.rootPath === projectRootPath);
             }
 
-            if (existingProject) {
-              // Update existing project with cover photo
-              console.log(
-                `Updating existing project cover (${w}x${h} @ ${q}):`,
-                projectRootPath,
-                smallDataUrl?.substring(0, 50) + '...',
-              );
-              updateRecentProject(projectRootPath, { coverUrl: smallDataUrl });
-            } else {
-              // Project not in recent projects yet, add it with cover photo
-              console.log(
-                `Adding new project with cover (${w}x${h} @ ${q}):`,
-                projectRootPath,
-                smallDataUrl?.substring(0, 50) + '...',
-              );
-              updateRecentProjects({
+            const updated = normalized.map((p, idx) =>
+              idx === existingIndex
+                ? {
+                    ...p,
+                    coverKey, // Reference to IDB, not base64 data
+                    lastOpened: Date.now(),
+                  }
+                : p,
+            );
+
+            // If not found, add it
+            if (existingIndex === -1) {
+              updated.unshift({
                 projectName: projectName || 'Untitled Project',
                 projectId: projectRootPath,
                 rootPath: projectFolderLabel || projectRootPath,
                 lastOpened: Date.now(),
                 totalPhotos: photos.length,
-                coverUrl: smallDataUrl,
+                coverKey,
               });
             }
 
-            // If we get here, storage succeeded
+            safeLocalStorage.set(RECENT_PROJECTS_KEY, JSON.stringify(updated.slice(0, 20)));
+            setRecentProjects(updated.slice(0, 20));
+
+            console.log(`Cover saved to IndexedDB (${usedSize}):`, projectRootPath);
             showToast('Cover photo updated.');
-            return; // Success, exit the loop
+            return; // Success!
           } catch (storageErr) {
-            if (storageErr instanceof Error && storageErr.name === 'QuotaExceededError') {
-              // Try next smaller size
-              console.warn(`Storage quota exceeded with ${w}x${h} @ ${q}, trying smaller size...`);
-              continue;
-            } else {
-              // Other error, re-throw
-              throw storageErr;
-            }
+            // Continue to next size if we hit quota or other storage error
+            console.warn(`Failed to save cover at ${w}x${h}, trying smaller size:`, storageErr);
           }
         }
 
         // If we get here, all sizes failed
-        showToast('Storage full. Unable to save cover photo.', 'error');
+        showToast('Unable to save cover photo. Storage may be unavailable.', 'error');
       } catch (err) {
         console.error('Failed to set cover photo:', err);
         showToast('Failed to set cover photo.', 'error');
       }
     },
-    [
-      photos,
-      projectRootPath,
-      projectName,
-      projectFolderLabel,
-      showToast,
-      updateRecentProjects,
-      updateRecentProject,
-      toResizedDataUrl,
-    ],
+    [photos, projectRootPath, projectName, projectFolderLabel, showToast],
   );
 
   const applyFolderMappings = useCallback((sourcePhotos: ProjectPhoto[], mappings: any[]) => {

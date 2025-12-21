@@ -13,7 +13,8 @@ export interface RecentProject {
   projectName: string;
   projectId: string;
   rootPath: string;
-  coverUrl?: string;
+  coverUrl?: string; // Legacy: base64 cover (for backward compatibility)
+  coverKey?: string; // New: IndexedDB cover reference
   totalPhotos?: number;
   lastOpened: number;
 }

@@ -11,6 +11,25 @@ vi.mock('../services/projectService', () => ({
   deleteProject: vi.fn(),
 }));
 
+// Mock coverStorageService to avoid IndexedDB in tests
+vi.mock('../utils/coverStorageService', () => ({
+  saveCover: vi.fn(async (projectId, blob) => `cover-${projectId}-${Date.now()}`),
+  getCover: vi.fn(async () => null),
+  getCoverUrl: vi.fn(async () => null),
+  deleteCover: vi.fn(async () => {}),
+  getAllCoverMetadata: vi.fn(async () => []),
+  evictOldCovers: vi.fn(async () => []),
+  clearAllCovers: vi.fn(async () => {}),
+  getCoverStorageSize: vi.fn(async () => 0),
+  migrateFromLocalStorage: vi.fn(async () => ({ migrated: 0, errors: [] })),
+}));
+
+// Mock imageProcessing to avoid Web Worker in tests
+vi.mock('../utils/imageProcessing', () => ({
+  resizeImageBlob: vi.fn(async (blob, w, h, q) => blob),
+  terminateWorker: vi.fn(),
+}));
+
 const samplePhotos = Array.from({ length: 6 }, (_, index) => {
   const id = `photo_${index + 1}`;
   return {
@@ -532,10 +551,12 @@ test('clicking Set Cover enters selection mode and clicking a photo sets cover',
   const recents = JSON.parse(recentsRaw!);
   const thisProject = recents.find((r: any) => r.projectId === 'project-1');
   expect(thisProject).toBeTruthy();
-  expect(typeof thisProject.coverUrl === 'string').toBeTruthy();
-  expect(thisProject.coverUrl.startsWith('data:image/jpeg;base64,')).toBeTruthy();
-  // Ensure resized cover is reasonably small (<= 20k chars)
-  expect(thisProject.coverUrl.length).toBeLessThan(20000);
+  // Now uses IndexedDB with coverKey reference instead of base64 coverUrl
+  expect(thisProject.coverKey || thisProject.coverUrl).toBeTruthy();
+  // If coverKey exists, it should not be a giant base64 string
+  if (thisProject.coverKey) {
+    expect(thisProject.coverKey).toMatch(/^cover-/);
+  }
   // Recent entry should not contain full project photos
   expect(thisProject.photos).toBeUndefined();
 

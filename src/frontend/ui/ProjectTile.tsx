@@ -1,10 +1,12 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
+import * as coverStorage from '../utils/coverStorageService';
 
 interface RecentProject {
   projectName: string;
   projectId: string;
   rootPath: string;
-  coverUrl?: string;
+  coverUrl?: string; // Legacy base64
+  coverKey?: string; // New IndexedDB reference
   totalPhotos?: number;
 }
 
@@ -14,6 +16,34 @@ interface ProjectTileProps {
 }
 
 export default function ProjectTile({ project, onOpen }: ProjectTileProps) {
+  const [coverUrl, setCoverUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    // Load cover from IndexedDB if coverKey exists, otherwise use legacy coverUrl
+    if (project.coverKey) {
+      coverStorage
+        .getCoverUrl(project.projectId)
+        .then(url => setCoverUrl(url))
+        .catch(err => {
+          console.warn(`Failed to load cover for ${project.projectId}:`, err);
+          // Fall back to legacy coverUrl if available
+          if (project.coverUrl) {
+            setCoverUrl(project.coverUrl);
+          }
+        });
+    } else if (project.coverUrl) {
+      // Legacy base64 cover
+      setCoverUrl(project.coverUrl);
+    }
+
+    // Cleanup: revoke object URLs on unmount
+    return () => {
+      if (coverUrl && coverUrl.startsWith('blob:')) {
+        URL.revokeObjectURL(coverUrl);
+      }
+    };
+  }, [project, project.coverKey, project.coverUrl]);
+
   return (
     <div className="relative rounded-lg overflow-hidden border border-gray-800 bg-gray-950 hover:border-blue-500 transition-colors group cursor-pointer">
       <button
@@ -22,9 +52,9 @@ export default function ProjectTile({ project, onOpen }: ProjectTileProps) {
         aria-label={`Open project ${project.projectName}`}
       >
         <div className="aspect-video overflow-hidden bg-gray-900 relative">
-          {project.coverUrl ? (
+          {coverUrl ? (
             <img
-              src={project.coverUrl}
+              src={coverUrl}
               alt={project.projectName}
               className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
             />
