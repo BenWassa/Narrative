@@ -107,31 +107,37 @@ If your project includes a `98_ARCHIVE/` folder, those files are treated as arch
 
 To create a new release:
 
-### Patch Release (1.5.5 → 1.5.6)
+### Patch Release (1.5.6 → 1.5.7)
 ```bash
 npm version patch
 node ./scripts/sync-version.js
-npm run build
+npm run lint
+npm run test
+npm run build:site
 git add .
 git commit -m "Release v$(node -p "require('./package.json').version") - [brief description]"
 git push
 ```
 
-### Minor Release (1.5.5 → 1.6.0)
+### Minor Release (1.5.6 → 1.6.0)
 ```bash
 npm version minor
 node ./scripts/sync-version.js
-npm run build
+npm run lint
+npm run test
+npm run build:site
 git add .
 git commit -m "Release v$(node -p "require('./package.json').version") - [brief description]"
 git push
 ```
 
-### Major Release (1.5.5 → 2.0.0)
+### Major Release (1.5.6 → 2.0.0)
 ```bash
 npm version major
 node ./scripts/sync-version.js
-npm run build
+npm run lint
+npm run test
+npm run build:site
 git add .
 git commit -m "Release v$(node -p "require('./package.json').version") - [brief description]"
 git push
@@ -143,7 +149,9 @@ For manual version control:
 # Edit package.json version manually
 # Then sync and build
 node ./scripts/sync-version.js
-npm run build
+npm run lint
+npm run test
+npm run build:site
 git add .
 git commit -m "Release v1.x.x - [description]"
 git push
