@@ -62,6 +62,10 @@ const DEFAULT_SETTINGS: ProjectSettings = {
     metaFolder: '_meta',
   },
 };
+const DEBUG_LOGS =
+  import.meta.env.DEV &&
+  typeof window !== 'undefined' &&
+  window.localStorage?.getItem('narrative:debug') === '1';
 
 function generateId() {
   return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
@@ -106,6 +110,16 @@ function isSupportedFile(name: string) {
   return SUPPORTED_EXT.includes(ext);
 }
 
+function shouldSkipFile(name: string) {
+  const lower = name.toLowerCase();
+  return (
+    name.startsWith('.') ||
+    name.startsWith('._') ||
+    lower === 'thumbs.db' ||
+    lower === 'desktop.ini'
+  );
+}
+
 async function collectFiles(
   dirHandle: FileSystemDirectoryHandle,
   prefix = '',
@@ -121,6 +135,7 @@ async function collectFiles(
       );
       entries.push(...nested);
     } else if (handle.kind === 'file') {
+      if (shouldSkipFile(name)) continue;
       if (!isSupportedFile(name)) continue;
       const relPath = prefix ? `${prefix}/${name}` : name;
       entries.push({ handle: handle as FileSystemFileHandle, path: relPath });
@@ -137,9 +152,6 @@ export async function heicToBlob(file: File): Promise<Blob> {
       const testBitmap = await createImageBitmap(file);
       testBitmap.close(); // Clean up
       // If we get here, the file is already browser-readable, return it as-is
-      console.log(
-        `File ${file.name} is already browser readable (${file.type}), skipping HEIC conversion`,
-      );
       return file;
     }
   } catch (testErr) {
@@ -163,7 +175,6 @@ export async function heicToBlob(file: File): Promise<Blob> {
         heicErr?.message?.includes('ERR_USER') ||
         heicErr?.code === 1
       ) {
-        console.log(`File ${file.name} is already browser readable, using original file`);
         return file;
       }
       console.warn(`heic2any conversion failed for ${file.name}:`, heicErr);
@@ -377,9 +388,11 @@ async function buildPhotosFromHandle(
 
     // Skip if we've already seen this exact file
     if (seenFiles.has(fileFingerprint)) {
-      console.debug(
-        `[ProjectService] Skipping duplicate file: ${entry.path} (matches ${originalName})`,
-      );
+      if (DEBUG_LOGS) {
+        console.debug(
+          `[ProjectService] Skipping duplicate file: ${entry.path} (matches ${originalName})`,
+        );
+      }
       continue;
     }
     seenFiles.add(fileFingerprint);
@@ -427,6 +440,13 @@ async function buildPhotosFromHandle(
   }
 
   return photos.sort((a, b) => a.timestamp - b.timestamp);
+}
+
+export async function buildPhotosFromHandleForTest(
+  dirHandle: FileSystemDirectoryHandle,
+  onProgress?: (progress: number, message: string) => void,
+): Promise<ProjectPhoto[]> {
+  return buildPhotosFromHandle(dirHandle, onProgress);
 }
 
 function clusterPhotosByTime(photos: ProjectPhoto[]) {

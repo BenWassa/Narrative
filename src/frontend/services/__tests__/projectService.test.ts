@@ -1,5 +1,5 @@
 import { describe, test, expect, vi, beforeEach } from 'vitest';
-import { heicToBlob } from '../projectService';
+import { heicToBlob, buildPhotosFromHandleForTest } from '../projectService';
 
 // Note: we'll import the function directly and stub global APIs where needed.
 
@@ -52,5 +52,80 @@ describe('HEIC preview generation', () => {
     // restore
     // @ts-ignore
     global.Image = origImage;
+  });
+});
+
+describe('Project file collection', () => {
+  beforeEach(() => {
+    vi.restoreAllMocks();
+    vi.spyOn(URL, 'createObjectURL').mockImplementation(() => 'blob:mock');
+  });
+
+  const makeFileHandle = (file: File) =>
+    ({
+      kind: 'file',
+      name: file.name,
+      async getFile() {
+        return file;
+      },
+    }) as unknown as FileSystemFileHandle;
+
+  const makeDirHandle = (name: string, children: Record<string, any>) =>
+    ({
+      kind: 'directory',
+      name,
+      async *entries() {
+        for (const [entryName, handle] of Object.entries(children)) {
+          yield [entryName, handle];
+        }
+      },
+    }) as unknown as FileSystemDirectoryHandle;
+
+  test('collects supported files, skips duplicates and system files', async () => {
+    const img1 = new File(['aaa'], 'IMG_0001.jpg', { type: 'image/jpeg', lastModified: 1000 });
+    const img1Dup = new File(['aaa'], 'IMG_0001.jpg', { type: 'image/jpeg', lastModified: 1000 });
+    const img2 = new File(['bbbb'], 'IMG_0002.jpg', { type: 'image/jpeg', lastModified: 2000 });
+    const rootImg = new File(['cc'], 'ROOT_0001.jpg', { type: 'image/jpeg', lastModified: 1500 });
+    const dsStore = new File(['x'], '.DS_Store', { type: 'application/octet-stream' });
+    const notes = new File(['note'], 'notes.txt', { type: 'text/plain' });
+
+    const day1 = makeDirHandle('Day1', {
+      'IMG_0001.jpg': makeFileHandle(img1),
+      '.DS_Store': makeFileHandle(dsStore),
+      'notes.txt': makeFileHandle(notes),
+    });
+    const day2 = makeDirHandle('Day2', {
+      'IMG_0001.jpg': makeFileHandle(img1Dup),
+      'IMG_0002.jpg': makeFileHandle(img2),
+    });
+
+    const root = makeDirHandle('root', {
+      Day1: day1,
+      Day2: day2,
+      'ROOT_0001.jpg': makeFileHandle(rootImg),
+      '.DS_Store': makeFileHandle(dsStore),
+    });
+
+    const photos = await buildPhotosFromHandleForTest(root);
+    const names = photos.map(p => p.originalName);
+    const paths = photos.map(p => p.filePath);
+
+    expect(photos).toHaveLength(3);
+    expect(names.filter(name => name === 'IMG_0001.jpg')).toHaveLength(1);
+    expect(names).toEqual(expect.arrayContaining(['IMG_0002.jpg', 'ROOT_0001.jpg']));
+    expect(paths).toEqual(
+      expect.arrayContaining(['Day1/IMG_0001.jpg', 'Day2/IMG_0002.jpg', 'ROOT_0001.jpg']),
+    );
+    expect(paths).not.toEqual(
+      expect.arrayContaining(['Day1/.DS_Store', 'Day1/notes.txt', '.DS_Store']),
+    );
+
+    const fingerprints = await Promise.all(
+      photos.map(async photo => {
+        const file = await photo.fileHandle!.getFile();
+        return `${photo.originalName}|${photo.timestamp}|${file.size}`;
+      }),
+    );
+    expect(new Set(fingerprints).size).toBe(photos.length);
   });
 });

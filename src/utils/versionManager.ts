@@ -81,21 +81,25 @@ export class VersionManager {
    */
   async fetchRuntimeVersion(): Promise<string | null> {
     try {
-      // In test environment, skip fetching to avoid URL errors
-      if (import.meta.env.MODE === 'test') {
+      // In test or dev, skip fetching to avoid noisy URL errors
+      if (import.meta.env.MODE === 'test' || import.meta.env.DEV) {
         return null;
       }
 
       const response = await fetch('/package.json');
       if (!response.ok) {
-        console.warn('Failed to fetch package.json for version check');
+        if (!import.meta.env.DEV) {
+          console.warn('Failed to fetch package.json for version check');
+        }
         return null;
       }
 
       const pkg = await response.json();
       return pkg.version || null;
     } catch (error) {
-      console.warn('Error fetching runtime version:', error);
+      if (!import.meta.env.DEV) {
+        console.warn('Error fetching runtime version:', error);
+      }
       return null;
     }
   }
@@ -139,7 +143,12 @@ export function validateVersionConsistency(): { isValid: boolean; errors: string
 }
 
 // Development helper - logs version info in development
-if (import.meta.env.DEV) {
+const DEBUG_LOGS =
+  import.meta.env.DEV &&
+  typeof window !== 'undefined' &&
+  window.localStorage?.getItem('narrative:debug') === '1';
+
+if (DEBUG_LOGS) {
   console.log('🚀 Narrative Version:', versionManager.getDisplayVersion());
 
   const validation = validateVersionConsistency();

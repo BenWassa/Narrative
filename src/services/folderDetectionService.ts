@@ -116,6 +116,13 @@ function extractDayFromFolderName(
   return null;
 }
 
+export function detectDayNumberFromFolderName(
+  folderName: string,
+  tripStart?: string,
+): number | null {
+  return extractDayFromFolderName(folderName, tripStart)?.day ?? null;
+}
+
 /**
  * Suggest a normalized folder name for a detected day
  */

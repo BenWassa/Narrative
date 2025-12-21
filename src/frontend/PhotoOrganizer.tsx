@@ -16,6 +16,7 @@ import OnboardingModal, { OnboardingState, RecentProject } from './OnboardingMod
 import StartScreen from './StartScreen';
 import LoadingModal from './ui/LoadingModal';
 import { versionManager } from '../utils/versionManager';
+import { detectDayNumberFromFolderName } from '../services/folderDetectionService';
 import {
   initProject,
   getState,
@@ -78,6 +79,8 @@ export default function PhotoOrganizer() {
   const [projectRootPath, setProjectRootPath] = useState<string | null>(null);
   const [projectFolderLabel, setProjectFolderLabel] = useState<string | null>(null);
   const [currentVersion, setCurrentVersion] = useState(versionManager.getDisplayVersion());
+  const debugEnabled =
+    import.meta.env.DEV && safeLocalStorage.get('narrative:debug') === '1';
   const [dayLabels, setDayLabels] = useState<Record<number, string>>({});
   const [editingDay, setEditingDay] = useState<number | null>(null);
   const [editingDayName, setEditingDayName] = useState('');
@@ -344,10 +347,12 @@ export default function PhotoOrganizer() {
   const applyDayContainers = useCallback(
     (sourcePhotos: ProjectPhoto[], dayContainers: string[]) => {
       // Reapply day assignments based on stored day containers
-      // Clear day assignments from photos NOT in day containers
       const containerDayMap = new Map<string, number>();
       dayContainers.forEach((container, index) => {
-        containerDayMap.set(container, index + 1); // Day 1, 2, 3, etc.
+        const detectedDay = detectDayNumberFromFolderName(container);
+        if (detectedDay != null) {
+          containerDayMap.set(container, detectedDay);
+        }
       });
 
       return sourcePhotos.map(p => {
@@ -371,9 +376,7 @@ export default function PhotoOrganizer() {
           }
         }
 
-        // If photo is not in a day container or Dnn subfolder, clear day assignment
-        // This ensures photos from OTHER folders don't keep stale day assignments
-        return { ...p, day: null };
+        return p;
       });
     },
     [],
@@ -438,12 +441,14 @@ export default function PhotoOrganizer() {
         setCurrentVersion(`v${version}`);
       } catch (error) {
         // Keep build-time version as fallback
-        console.warn('Failed to fetch runtime version:', error);
+        if (debugEnabled) {
+          console.warn('Failed to fetch runtime version:', error);
+        }
       }
     };
 
     fetchVersion();
-  }, []);
+  }, [debugEnabled]);
 
   useEffect(() => {
     try {
@@ -628,6 +633,7 @@ export default function PhotoOrganizer() {
 
   // Debug: log the current folder groupings for troubleshooting
   React.useEffect(() => {
+    if (!debugEnabled) return;
     try {
       console.group('[PhotoOrganizer] Folder & Day Diagnostics');
       console.debug(
@@ -684,36 +690,37 @@ export default function PhotoOrganizer() {
     } catch (err) {
       console.debug('[PhotoOrganizer] debug logging failed', err);
     }
-  }, [days, rootGroups, dayContainers, projectSettings, dayLabels, photos, categorizeFolder]);
+  }, [
+    debugEnabled,
+    days,
+    rootGroups,
+    dayContainers,
+    projectSettings,
+    dayLabels,
+    photos,
+    categorizeFolder,
+  ]);
 
   // Filter photos based on current view
   const filteredPhotos = React.useMemo(() => {
     switch (currentView) {
       case 'days':
         if (selectedDay !== null) {
-          // Show ONLY photos from day container folders assigned to the selected day
-          // This ensures photos from OTHER folders don't appear in day views
-          return photos.filter(p => {
-            if (p.archived || p.day !== selectedDay) return false;
-            // Check if photo is from a day container folder
-            const topFolder = (p.filePath || p.originalName || '').split('/')[0];
-            return (
-              dayContainers.includes(topFolder) ||
-              topFolder === projectSettings?.folderStructure?.daysFolder ||
-              (p.filePath || '').includes('/D')
-            );
-          });
+          return photos.filter(p => !p.archived && p.day === selectedDay);
         }
         return photos.filter(p => p.day !== null && !p.archived);
       case 'folders':
-        // When a day is selected from the Days list inside the Folders sidebar we should
-        // filter the grid to that day's photos (and loose/root photos) while remaining
-        // in the Folders workflow — this supports inline editing and confirmation of
-        // inferred days without switching context.
-        if (selectedDay !== null) {
-          return photos.filter(p => (p.day === selectedDay || p.day === null) && !p.archived);
+        if (selectedRootFolder !== null) {
+          return photos.filter(
+            p =>
+              !p.archived &&
+              ((p.filePath || p.originalName).split('/')[0] || '(root)') === selectedRootFolder,
+          );
         }
-        return photos.filter(p => !p.archived);
+        if (selectedDay !== null) {
+          return photos.filter(p => !p.archived && p.day === selectedDay);
+        }
+        return [];
       case 'root':
         if (selectedRootFolder !== null) {
           return photos.filter(
@@ -940,66 +947,68 @@ export default function PhotoOrganizer() {
           ? applyFolderMappings(initResult.photos, state.mappings)
           : applySuggestedDays(initResult.photos, initResult.suggestedDays);
 
-        // Log final folder organization for debugging
-        console.group('🎯 FINAL PHOTO ORGANIZATION');
-        const folderGroups = new Map<string, ProjectPhoto[]>();
-        hydratedPhotos.forEach(photo => {
-          const topFolder = (photo.filePath || photo.originalName || '').split('/')[0] || 'root';
-          if (!folderGroups.has(topFolder)) {
-            folderGroups.set(topFolder, []);
-          }
-          folderGroups.get(topFolder)!.push(photo);
-        });
-
-        console.log('📁 Photos by folder:');
-        folderGroups.forEach((photos, folder) => {
-          const dayCounts = new Map<number | null, number>();
-          photos.forEach(p => {
-            const day = p.day;
-            dayCounts.set(day, (dayCounts.get(day) || 0) + 1);
+        if (debugEnabled) {
+          // Log final folder organization for debugging
+          console.group('🎯 FINAL PHOTO ORGANIZATION');
+          const folderGroups = new Map<string, ProjectPhoto[]>();
+          hydratedPhotos.forEach(photo => {
+            const topFolder = (photo.filePath || photo.originalName || '').split('/')[0] || 'root';
+            if (!folderGroups.has(topFolder)) {
+              folderGroups.set(topFolder, []);
+            }
+            folderGroups.get(topFolder)!.push(photo);
           });
 
-          console.group(`📂 ${folder} (${photos.length} photos)`);
-          dayCounts.forEach((count, day) => {
-            console.log(`  Day ${day || 'null'}: ${count} photos`);
+          console.log('📁 Photos by folder:');
+          folderGroups.forEach((photos, folder) => {
+            const dayCounts = new Map<number | null, number>();
+            photos.forEach(p => {
+              const day = p.day;
+              dayCounts.set(day, (dayCounts.get(day) || 0) + 1);
+            });
+
+            console.group(`📂 ${folder} (${photos.length} photos)`);
+            dayCounts.forEach((count, day) => {
+              console.log(`  Day ${day || 'null'}: ${count} photos`);
+            });
+            console.table(
+              photos.map(p => ({
+                id: p.id,
+                fileName: p.originalName,
+                day: p.day,
+                filePath: p.filePath,
+              })),
+            );
+            console.groupEnd();
           });
-          console.table(
-            photos.map(p => ({
-              id: p.id,
-              fileName: p.originalName,
-              day: p.day,
-              filePath: p.filePath,
-            })),
-          );
+
+          // Also log by day
+          console.log('📅 Photos by day:');
+          const dayGroups = new Map<number | null, ProjectPhoto[]>();
+          hydratedPhotos.forEach(photo => {
+            const day = photo.day;
+            if (!dayGroups.has(day)) {
+              dayGroups.set(day, []);
+            }
+            dayGroups.get(day)!.push(photo);
+          });
+
+          dayGroups.forEach((photos, day) => {
+            const folderCounts = new Map<string, number>();
+            photos.forEach(p => {
+              const folder = (p.filePath || p.originalName || '').split('/')[0] || 'root';
+              folderCounts.set(folder, (folderCounts.get(folder) || 0) + 1);
+            });
+
+            console.group(`📆 Day ${day || 'null'} (${photos.length} photos)`);
+            folderCounts.forEach((count, folder) => {
+              console.log(`  ${folder}: ${count} photos`);
+            });
+            console.groupEnd();
+          });
+
           console.groupEnd();
-        });
-
-        // Also log by day
-        console.log('📅 Photos by day:');
-        const dayGroups = new Map<number | null, ProjectPhoto[]>();
-        hydratedPhotos.forEach(photo => {
-          const day = photo.day;
-          if (!dayGroups.has(day)) {
-            dayGroups.set(day, []);
-          }
-          dayGroups.get(day)!.push(photo);
-        });
-
-        dayGroups.forEach((photos, day) => {
-          const folderCounts = new Map<string, number>();
-          photos.forEach(p => {
-            const folder = (p.filePath || p.originalName || '').split('/')[0] || 'root';
-            folderCounts.set(folder, (folderCounts.get(folder) || 0) + 1);
-          });
-
-          console.group(`📆 Day ${day || 'null'} (${photos.length} photos)`);
-          folderCounts.forEach((count, folder) => {
-            console.log(`  ${folder}: ${count} photos`);
-          });
-          console.groupEnd();
-        });
-
-        console.groupEnd();
+        }
 
         setLoadingProgress(85);
         setLoadingMessage('Setting up day containers...');
@@ -1062,7 +1071,7 @@ export default function PhotoOrganizer() {
         setLoadingProgress(0);
       }
     },
-    [applyFolderMappings, applySuggestedDays, deriveProjectName, updateRecentProjects],
+    [applyFolderMappings, applySuggestedDays, deriveProjectName, updateRecentProjects, debugEnabled],
   );
 
   // Keyboard shortcuts
@@ -1850,11 +1859,13 @@ export default function PhotoOrganizer() {
               <div className="space-y-1">
                 {(() => {
                   const { selected, nonDay, dayLike } = sortFolders(displayRootGroups);
-                  console.debug('[PhotoOrganizer] Folder categorization:', {
-                    selected: selected.map(f => f.folder),
-                    nonDay: nonDay.map(f => f.folder),
-                    dayLike: dayLike.map(f => f.folder),
-                  });
+                  if (debugEnabled) {
+                    console.debug('[PhotoOrganizer] Folder categorization:', {
+                      selected: selected.map(f => f.folder),
+                      nonDay: nonDay.map(f => f.folder),
+                      dayLike: dayLike.map(f => f.folder),
+                    });
+                  }
 
                   // Show only non-day folders in Other section
                   // All day-like folders (dayLike) are now shown in the Days section
@@ -1928,7 +1939,7 @@ export default function PhotoOrganizer() {
                 const rootPhotos =
                   currentView === 'folders' && selectedRootFolder
                     ? (rootGroups.find(r => r[0] === selectedRootFolder)?.[1] || []).filter(
-                        p => selectedDay === null || p.day === selectedDay || p.day === null,
+                        p => !p.archived,
                       )
                     : null;
                 const displayPhotos = rootPhotos !== null ? rootPhotos : filteredPhotos;
