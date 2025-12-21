@@ -55,6 +55,7 @@ export async function resizeImageBlob(
   width: number,
   height: number,
   quality: number,
+  useWebP = true,
 ): Promise<Blob> {
   // Try worker first
   if (typeof Worker !== 'undefined') {
@@ -73,7 +74,7 @@ export async function resizeImageBlob(
           }, 10000);
 
           w.postMessage(
-            { id, blob, width, height, quality },
+            { id, blob, width, height, quality, useWebP },
             undefined, // transfer list will be added if needed
           );
         });
@@ -85,7 +86,7 @@ export async function resizeImageBlob(
   }
 
   // Fall back to main thread
-  return resizeImageOnMainThread(blob, width, height, quality);
+  return resizeImageOnMainThread(blob, width, height, quality, useWebP);
 }
 
 /**
@@ -96,6 +97,7 @@ async function resizeImageOnMainThread(
   width: number,
   height: number,
   quality: number,
+  useWebP = true,
 ): Promise<Blob> {
   // Try OffscreenCanvas first (more efficient)
   if (typeof OffscreenCanvas !== 'undefined') {
@@ -111,10 +113,23 @@ async function resizeImageOnMainThread(
       ctx.drawImage(imageBitmap, 0, 0, width, height);
       imageBitmap.close();
 
-      return offscreenCanvas.convertToBlob({
-        type: 'image/jpeg',
-        quality,
-      });
+      // Try WebP first, fall back to JPEG
+      try {
+        if (useWebP) {
+          return await offscreenCanvas.convertToBlob({
+            type: 'image/webp',
+            quality,
+          });
+        } else {
+          throw new Error('WebP disabled');
+        }
+      } catch (e) {
+        // Fall back to JPEG
+        return await offscreenCanvas.convertToBlob({
+          type: 'image/jpeg',
+          quality,
+        });
+      }
     } catch (err) {
       console.warn('OffscreenCanvas failed, falling back to regular canvas:', err);
       // Fall through to regular canvas

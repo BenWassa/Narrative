@@ -26,7 +26,7 @@ vi.mock('../utils/coverStorageService', () => ({
 
 // Mock imageProcessing to avoid Web Worker in tests
 vi.mock('../utils/imageProcessing', () => ({
-  resizeImageBlob: vi.fn(async (blob, w, h, q) => blob),
+  resizeImageBlob: vi.fn(async (blob, w, h, q, useWebP) => blob),
   terminateWorker: vi.fn(),
 }));
 

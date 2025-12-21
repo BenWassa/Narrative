@@ -9,6 +9,7 @@ interface ResizeRequest {
   width: number;
   height: number;
   quality: number;
+  useWebP?: boolean;
 }
 
 interface ResizeResponse {
@@ -20,12 +21,14 @@ interface ResizeResponse {
 /**
  * Resize image blob to specified dimensions and quality
  * Uses createImageBitmap which is available in Web Workers
+ * Tries WebP first for better compression, falls back to JPEG
  */
 async function resizeImage(
   blob: Blob,
   width: number,
   height: number,
   quality: number,
+  useWebP = true,
 ): Promise<Blob> {
   // Create an image bitmap from the blob
   const imageBitmap = await createImageBitmap(blob);
@@ -41,11 +44,24 @@ async function resizeImage(
   // Draw the image onto the canvas
   ctx.drawImage(imageBitmap, 0, 0, width, height);
 
-  // Convert canvas to blob with specified quality
-  const resizedBlob = await offscreenCanvas.convertToBlob({
-    type: 'image/jpeg',
-    quality,
-  });
+  // Try WebP first (better compression), fall back to JPEG
+  let resizedBlob: Blob;
+  try {
+    if (useWebP) {
+      resizedBlob = await offscreenCanvas.convertToBlob({
+        type: 'image/webp',
+        quality,
+      });
+    } else {
+      throw new Error('WebP disabled');
+    }
+  } catch (e) {
+    // Fall back to JPEG
+    resizedBlob = await offscreenCanvas.convertToBlob({
+      type: 'image/jpeg',
+      quality,
+    });
+  }
 
   // Clean up the bitmap
   imageBitmap.close();
@@ -57,10 +73,10 @@ async function resizeImage(
  * Handle messages from the main thread
  */
 self.onmessage = async (event: MessageEvent<ResizeRequest>) => {
-  const { id, blob, width, height, quality } = event.data;
+  const { id, blob, width, height, quality, useWebP = true } = event.data;
 
   try {
-    const resizedBlob = await resizeImage(blob, width, height, quality);
+    const resizedBlob = await resizeImage(blob, width, height, quality, useWebP);
     self.postMessage({ id, blob: resizedBlob } as ResizeResponse);
   } catch (error) {
     self.postMessage({

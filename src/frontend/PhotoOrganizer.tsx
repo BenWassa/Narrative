@@ -373,18 +373,19 @@ export default function PhotoOrganizer() {
 
       try {
         // Resize options - try progressively smaller sizes
+        // Improved quality (0.65 WebP, 0.6 JPEG fallback) over size
         const resizeOptions = [
-          { w: 120, h: 90, q: 0.2 }, // Default
-          { w: 100, h: 75, q: 0.15 }, // Smaller
-          { w: 80, h: 60, q: 0.1 }, // Even smaller
-          { w: 60, h: 45, q: 0.05 }, // Minimal
+          { w: 64, h: 48, q: 0.65, useWebP: true }, // WebP preferred
+          { w: 56, h: 42, q: 0.65, useWebP: true }, // Smaller, WebP
+          { w: 48, h: 36, q: 0.6, useWebP: true }, // Even smaller, WebP
+          { w: 40, h: 30, q: 0.6, useWebP: false }, // Minimal, JPEG fallback
         ];
 
         let coverBlob: Blob | undefined;
         let usedSize = '';
 
         // Try to create and store cover with each size option until one works
-        for (const { w, h, q } of resizeOptions) {
+        for (const { w, h, q, useWebP } of resizeOptions) {
           try {
             // Get the source blob
             let sourceBlob: Blob;
@@ -399,7 +400,7 @@ export default function PhotoOrganizer() {
             }
 
             // Resize using Web Worker (or main thread fallback)
-            coverBlob = await resizeImageBlob(sourceBlob, w, h, q);
+            coverBlob = await resizeImageBlob(sourceBlob, w, h, q, useWebP);
             usedSize = `${w}x${h} @ ${Math.round(q * 100)}%`;
 
             // Evict old covers if needed (keep max 10)
