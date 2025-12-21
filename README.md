@@ -108,10 +108,13 @@ If your project includes a `98_ARCHIVE/` folder, those files are treated as arch
 To create a new release:
 
 ### Patch Release (1.5.6 → 1.5.7)
+
 ```bash
 npm version patch
 node ./scripts/sync-version.js
 npm run lint
+npm run format    # Fix any formatting issues
+npm run lint      # Verify formatting is correct
 npm run test
 npm run build:site
 git add .
@@ -120,10 +123,13 @@ git push
 ```
 
 ### Minor Release (1.5.6 → 1.6.0)
+
 ```bash
 npm version minor
 node ./scripts/sync-version.js
 npm run lint
+npm run format    # Fix any formatting issues
+npm run lint      # Verify formatting is correct
 npm run test
 npm run build:site
 git add .
@@ -132,10 +138,13 @@ git push
 ```
 
 ### Major Release (1.5.6 → 2.0.0)
+
 ```bash
 npm version major
 node ./scripts/sync-version.js
 npm run lint
+npm run format    # Fix any formatting issues
+npm run lint      # Verify formatting is correct
 npm run test
 npm run build:site
 git add .
@@ -150,6 +159,8 @@ For manual version control:
 # Then sync and build
 node ./scripts/sync-version.js
 npm run lint
+npm run format    # Fix any formatting issues
+npm run lint      # Verify formatting is correct
 npm run test
 npm run build:site
 git add .
