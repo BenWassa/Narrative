@@ -311,6 +311,7 @@ export default function PhotoOrganizer() {
           showToast('Storage limit reached. Removed older covers.', 'info');
         } catch (retryErr) {
           showToast('Storage full. Cover photo could not be saved.', 'error');
+          throw retryErr; // Re-throw so caller can handle progressive sizing
         }
       } else {
         // Notify user — storage may be full or unavailable and cover won't persist
