@@ -8,7 +8,8 @@ if (!fs.existsSync(assetsDir)) {
 }
 
 const entries = fs.readdirSync(assetsDir);
+const cleanPattern = /^(index|heic2any)-.*\.(js|css|map)$/;
 entries.forEach(entry => {
-  if (!/^index-.*\.(js|css|map)$/.test(entry)) return;
+  if (!cleanPattern.test(entry)) return;
   fs.unlinkSync(path.join(assetsDir, entry));
 });
