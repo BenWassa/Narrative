@@ -6,11 +6,11 @@
 // Build-time injected version from package.json
 declare const __APP_VERSION__: string;
 
-// Version constants
-export const APP_VERSION = __APP_VERSION__;
+// Version constants (internal use only)
+const APP_VERSION = __APP_VERSION__;
 
-// Version validation and utilities
-export class VersionManager {
+// Version validation and utilities (internal class)
+class VersionManager {
   private static instance: VersionManager;
   private version: string;
 
@@ -117,8 +117,8 @@ export class VersionManager {
 // Export singleton instance
 export const versionManager = VersionManager.getInstance();
 
-// Validation function that can be called at runtime
-export function validateVersionConsistency(): { isValid: boolean; errors: string[] } {
+// Validation function that can be called at runtime (internal use only)
+function validateVersionConsistency(): { isValid: boolean; errors: string[] } {
   const errors: string[] = [];
 
   // Check if version is defined
