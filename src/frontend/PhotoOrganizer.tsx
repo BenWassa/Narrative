@@ -372,92 +372,67 @@ export default function PhotoOrganizer() {
       }
 
       try {
-        // Resize options - prioritize quality over size
-        // Full quality (1.0 WebP, 1.0 JPEG) for best visual appearance
-        const resizeOptions = [
-          { w: 200, h: 150, q: 1.0, useWebP: true }, // Full quality WebP
-          { w: 160, h: 120, q: 1.0, useWebP: true }, // Slightly smaller, WebP
-          { w: 120, h: 90, q: 1.0, useWebP: true }, // Fallback size, WebP
-          { w: 80, h: 60, q: 1.0, useWebP: false }, // Last resort, JPEG
-        ];
-
-        let coverBlob: Blob | undefined;
-        let usedSize = '';
-
-        // Try to create and store cover with each size option until one works
-        for (const { w, h, q, useWebP } of resizeOptions) {
-          try {
-            // Get the source blob
-            let sourceBlob: Blob;
-            if (selectedPhoto.fileHandle) {
-              sourceBlob = await selectedPhoto.fileHandle.getFile();
-            } else if (selectedPhoto.thumbnail) {
-              const response = await fetch(selectedPhoto.thumbnail);
-              sourceBlob = await response.blob();
-            } else {
-              showToast('Cannot create cover from this photo.', 'error');
-              return;
-            }
-
-            // Resize using Web Worker (or main thread fallback)
-            coverBlob = await resizeImageBlob(sourceBlob, w, h, q, useWebP);
-            usedSize = `${w}x${h} @ ${Math.round(q * 100)}%`;
-
-            // Evict old covers if needed (keep max 10)
-            await coverStorage.evictOldCovers(10);
-
-            // Save to IndexedDB
-            const coverKey = await coverStorage.saveCover(projectRootPath, coverBlob, w, h);
-
-            // Update recent projects list (remove coverUrl field since it's now in IDB)
-            const raw = safeLocalStorage.get(RECENT_PROJECTS_KEY);
-            const parsed = raw ? (JSON.parse(raw) as RecentProject[]) : [];
-            const normalized = parsed.map(p => ({
-              ...p,
-              projectId: p.projectId || p.rootPath,
-            }));
-
-            let existingIndex = normalized.findIndex(p => p.projectId === projectRootPath);
-            if (existingIndex === -1) {
-              existingIndex = normalized.findIndex(p => p.rootPath === projectRootPath);
-            }
-
-            const updated = normalized.map((p, idx) =>
-              idx === existingIndex
-                ? {
-                    ...p,
-                    coverKey, // Reference to IDB, not base64 data
-                    lastOpened: Date.now(),
-                  }
-                : p,
-            );
-
-            // If not found, add it
-            if (existingIndex === -1) {
-              updated.unshift({
-                projectName: projectName || 'Untitled Project',
-                projectId: projectRootPath,
-                rootPath: projectFolderLabel || projectRootPath,
-                lastOpened: Date.now(),
-                totalPhotos: photos.length,
-                coverKey,
-              });
-            }
-
-            safeLocalStorage.set(RECENT_PROJECTS_KEY, JSON.stringify(updated.slice(0, 20)));
-            setRecentProjects(updated.slice(0, 20));
-
-            console.log(`Cover saved to IndexedDB (${usedSize}):`, projectRootPath);
-            showToast('Cover photo updated.');
-            return; // Success!
-          } catch (storageErr) {
-            // Continue to next size if we hit quota or other storage error
-            console.warn(`Failed to save cover at ${w}x${h}, trying smaller size:`, storageErr);
-          }
+        // Store original photo without any resizing or conversion
+        let sourceBlob: Blob;
+        if (selectedPhoto.fileHandle) {
+          sourceBlob = await selectedPhoto.fileHandle.getFile();
+        } else if (selectedPhoto.thumbnail) {
+          const response = await fetch(selectedPhoto.thumbnail);
+          sourceBlob = await response.blob();
+        } else {
+          showToast('Cannot create cover from this photo.', 'error');
+          return;
         }
 
-        // If we get here, all sizes failed
-        showToast('Unable to save cover photo. Storage may be unavailable.', 'error');
+        const coverBlob = sourceBlob;
+        const usedSize = `original (${(coverBlob.size / 1024).toFixed(1)}KB)`;
+
+        // Evict old covers if needed (keep max 10)
+        await coverStorage.evictOldCovers(10);
+
+        // Save to IndexedDB
+        const coverKey = await coverStorage.saveCover(projectRootPath, coverBlob, 0, 0);
+
+        // Update recent projects list (remove coverUrl field since it's now in IDB)
+        const raw = safeLocalStorage.get(RECENT_PROJECTS_KEY);
+        const parsed = raw ? (JSON.parse(raw) as RecentProject[]) : [];
+        const normalized = parsed.map(p => ({
+          ...p,
+          projectId: p.projectId || p.rootPath,
+        }));
+
+        let existingIndex = normalized.findIndex(p => p.projectId === projectRootPath);
+        if (existingIndex === -1) {
+          existingIndex = normalized.findIndex(p => p.rootPath === projectRootPath);
+        }
+
+        const updated = normalized.map((p, idx) =>
+          idx === existingIndex
+            ? {
+                ...p,
+                coverKey, // Reference to IDB, not base64 data
+                lastOpened: Date.now(),
+              }
+            : p,
+        );
+
+        // If not found, add it
+        if (existingIndex === -1) {
+          updated.unshift({
+            projectName: projectName || 'Untitled Project',
+            projectId: projectRootPath,
+            rootPath: projectFolderLabel || projectRootPath,
+            lastOpened: Date.now(),
+            totalPhotos: photos.length,
+            coverKey,
+          });
+        }
+
+        safeLocalStorage.set(RECENT_PROJECTS_KEY, JSON.stringify(updated.slice(0, 20)));
+        setRecentProjects(updated.slice(0, 20));
+
+        console.log(`Cover saved to IndexedDB (${usedSize}):`, projectRootPath);
+        showToast('Cover photo updated.');
       } catch (err) {
         console.error('Failed to set cover photo:', err);
         showToast('Failed to set cover photo.', 'error');
