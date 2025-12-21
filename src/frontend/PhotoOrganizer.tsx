@@ -217,7 +217,27 @@ export default function PhotoOrganizer() {
       safeLocalStorage.set(RECENT_PROJECTS_KEY, JSON.stringify(next));
       setRecentProjects(next);
     } catch (err) {
-      // Ignore storage errors
+      if (err instanceof Error && err.name === 'QuotaExceededError') {
+        // Try to make room by keeping only the most recent 5 projects
+        try {
+          const trimmed = [merged, ...filtered.slice(0, 4)]; // Keep only 5 total
+          safeLocalStorage.set(RECENT_PROJECTS_KEY, JSON.stringify(trimmed));
+          setRecentProjects(trimmed);
+          showToast('Storage full. Kept only recent projects.', 'error');
+        } catch (trimErr) {
+          // If still failing, clear all recent projects
+          try {
+            safeLocalStorage.remove(RECENT_PROJECTS_KEY);
+            setRecentProjects([]);
+            showToast('Storage full. Cleared recent projects to free space.', 'error');
+          } catch (clearErr) {
+            showToast('Storage full. Unable to save project data.', 'error');
+          }
+        }
+      } else {
+        // Notify user — storage may be full or unavailable and cover won't persist
+        showToast('Failed to persist recent project updates. Changes may not be saved.', 'error');
+      }
     }
   }, []);
 
@@ -241,10 +261,16 @@ export default function PhotoOrganizer() {
         next[projectIndex] = { ...next[projectIndex], ...updates };
         safeLocalStorage.set(RECENT_PROJECTS_KEY, JSON.stringify(next));
         setRecentProjects(next);
+      } else {
+        console.warn('Project not found for update:', projectId);
       }
     } catch (err) {
-      // Notify user — storage may be full or unavailable and cover won't persist
-      showToast('Failed to persist recent project updates. Changes may not be saved.', 'error');
+      if (err instanceof Error && err.name === 'QuotaExceededError') {
+        showToast('Storage full. Cover photo could not be saved.', 'error');
+      } else {
+        // Notify user — storage may be full or unavailable and cover won't persist
+        showToast('Failed to persist recent project updates. Changes may not be saved.', 'error');
+      }
     }
   }, []);
 
@@ -286,7 +312,7 @@ export default function PhotoOrganizer() {
 
     const selectedId = Array.from(selectedPhotos)[0];
     await setCoverForPhotoId(selectedId);
-  }, [photos, projectRootPath, selectedPhotos, showToast, updateRecentProject]);
+  }, [photos, projectRootPath, selectedPhotos, showToast]);
 
   const setCoverForPhotoId = useCallback(
     async (photoId: string) => {
@@ -300,43 +326,78 @@ export default function PhotoOrganizer() {
       try {
         // Use a smaller/resized cover for the main menu (recents) to avoid storing
         // very large base64 strings in localStorage and the global JS heap.
-        const COVER_MAX_W = 320;
-        const COVER_MAX_H = 240;
-        const COVER_QUALITY = 0.5;
+        const COVER_MAX_W = 200;
+        const COVER_MAX_H = 150;
+        const COVER_QUALITY = 0.3;
+
+        let smallDataUrl: string;
 
         if (selectedPhoto.fileHandle) {
           const file = await selectedPhoto.fileHandle.getFile();
-          const smallDataUrl = await toResizedDataUrl(
-            file,
-            COVER_MAX_W,
-            COVER_MAX_H,
-            COVER_QUALITY,
-          );
-          updateRecentProject(projectRootPath, { coverUrl: smallDataUrl });
-          showToast('Cover photo updated.');
-          return;
-        }
-
-        if (selectedPhoto.thumbnail) {
+          smallDataUrl = await toResizedDataUrl(file, COVER_MAX_W, COVER_MAX_H, COVER_QUALITY);
+        } else if (selectedPhoto.thumbnail) {
           const response = await fetch(selectedPhoto.thumbnail);
           const blob = await response.blob();
-          const smallDataUrl = await toResizedDataUrl(
-            blob,
-            COVER_MAX_W,
-            COVER_MAX_H,
-            COVER_QUALITY,
-          );
-          updateRecentProject(projectRootPath, { coverUrl: smallDataUrl });
-          showToast('Cover photo updated.');
+          smallDataUrl = await toResizedDataUrl(blob, COVER_MAX_W, COVER_MAX_H, COVER_QUALITY);
+        } else {
+          showToast('Cannot create cover from this photo.', 'error');
           return;
         }
 
-        showToast('Cover photo could not be created for this selection.', 'error');
+        // Check if project is already in recent projects
+        const raw = safeLocalStorage.get(RECENT_PROJECTS_KEY);
+        const parsed = raw ? (JSON.parse(raw) as RecentProject[]) : [];
+        const normalized = parsed.map(p => ({
+          ...p,
+          projectId: p.projectId || p.rootPath,
+        }));
+
+        let existingProject = normalized.find(p => p.projectId === projectRootPath);
+        if (!existingProject) {
+          existingProject = normalized.find(p => p.rootPath === projectRootPath);
+        }
+
+        if (existingProject) {
+          // Update existing project with cover photo
+          console.log(
+            'Updating existing project cover:',
+            projectRootPath,
+            smallDataUrl?.substring(0, 50) + '...',
+          );
+          updateRecentProject(projectRootPath, { coverUrl: smallDataUrl });
+        } else {
+          // Project not in recent projects yet, add it with cover photo
+          console.log(
+            'Adding new project with cover:',
+            projectRootPath,
+            smallDataUrl?.substring(0, 50) + '...',
+          );
+          updateRecentProjects({
+            projectName: projectName || 'Untitled Project',
+            projectId: projectRootPath,
+            rootPath: projectFolderLabel || projectRootPath,
+            lastOpened: Date.now(),
+            totalPhotos: photos.length,
+            coverUrl: smallDataUrl,
+          });
+        }
+
+        showToast('Cover photo updated.');
       } catch (err) {
+        console.error('Failed to set cover photo:', err);
         showToast('Failed to set cover photo.', 'error');
       }
     },
-    [photos, projectRootPath, toResizedDataUrl, showToast, updateRecentProject],
+    [
+      photos,
+      projectRootPath,
+      projectName,
+      projectFolderLabel,
+      showToast,
+      updateRecentProjects,
+      updateRecentProject,
+      toResizedDataUrl,
+    ],
   );
 
   const applyFolderMappings = useCallback((sourcePhotos: ProjectPhoto[], mappings: any[]) => {
@@ -524,6 +585,10 @@ export default function PhotoOrganizer() {
             safeLocalStorage.set(RECENT_PROJECTS_KEY, JSON.stringify(deduped));
           }
 
+          console.log(
+            'Loaded recent projects:',
+            deduped.map(p => ({ id: p.projectId, cover: p.coverUrl ? 'has cover' : 'no cover' })),
+          );
           setRecentProjects(deduped);
         } catch (err) {
           // Bad JSON — reset recents
