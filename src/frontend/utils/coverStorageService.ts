@@ -9,7 +9,7 @@ const DB_VERSION = 1;
 const COVER_STORE = 'covers';
 const METADATA_STORE = 'metadata';
 
-export interface CoverMetadata {
+interface CoverMetadata {
   projectId: string;
   coverKey: string;
   lastUsed: number; // timestamp for LRU eviction
