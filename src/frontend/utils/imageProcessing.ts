@@ -143,13 +143,3 @@ async function resizeImageOnMainThread(
     reader.readAsDataURL(blob);
   });
 }
-
-/**
- * Terminate the image resizer worker (cleanup)
- */
-export function terminateWorker(): void {
-  if (worker) {
-    worker.terminate();
-    worker = null;
-  }
-}
