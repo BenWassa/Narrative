@@ -77,12 +77,13 @@ class VersionManager {
   }
 
   /**
-   * Fetch current version from package.json at runtime (for all environments)
+   * Fetch current version from package.json at runtime (for development environments only)
    */
   async fetchRuntimeVersion(): Promise<string | null> {
     try {
-      // In test or dev, skip fetching to avoid noisy URL errors
-      if (import.meta.env.MODE === 'test' || import.meta.env.DEV) {
+      // Only attempt runtime version fetching in development environments
+      // where package.json is actually available at the root path
+      if (import.meta.env.MODE === 'test' || import.meta.env.DEV || import.meta.env.PROD) {
         return null;
       }
 
@@ -105,12 +106,12 @@ class VersionManager {
   }
 
   /**
-   * Get the most current version available (runtime check first, then build-time fallback)
+   * Get the most current version available (build-time version only for static deployments)
    */
   async getCurrentVersion(): Promise<string> {
-    // Always try to get runtime version first for most up-to-date version
-    const runtimeVersion = await this.fetchRuntimeVersion();
-    return runtimeVersion || this.version;
+    // For static deployments, we only have the build-time version
+    // Runtime version checking is disabled to avoid 404 errors
+    return this.version;
   }
 }
 
