@@ -194,9 +194,25 @@ export default function PhotoOrganizer() {
     try {
       const raw = safeLocalStorage.get(RECENT_PROJECTS_KEY);
       const parsed = raw ? (JSON.parse(raw) as RecentProject[]) : [];
-      const existing = parsed.find(p => p.projectId === project.projectId) || {};
+
+      // Normalize all projects first to handle legacy data
+      const normalized = parsed.map(p => ({
+        ...p,
+        projectId: p.projectId || p.rootPath,
+      }));
+
+      // Find existing project by ID or rootPath
+      let existingIndex = normalized.findIndex(p => p.projectId === project.projectId);
+      if (existingIndex === -1) {
+        existingIndex = normalized.findIndex(p => p.rootPath === project.rootPath);
+      }
+
+      const existing = existingIndex !== -1 ? normalized[existingIndex] : {};
       const merged = { ...existing, ...project } as RecentProject;
-      const filtered = parsed.filter(p => p.projectId !== project.projectId);
+
+      // Filter out the existing one (using index is safest)
+      const filtered = normalized.filter((_, index) => index !== existingIndex);
+
       const next = [merged, ...filtered].slice(0, 20);
       safeLocalStorage.set(RECENT_PROJECTS_KEY, JSON.stringify(next));
       setRecentProjects(next);
@@ -493,7 +509,22 @@ export default function PhotoOrganizer() {
                 projectId: project.projectId || project.rootPath,
               }))
             : [];
-          setRecentProjects(normalized);
+
+          // Deduplicate by projectId to clean up any legacy duplicates
+          const uniqueProjects = new Map();
+          normalized.forEach(p => {
+            if (p.projectId && !uniqueProjects.has(p.projectId)) {
+              uniqueProjects.set(p.projectId, p);
+            }
+          });
+          const deduped = Array.from(uniqueProjects.values());
+
+          // Write back cleaned data if we found duplicates or normalized anything
+          if (JSON.stringify(deduped) !== JSON.stringify(parsed)) {
+            safeLocalStorage.set(RECENT_PROJECTS_KEY, JSON.stringify(deduped));
+          }
+
+          setRecentProjects(deduped);
         } catch (err) {
           // Bad JSON — reset recents
           // eslint-disable-next-line no-console
