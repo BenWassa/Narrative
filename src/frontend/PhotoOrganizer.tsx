@@ -218,20 +218,47 @@ export default function PhotoOrganizer() {
       setRecentProjects(next);
     } catch (err) {
       if (err instanceof Error && err.name === 'QuotaExceededError') {
-        // Try to make room by keeping only the most recent 5 projects
+        // Storage full - try progressively more aggressive cleanup strategies
         try {
-          const trimmed = [merged, ...filtered.slice(0, 4)]; // Keep only 5 total
-          safeLocalStorage.set(RECENT_PROJECTS_KEY, JSON.stringify(trimmed));
-          setRecentProjects(trimmed);
-          showToast('Storage full. Kept only recent projects.', 'error');
-        } catch (trimErr) {
-          // If still failing, clear all recent projects
+          // Strategy 1: Remove cover photos from all but the 3 most recent projects
+          const withLimitedCovers = [merged, ...filtered]
+            .map((p, idx) => {
+              if (idx >= 3 && p.coverUrl) {
+                const { coverUrl, ...rest } = p;
+                return rest;
+              }
+              return p;
+            })
+            .slice(0, 20);
+          safeLocalStorage.set(RECENT_PROJECTS_KEY, JSON.stringify(withLimitedCovers));
+          setRecentProjects(withLimitedCovers);
+          showToast('Storage limit reached. Kept covers for 3 most recent projects.', 'info');
+        } catch (retryErr) {
+          // Strategy 2: Keep only 10 projects with no cover photos except current
           try {
-            safeLocalStorage.remove(RECENT_PROJECTS_KEY);
-            setRecentProjects([]);
-            showToast('Storage full. Cleared recent projects to free space.', 'error');
-          } catch (clearErr) {
-            showToast('Storage full. Unable to save project data.', 'error');
+            const minimalProjects = [merged, ...filtered.slice(0, 9)].map((p, idx) => {
+              if (idx > 0 && p.coverUrl) {
+                const { coverUrl, ...rest } = p;
+                return rest;
+              }
+              return p;
+            });
+            safeLocalStorage.set(RECENT_PROJECTS_KEY, JSON.stringify(minimalProjects));
+            setRecentProjects(minimalProjects);
+            showToast('Storage critically low. Removed older project covers.', 'error');
+          } catch (finalErr) {
+            // Strategy 3: Clear all and start fresh with just current project
+            try {
+              const currentOnly = [{ ...merged, coverUrl: undefined }];
+              safeLocalStorage.set(RECENT_PROJECTS_KEY, JSON.stringify(currentOnly));
+              setRecentProjects(currentOnly);
+              showToast('Storage full. Reset to current project only.', 'error');
+            } catch (clearErr) {
+              // Last resort: clear everything
+              safeLocalStorage.remove(RECENT_PROJECTS_KEY);
+              setRecentProjects([]);
+              showToast('Storage exhausted. Unable to save projects.', 'error');
+            }
           }
         }
       } else {
@@ -266,7 +293,25 @@ export default function PhotoOrganizer() {
       }
     } catch (err) {
       if (err instanceof Error && err.name === 'QuotaExceededError') {
-        showToast('Storage full. Cover photo could not be saved.', 'error');
+        // Try removing cover photos from older projects to make room
+        try {
+          const cleaned = normalized.map((p, idx) => {
+            // Keep cover for current project and 2 most recent
+            if (idx > 2 && p.coverUrl) {
+              const { coverUrl, ...rest } = p;
+              return rest;
+            }
+            return p;
+          });
+          if (projectIndex !== -1) {
+            cleaned[projectIndex] = { ...cleaned[projectIndex], ...updates };
+          }
+          safeLocalStorage.set(RECENT_PROJECTS_KEY, JSON.stringify(cleaned));
+          setRecentProjects(cleaned);
+          showToast('Storage limit reached. Removed older covers.', 'info');
+        } catch (retryErr) {
+          showToast('Storage full. Cover photo could not be saved.', 'error');
+        }
       } else {
         // Notify user — storage may be full or unavailable and cover won't persist
         showToast('Failed to persist recent project updates. Changes may not be saved.', 'error');
@@ -326,9 +371,9 @@ export default function PhotoOrganizer() {
       try {
         // Use a smaller/resized cover for the main menu (recents) to avoid storing
         // very large base64 strings in localStorage and the global JS heap.
-        const COVER_MAX_W = 200;
-        const COVER_MAX_H = 150;
-        const COVER_QUALITY = 0.3;
+        const COVER_MAX_W = 120;
+        const COVER_MAX_H = 90;
+        const COVER_QUALITY = 0.2;
 
         let smallDataUrl: string;
 
