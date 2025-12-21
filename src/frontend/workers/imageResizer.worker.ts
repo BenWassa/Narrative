@@ -19,6 +19,7 @@ interface ResizeResponse {
 
 /**
  * Resize image blob to specified dimensions and quality
+ * Uses createImageBitmap which is available in Web Workers
  */
 async function resizeImage(
   blob: Blob,
@@ -26,51 +27,30 @@ async function resizeImage(
   height: number,
   quality: number,
 ): Promise<Blob> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
+  // Create an image bitmap from the blob
+  const imageBitmap = await createImageBitmap(blob);
 
-    reader.onload = event => {
-      const img = new Image();
+  // Create an offscreen canvas
+  const offscreenCanvas = new OffscreenCanvas(width, height);
+  const ctx = offscreenCanvas.getContext('2d');
 
-      img.onload = () => {
-        const canvas = document.createElement('canvas');
-        canvas.width = width;
-        canvas.height = height;
+  if (!ctx) {
+    throw new Error('Failed to get canvas context');
+  }
 
-        const ctx = canvas.getContext('2d');
-        if (!ctx) {
-          reject(new Error('Failed to get canvas context'));
-          return;
-        }
+  // Draw the image onto the canvas
+  ctx.drawImage(imageBitmap, 0, 0, width, height);
 
-        ctx.drawImage(img, 0, 0, width, height);
-
-        canvas.toBlob(
-          resizedBlob => {
-            if (resizedBlob) {
-              resolve(resizedBlob);
-            } else {
-              reject(new Error('Failed to create blob from canvas'));
-            }
-          },
-          'image/jpeg',
-          quality,
-        );
-      };
-
-      img.onerror = () => {
-        reject(new Error('Failed to load image'));
-      };
-
-      img.src = event.target?.result as string;
-    };
-
-    reader.onerror = () => {
-      reject(new Error('Failed to read blob'));
-    };
-
-    reader.readAsDataURL(blob);
+  // Convert canvas to blob with specified quality
+  const resizedBlob = await offscreenCanvas.convertToBlob({
+    type: 'image/jpeg',
+    quality,
   });
+
+  // Clean up the bitmap
+  imageBitmap.close();
+
+  return resizedBlob;
 }
 
 /**

@@ -97,6 +97,31 @@ async function resizeImageOnMainThread(
   height: number,
   quality: number,
 ): Promise<Blob> {
+  // Try OffscreenCanvas first (more efficient)
+  if (typeof OffscreenCanvas !== 'undefined') {
+    try {
+      const imageBitmap = await createImageBitmap(blob);
+      const offscreenCanvas = new OffscreenCanvas(width, height);
+      const ctx = offscreenCanvas.getContext('2d');
+
+      if (!ctx) {
+        throw new Error('Failed to get canvas context');
+      }
+
+      ctx.drawImage(imageBitmap, 0, 0, width, height);
+      imageBitmap.close();
+
+      return offscreenCanvas.convertToBlob({
+        type: 'image/jpeg',
+        quality,
+      });
+    } catch (err) {
+      console.warn('OffscreenCanvas failed, falling back to regular canvas:', err);
+      // Fall through to regular canvas
+    }
+  }
+
+  // Fall back to regular canvas (for older browsers)
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
 
