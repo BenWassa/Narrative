@@ -369,65 +369,86 @@ export default function PhotoOrganizer() {
       }
 
       try {
-        // Use a smaller/resized cover for the main menu (recents) to avoid storing
-        // very large base64 strings in localStorage and the global JS heap.
-        const COVER_MAX_W = 120;
-        const COVER_MAX_H = 90;
-        const COVER_QUALITY = 0.2;
+        // Progressive cover sizing: try smaller sizes if storage quota exceeded
+        const coverOptions = [
+          { w: 120, h: 90, q: 0.2 }, // Default
+          { w: 100, h: 75, q: 0.15 }, // Smaller
+          { w: 80, h: 60, q: 0.1 }, // Even smaller
+          { w: 60, h: 45, q: 0.05 }, // Minimal
+        ];
 
-        let smallDataUrl: string;
+        let smallDataUrl: string | undefined;
 
-        if (selectedPhoto.fileHandle) {
-          const file = await selectedPhoto.fileHandle.getFile();
-          smallDataUrl = await toResizedDataUrl(file, COVER_MAX_W, COVER_MAX_H, COVER_QUALITY);
-        } else if (selectedPhoto.thumbnail) {
-          const response = await fetch(selectedPhoto.thumbnail);
-          const blob = await response.blob();
-          smallDataUrl = await toResizedDataUrl(blob, COVER_MAX_W, COVER_MAX_H, COVER_QUALITY);
-        } else {
-          showToast('Cannot create cover from this photo.', 'error');
-          return;
+        // Try to create cover with each size option until one works
+        for (const { w, h, q } of coverOptions) {
+          try {
+            if (selectedPhoto.fileHandle) {
+              const file = await selectedPhoto.fileHandle.getFile();
+              smallDataUrl = await toResizedDataUrl(file, w, h, q);
+            } else if (selectedPhoto.thumbnail) {
+              const response = await fetch(selectedPhoto.thumbnail);
+              const blob = await response.blob();
+              smallDataUrl = await toResizedDataUrl(blob, w, h, q);
+            } else {
+              showToast('Cannot create cover from this photo.', 'error');
+              return;
+            }
+
+            // Check if project is already in recent projects
+            const raw = safeLocalStorage.get(RECENT_PROJECTS_KEY);
+            const parsed = raw ? (JSON.parse(raw) as RecentProject[]) : [];
+            const normalized = parsed.map(p => ({
+              ...p,
+              projectId: p.projectId || p.rootPath,
+            }));
+
+            let existingProject = normalized.find(p => p.projectId === projectRootPath);
+            if (!existingProject) {
+              existingProject = normalized.find(p => p.rootPath === projectRootPath);
+            }
+
+            if (existingProject) {
+              // Update existing project with cover photo
+              console.log(
+                `Updating existing project cover (${w}x${h} @ ${q}):`,
+                projectRootPath,
+                smallDataUrl?.substring(0, 50) + '...',
+              );
+              updateRecentProject(projectRootPath, { coverUrl: smallDataUrl });
+            } else {
+              // Project not in recent projects yet, add it with cover photo
+              console.log(
+                `Adding new project with cover (${w}x${h} @ ${q}):`,
+                projectRootPath,
+                smallDataUrl?.substring(0, 50) + '...',
+              );
+              updateRecentProjects({
+                projectName: projectName || 'Untitled Project',
+                projectId: projectRootPath,
+                rootPath: projectFolderLabel || projectRootPath,
+                lastOpened: Date.now(),
+                totalPhotos: photos.length,
+                coverUrl: smallDataUrl,
+              });
+            }
+
+            // If we get here, storage succeeded
+            showToast('Cover photo updated.');
+            return; // Success, exit the loop
+          } catch (storageErr) {
+            if (storageErr instanceof Error && storageErr.name === 'QuotaExceededError') {
+              // Try next smaller size
+              console.warn(`Storage quota exceeded with ${w}x${h} @ ${q}, trying smaller size...`);
+              continue;
+            } else {
+              // Other error, re-throw
+              throw storageErr;
+            }
+          }
         }
 
-        // Check if project is already in recent projects
-        const raw = safeLocalStorage.get(RECENT_PROJECTS_KEY);
-        const parsed = raw ? (JSON.parse(raw) as RecentProject[]) : [];
-        const normalized = parsed.map(p => ({
-          ...p,
-          projectId: p.projectId || p.rootPath,
-        }));
-
-        let existingProject = normalized.find(p => p.projectId === projectRootPath);
-        if (!existingProject) {
-          existingProject = normalized.find(p => p.rootPath === projectRootPath);
-        }
-
-        if (existingProject) {
-          // Update existing project with cover photo
-          console.log(
-            'Updating existing project cover:',
-            projectRootPath,
-            smallDataUrl?.substring(0, 50) + '...',
-          );
-          updateRecentProject(projectRootPath, { coverUrl: smallDataUrl });
-        } else {
-          // Project not in recent projects yet, add it with cover photo
-          console.log(
-            'Adding new project with cover:',
-            projectRootPath,
-            smallDataUrl?.substring(0, 50) + '...',
-          );
-          updateRecentProjects({
-            projectName: projectName || 'Untitled Project',
-            projectId: projectRootPath,
-            rootPath: projectFolderLabel || projectRootPath,
-            lastOpened: Date.now(),
-            totalPhotos: photos.length,
-            coverUrl: smallDataUrl,
-          });
-        }
-
-        showToast('Cover photo updated.');
+        // If we get here, all sizes failed
+        showToast('Storage full. Unable to save cover photo.', 'error');
       } catch (err) {
         console.error('Failed to set cover photo:', err);
         showToast('Failed to set cover photo.', 'error');
