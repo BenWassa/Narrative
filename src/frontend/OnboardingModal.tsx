@@ -114,15 +114,29 @@ export default function OnboardingModal({
       setError('Please choose a folder');
       return;
     }
+
+    // Check if this folder is already in recent projects
+    const folderPath = rootPath.trim() || dirHandle.name;
+    const duplicateProject = recentProjects.find(
+      p => p.rootPath.toLowerCase() === folderPath.toLowerCase(),
+    );
+
+    if (duplicateProject) {
+      setError(
+        `This folder is already being used by project "${duplicateProject.projectName}". Opening the same folder twice could cause conflicts. Open the existing project instead or choose a different folder.`,
+      );
+      return;
+    }
+
     setError(null);
     onComplete({
       projectName: projectName.trim(),
-      rootPath: rootPath.trim() || dirHandle.name,
+      rootPath: folderPath,
       dirHandle,
       mappings,
     });
     onClose();
-  }, [dirHandle, mappings, onClose, onComplete, projectName, rootPath]);
+  }, [dirHandle, mappings, onClose, onComplete, projectName, rootPath, recentProjects]);
 
   if (!isOpen) return null;
 
