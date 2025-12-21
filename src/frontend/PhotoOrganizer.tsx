@@ -79,8 +79,7 @@ export default function PhotoOrganizer() {
   const [projectRootPath, setProjectRootPath] = useState<string | null>(null);
   const [projectFolderLabel, setProjectFolderLabel] = useState<string | null>(null);
   const [currentVersion, setCurrentVersion] = useState(versionManager.getDisplayVersion());
-  const debugEnabled =
-    import.meta.env.DEV && safeLocalStorage.get('narrative:debug') === '1';
+  const debugEnabled = import.meta.env.DEV && safeLocalStorage.get('narrative:debug') === '1';
   const [dayLabels, setDayLabels] = useState<Record<number, string>>({});
   const [editingDay, setEditingDay] = useState<number | null>(null);
   const [editingDayName, setEditingDayName] = useState('');
@@ -1071,7 +1070,13 @@ export default function PhotoOrganizer() {
         setLoadingProgress(0);
       }
     },
-    [applyFolderMappings, applySuggestedDays, deriveProjectName, updateRecentProjects, debugEnabled],
+    [
+      applyFolderMappings,
+      applySuggestedDays,
+      deriveProjectName,
+      updateRecentProjects,
+      debugEnabled,
+    ],
   );
 
   // Keyboard shortcuts

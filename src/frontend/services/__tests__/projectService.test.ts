@@ -68,7 +68,7 @@ describe('Project file collection', () => {
       async getFile() {
         return file;
       },
-    }) as unknown as FileSystemFileHandle;
+    } as unknown as FileSystemFileHandle);
 
   const makeDirHandle = (name: string, children: Record<string, any>) =>
     ({
@@ -79,7 +79,7 @@ describe('Project file collection', () => {
           yield [entryName, handle];
         }
       },
-    }) as unknown as FileSystemDirectoryHandle;
+    } as unknown as FileSystemDirectoryHandle);
 
   test('collects supported files, skips duplicates and system files', async () => {
     const img1 = new File(['aaa'], 'IMG_0001.jpg', { type: 'image/jpeg', lastModified: 1000 });

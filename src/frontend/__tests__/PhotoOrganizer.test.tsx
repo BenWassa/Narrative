@@ -25,7 +25,7 @@ const samplePhotos = Array.from({ length: 6 }, (_, index) => {
     rating: 0,
     archived: false,
     thumbnail: `https://picsum.photos/seed/${index + 1}/400/300`,
-    filePath: index < 4 ? `FolderA/IMG_${1000 + index}.jpg` : `FolderB/IMG_${1000 + index}.jpg`,
+    filePath: index < 4 ? `Day 1/IMG_${1000 + index}.jpg` : `Day 2/IMG_${1000 + index}.jpg`,
   };
 });
 
@@ -34,7 +34,7 @@ const sampleState = {
   rootPath: '/path/to/trip',
   photos: samplePhotos,
   dayLabels: { 1: 'Day 01', 2: 'Day 02' },
-  dayContainers: ['FolderA', 'FolderB'], // FolderA is Day 1, FolderB is Day 2
+  dayContainers: ['Day 1', 'Day 2'], // Day 1 container, Day 2 container
   settings: {
     autoDay: true,
     folderStructure: {
@@ -88,7 +88,7 @@ test('shift-click selects a contiguous range', async () => {
   const projectButton = await screen.findByRole('button', { name: /Test Trip/i });
   fireEvent.click(projectButton);
 
-  // FolderA is auto-detected as day-like and appears in Days section as "Day 01"
+  // Day 1 is auto-detected as day-like and appears in Days section as "Day 01"
   const day01 = await screen.findByText('Day 01');
   fireEvent.click(day01);
 
@@ -121,7 +121,7 @@ test('renames a day label and export script uses it', async () => {
 
   const save = await screen.findByLabelText(/Save day name/i);
   fireEvent.click(save);
-  // FolderA is now displayed as "Beach" in Days section since we renamed Day 01 to "Beach"
+  // Day 1 is now displayed as "Beach" in Days section since we renamed Day 01 to "Beach"
   const dayButton = await screen.findByText(/Beach/i);
   fireEvent.click(dayButton);
   const first = await screen.findByTestId('photo-photo_3');
@@ -146,7 +146,7 @@ test('root view groups by top-level folder and opens group', async () => {
   const foldersTab2 = await screen.findByRole('button', { name: /Folders/i });
   fireEvent.click(foldersTab2);
 
-  // Days should be listed first in the sidebar (FolderA is auto-detected as day-like and shown as "Day 01")
+  // Days should be listed first in the sidebar (Day 1 is auto-detected as day-like and shown as "Day 01")
   const dayHeading = await screen.findByText(/Day 01/i);
   expect(dayHeading).toBeTruthy();
 
@@ -184,7 +184,7 @@ test('folders list shows only day-related folders (filters out non-day folders)'
   const projectButton = await screen.findByRole('button', { name: /Test Trip/i });
   fireEvent.click(projectButton);
 
-  // FolderA (day-like) should appear in Days section as "Day 01", FolderC (non-day) should appear in Other
+  // Day 1 (day-like) should appear in Days section as "Day 01", FolderC (non-day) should appear in Other
   const dayLabel = await screen.findByText('Day 01');
   expect(dayLabel).toBeTruthy();
   const otherHeader = await screen.findByText('Other');
@@ -273,7 +273,7 @@ test('folders shows days container when day subfolders exist even if photos are 
   const projectButton = await screen.findByRole('button', { name: /Test Trip/i });
   fireEvent.click(projectButton);
 
-  // Days section should show configured days (FolderA and FolderB are auto-detected as day-like)
+  // Days section should show configured days (Day 1 and Day 2 are auto-detected as day-like)
   const daysSection = await screen.findByText('Days');
   expect(daysSection).toBeTruthy();
 
@@ -379,7 +379,7 @@ test('folder quick actions: select all and assign folder to day', async () => {
   const foldersTab3 = await screen.findByRole('button', { name: /Folders/i });
   fireEvent.click(foldersTab3);
 
-  // FolderA is now shown in Days section as "Day 01"
+  // Day 1 is now shown in Days section as "Day 01"
   const day01 = await screen.findByText('Day 01');
   fireEvent.click(day01);
   const imgsInFolder = await screen.findAllByRole('img');
