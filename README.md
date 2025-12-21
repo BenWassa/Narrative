@@ -97,9 +97,10 @@ If your project includes a `98_ARCHIVE/` folder, those files are treated as arch
 ## Scripts
 
 - `npm run dev`: Start the Vite dev server.
-- `npm run build`: Lint, test, and build into `docs/`.
+- `npm run build`: Format, lint, test, and build into `docs/`.
 - `npm run test`: Run the Vitest suite.
 - `npm run format`: Format source and docs.
+- `npm run lint`: Check formatting (prettier --check).
 
 ---
 
@@ -112,11 +113,7 @@ To create a new release:
 ```bash
 npm version patch
 node ./scripts/sync-version.js
-npm run lint
-npm run format    # Fix any formatting issues
-npm run lint      # Verify formatting is correct
-npm run test
-npm run build:site
+npm run build
 git add .
 git commit -m "Release v$(node -p "require('./package.json').version") - [brief description]"
 git push
@@ -127,11 +124,7 @@ git push
 ```bash
 npm version minor
 node ./scripts/sync-version.js
-npm run lint
-npm run format    # Fix any formatting issues
-npm run lint      # Verify formatting is correct
-npm run test
-npm run build:site
+npm run build
 git add .
 git commit -m "Release v$(node -p "require('./package.json').version") - [brief description]"
 git push
@@ -142,11 +135,7 @@ git push
 ```bash
 npm version major
 node ./scripts/sync-version.js
-npm run lint
-npm run format    # Fix any formatting issues
-npm run lint      # Verify formatting is correct
-npm run test
-npm run build:site
+npm run build
 git add .
 git commit -m "Release v$(node -p "require('./package.json').version") - [brief description]"
 git push
@@ -158,11 +147,7 @@ For manual version control:
 # Edit package.json version manually
 # Then sync and build
 node ./scripts/sync-version.js
-npm run lint
-npm run format    # Fix any formatting issues
-npm run lint      # Verify formatting is correct
-npm run test
-npm run build:site
+npm run build
 git add .
 git commit -m "Release v1.x.x - [description]"
 git push
