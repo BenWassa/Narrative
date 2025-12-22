@@ -2748,23 +2748,25 @@ export default function PhotoOrganizer() {
         </div>
       )}
 
-      {/* Onboarding Modal */}
-      <StartScreen
-        isOpen={showWelcome}
-        onClose={() => {
-          if (!projectRootPath) return;
-          setShowWelcome(false);
-          safeLocalStorage.set(ACTIVE_PROJECT_KEY, projectRootPath);
-        }}
-        onCreateComplete={handleOnboardingComplete}
-        onOpenProject={rootPath => {
-          setProjectError(null);
-          loadProject(rootPath);
-        }}
-        recentProjects={recentProjects}
-        canClose={Boolean(projectRootPath)}
-        errorMessage={projectError}
-      />
+      {/* StartScreen - only show when welcome screen is active */}
+      {showWelcome && (
+        <StartScreen
+          isOpen={showWelcome}
+          onClose={() => {
+            if (!projectRootPath) return;
+            setShowWelcome(false);
+            safeLocalStorage.set(ACTIVE_PROJECT_KEY, projectRootPath);
+          }}
+          onCreateComplete={handleOnboardingComplete}
+          onOpenProject={rootPath => {
+            setProjectError(null);
+            loadProject(rootPath);
+          }}
+          recentProjects={recentProjects}
+          canClose={Boolean(projectRootPath)}
+          errorMessage={projectError}
+        />
+      )}
       <OnboardingModal
         isOpen={showOnboarding}
         onClose={() => setShowOnboarding(false)}

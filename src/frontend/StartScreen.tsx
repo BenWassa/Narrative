@@ -42,7 +42,9 @@ export default function StartScreen({
   }, []);
 
   // Check if required APIs are available (skip in test environment)
-  const isTest = import.meta.env.VITEST;
+  const isTest =
+    typeof globalThis !== 'undefined' &&
+    (globalThis.vitest || globalThis.__APP_VERSION__ === '0.0.0');
   const hasFileSystemAPI = 'showDirectoryPicker' in window;
   const hasIndexedDB = 'indexedDB' in window;
 
