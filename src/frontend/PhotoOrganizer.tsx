@@ -17,6 +17,7 @@ import { Pencil, Save, X as XIcon } from 'lucide-react';
 import OnboardingModal, { OnboardingState, RecentProject } from './OnboardingModal';
 import StartScreen from './StartScreen';
 import LoadingModal from './ui/LoadingModal';
+import { PhotoViewer } from './ui/PhotoViewer';
 import { versionManager } from '../utils/versionManager';
 import { detectDayNumberFromFolderName } from '../services/folderDetectionService';
 import {
@@ -99,6 +100,10 @@ export default function PhotoOrganizer() {
   const [exportCopyStatus, setExportCopyStatus] = useState<'idle' | 'copied' | 'failed'>('idle');
   const [toast, setToast] = useState<{ message: string; tone: 'info' | 'error' } | null>(null);
   const [coverSelectionMode, setCoverSelectionMode] = useState(false);
+  const [viewMode, setViewMode] = useState<'gallery' | 'inspect'>(() => {
+    const saved = safeLocalStorage.get('narrative:viewMode');
+    return (saved as 'gallery' | 'inspect') || 'gallery';
+  });
   const toastTimerRef = useRef<number | null>(null);
   const foldersViewStateRef = useRef<{
     selectedRootFolder: string | null;
@@ -652,6 +657,11 @@ export default function PhotoOrganizer() {
       setShowWelcome(true);
     }
   }, [loadProject]);
+
+  // Persist viewMode to localStorage
+  useEffect(() => {
+    safeLocalStorage.set('narrative:viewMode', viewMode);
+  }, [viewMode]);
 
   // Get days from photos
   const days = React.useMemo(() => {
@@ -1748,6 +1758,33 @@ export default function PhotoOrganizer() {
               </button>
             ))}
           </div>
+
+          {/* View Mode Toggle */}
+          {filteredPhotos.length > 0 && (
+            <div className="flex gap-2 px-6 pb-3">
+              <button
+                onClick={() => setViewMode('gallery')}
+                className={`px-3 py-1.5 rounded text-sm font-medium transition-colors ${
+                  viewMode === 'gallery'
+                    ? 'bg-blue-600 text-white'
+                    : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
+                }`}
+              >
+                Gallery
+              </button>
+              <button
+                onClick={() => setViewMode('inspect')}
+                className={`px-3 py-1.5 rounded text-sm font-medium transition-colors ${
+                  viewMode === 'inspect'
+                    ? 'bg-blue-600 text-white'
+                    : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
+                }`}
+              >
+                Inspect
+              </button>
+            </div>
+          )}
+
           {projectError && (
             <div className="mx-6 mb-3 rounded-lg border border-red-800 bg-red-950/60 px-4 py-3 text-sm text-red-200">
               {projectError}
@@ -2128,6 +2165,52 @@ export default function PhotoOrganizer() {
                   );
                 }
 
+                // Inspect Mode
+                if (viewMode === 'inspect' && focusedPhoto) {
+                  const focusedPhotoData = displayPhotos.find(p => p.id === focusedPhoto);
+                  if (focusedPhotoData) {
+                    return (
+                      <PhotoViewer
+                        photo={focusedPhotoData}
+                        filteredPhotos={displayPhotos}
+                        onClose={() => setViewMode('gallery')}
+                        onNavigate={photoId => {
+                          setFocusedPhoto(photoId);
+                          setSelectedPhotos(new Set([photoId]));
+                        }}
+                        onToggleFavorite={photoId => {
+                          setPhotos(prev =>
+                            prev.map(p => (p.id === photoId ? { ...p, favorite: !p.favorite } : p)),
+                          );
+                          persistState(
+                            photos.map(p =>
+                              p.id === photoId ? { ...p, favorite: !p.favorite } : p,
+                            ),
+                          );
+                        }}
+                        onAssignBucket={(photoId, bucket) => {
+                          const finalBucket = bucket === '' ? null : bucket;
+                          setPhotos(prev =>
+                            prev.map(p => (p.id === photoId ? { ...p, bucket: finalBucket } : p)),
+                          );
+                          persistState(
+                            photos.map(p => (p.id === photoId ? { ...p, bucket: finalBucket } : p)),
+                          );
+                        }}
+                        onAssignDay={(photoId, day) => {
+                          setPhotos(prev => prev.map(p => (p.id === photoId ? { ...p, day } : p)));
+                          persistState(photos.map(p => (p.id === photoId ? { ...p, day } : p)));
+                        }}
+                        selectedBucket={focusedPhotoData.bucket}
+                        selectedDay={focusedPhotoData.day}
+                        buckets={MECE_BUCKETS}
+                        dayLabels={dayLabels}
+                      />
+                    );
+                  }
+                }
+
+                // Gallery Mode
                 return (
                   <div className="grid grid-cols-4 gap-4">
                     {displayPhotos.map((photo, idx) => (
@@ -2135,9 +2218,9 @@ export default function PhotoOrganizer() {
                         key={photo.id}
                         onClick={e => handleSelectPhoto(e, photo.id, idx)}
                         onDoubleClick={() => {
-                          setFullscreenPhoto(photo.id);
-                          setSelectedPhotos(new Set([photo.id]));
+                          setViewMode('inspect');
                           setFocusedPhoto(photo.id);
+                          setSelectedPhotos(new Set([photo.id]));
                         }}
                         data-testid={`photo-${photo.id}`}
                         className={`relative group cursor-pointer rounded-lg overflow-hidden transition-all ${
