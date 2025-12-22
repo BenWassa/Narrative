@@ -88,7 +88,7 @@ async function openHandleDb(): Promise<IDBDatabase> {
   });
 }
 
-async function saveHandle(projectId: string, handle: FileSystemDirectoryHandle) {
+export async function saveHandle(projectId: string, handle: FileSystemDirectoryHandle) {
   const db = await openHandleDb();
   return new Promise<void>((resolve, reject) => {
     const tx = db.transaction(HANDLE_STORE, 'readwrite');
@@ -98,13 +98,23 @@ async function saveHandle(projectId: string, handle: FileSystemDirectoryHandle) 
   });
 }
 
-async function getHandle(projectId: string): Promise<FileSystemDirectoryHandle | null> {
+export async function getHandle(projectId: string): Promise<FileSystemDirectoryHandle | null> {
   const db = await openHandleDb();
   return new Promise((resolve, reject) => {
     const tx = db.transaction(HANDLE_STORE, 'readonly');
     const req = tx.objectStore(HANDLE_STORE).get(projectId);
     req.onsuccess = () => resolve((req.result as FileSystemDirectoryHandle) || null);
     req.onerror = () => reject(req.error);
+  });
+}
+
+async function removeHandle(projectId: string): Promise<void> {
+  const db = await openHandleDb();
+  return new Promise<void>((resolve, reject) => {
+    const tx = db.transaction(HANDLE_STORE, 'readwrite');
+    tx.objectStore(HANDLE_STORE).delete(projectId);
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
   });
 }
 
@@ -366,7 +376,7 @@ export async function heicToBlob(file: File): Promise<Blob> {
   }
 }
 
-async function buildPhotosFromHandle(
+export async function buildPhotosFromHandle(
   dirHandle: FileSystemDirectoryHandle,
   onProgress?: (progress: number, message: string) => void,
 ): Promise<ProjectPhoto[]> {
@@ -601,12 +611,12 @@ export async function getState(projectId: string): Promise<ProjectState> {
   try {
     permission = await handle.requestPermission({ mode: 'read' });
   } catch (err) {
-    // If requestPermission throws, it could be because:
-    // 1. The handle is stale/invalid
-    // 2. Some other API error
-    console.warn('Permission request failed:', err);
+    // If requestPermission throws, the handle is likely stale/invalid
+    // Remove the invalid handle so user can reselect
+    console.warn('Permission request failed, removing stale handle:', err);
+    await removeHandle(projectId);
     throw new Error(
-      'Unable to access project folder. The folder may have been moved or permission revoked. Please reselect the folder.',
+      'Project folder access has expired. Please click the project again to reselect the folder.',
     );
   }
   if (permission !== 'granted') {

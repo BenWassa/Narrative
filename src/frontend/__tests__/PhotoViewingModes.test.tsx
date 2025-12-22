@@ -9,6 +9,8 @@ vi.mock('../services/projectService', () => ({
   getState: vi.fn(),
   saveState: vi.fn(),
   deleteProject: vi.fn(),
+  buildPhotosFromHandle: vi.fn(),
+  saveHandle: vi.fn(),
 }));
 
 beforeEach(() => {

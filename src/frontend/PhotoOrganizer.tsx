@@ -28,6 +28,9 @@ import {
   ProjectPhoto,
   ProjectSettings,
   ProjectState,
+  buildPhotosFromHandle,
+  saveHandle,
+  getHandle,
 } from './services/projectService';
 
 const MECE_BUCKETS = [
@@ -93,6 +96,7 @@ export default function PhotoOrganizer() {
   const [showProjectMenu, setShowProjectMenu] = useState(false);
   const [projectError, setProjectError] = useState<string | null>(null);
   const [permissionRetryProjectId, setPermissionRetryProjectId] = useState<string | null>(null);
+  const [projectNeedingReselection, setProjectNeedingReselection] = useState<string | null>(null);
   const [loadingProject, setLoadingProject] = useState(false);
   const [loadingProgress, setLoadingProgress] = useState(0);
   const [loadingMessage, setLoadingMessage] = useState('Loading project...');
@@ -1162,12 +1166,25 @@ export default function PhotoOrganizer() {
   // folder-level quick actions removed: selection and bulk assign are handled via contextual selection
 
   const handleOnboardingComplete = useCallback(
-    async (state: OnboardingState) => {
+    async (state: OnboardingState, reselectionProjectId?: string | null) => {
       setLoadingProject(true);
       setLoadingProgress(0);
       setLoadingMessage('Initializing project...');
       setProjectError(null);
       try {
+        if (reselectionProjectId) {
+          // For reselection, just save the new handle
+          setLoadingProgress(25);
+          setLoadingMessage('Saving folder access...');
+          await saveHandle(reselectionProjectId, state.dirHandle);
+
+          setLoadingProgress(50);
+          setLoadingMessage('Loading project...');
+          loadProject(reselectionProjectId);
+          return;
+        }
+
+        // For new project creation
         setLoadingProgress(5);
         setLoadingMessage('Requesting folder access...');
         const initResult = await initProject({
@@ -1253,20 +1270,77 @@ export default function PhotoOrganizer() {
           console.groupEnd();
         }
 
-        setLoadingProgress(85);
-        setLoadingMessage('Setting up day containers...');
         const selectedDayContainers = (state.mappings || [])
           .filter((m: any) => !m.skip)
           .map((m: any) => m.folder);
         const nextProjectName = state.projectName?.trim() || deriveProjectName(state.rootPath);
-        const nextProjectId = initResult.projectId;
-        const nextState: ProjectState = {
-          projectName: nextProjectName,
-          rootPath: state.rootPath || state.dirHandle.name,
-          photos: hydratedPhotos,
-          settings: DEFAULT_SETTINGS,
-          dayContainers: selectedDayContainers,
-        };
+
+        let nextProjectId: string;
+        let nextState: ProjectState;
+
+        if (reselectionProjectId) {
+          // For reselection, use existing project ID and load existing state
+          nextProjectId = reselectionProjectId;
+          setLoadingProgress(80);
+          setLoadingMessage('Loading existing project data...');
+
+          // Load existing project state
+          const raw = safeLocalStorage.get(`${STATE_PREFIX}${reselectionProjectId}`);
+          const existingState = raw ? JSON.parse(raw) : {};
+
+          // Rebuild photos from new handle
+          const freshPhotos = await buildPhotosFromHandle(state.dirHandle);
+
+          // Apply existing edits to fresh photos
+          let photos = freshPhotos;
+          if (existingState.edits) {
+            const cachedEdits = new Map<string, any>();
+            existingState.edits.forEach((edit: any) => {
+              if (edit?.filePath) cachedEdits.set(edit.filePath, edit);
+            });
+
+            photos = freshPhotos.map(photo => {
+              const cached = photo.filePath ? cachedEdits.get(photo.filePath) : null;
+              if (cached) {
+                return {
+                  ...photo,
+                  day: cached.day,
+                  bucket: cached.bucket,
+                  sequence: cached.sequence,
+                  favorite: cached.favorite,
+                  rating: cached.rating,
+                  archived: cached.archived,
+                  currentName: cached.currentName,
+                };
+              }
+              return photo;
+            });
+          }
+
+          nextState = {
+            projectName: existingState.projectName || nextProjectName,
+            rootPath: state.rootPath || state.dirHandle.name,
+            photos,
+            settings: existingState.settings || DEFAULT_SETTINGS,
+            dayContainers: existingState.dayContainers || selectedDayContainers,
+            dayLabels: existingState.dayLabels,
+            lastModified: Date.now(),
+          };
+        } else {
+          // For new project, use initProject result
+          nextProjectId = initResult.projectId;
+          const hydratedPhotos = state.mappings?.length
+            ? applyFolderMappings(initResult.photos, state.mappings)
+            : applySuggestedDays(initResult.photos, initResult.suggestedDays);
+
+          nextState = {
+            projectName: nextProjectName,
+            rootPath: state.rootPath || state.dirHandle.name,
+            photos: hydratedPhotos,
+            settings: DEFAULT_SETTINGS,
+            dayContainers: selectedDayContainers,
+          };
+        }
 
         setLoadingProgress(90);
         setLoadingMessage('Saving project state...');
@@ -2764,7 +2838,7 @@ export default function PhotoOrganizer() {
             safeLocalStorage.set(ACTIVE_PROJECT_KEY, projectRootPath);
           }}
           onCreateComplete={handleOnboardingComplete}
-          onOpenProject={rootPath => {
+          onOpenProject={async rootPath => {
             setProjectError(null);
             // Check if File System API is available before attempting to load (skip in test environment)
             const isTest =
@@ -2776,7 +2850,29 @@ export default function PhotoOrganizer() {
               );
               return;
             }
-            loadProject(rootPath);
+
+            // In test environment, always try to load directly
+            if (isTest) {
+              loadProject(rootPath);
+              return;
+            }
+
+            // Check if project has a valid handle
+            try {
+              const handle = await getHandle(rootPath);
+              if (!handle) {
+                // No handle found, need to reselect folder
+                setProjectNeedingReselection(rootPath);
+                setShowOnboarding(true);
+                return;
+              }
+              // Handle exists, try to load the project
+              loadProject(rootPath);
+            } catch (err) {
+              // Error checking handle, try to reselect folder
+              setProjectNeedingReselection(rootPath);
+              setShowOnboarding(true);
+            }
           }}
           recentProjects={recentProjects}
           canClose={Boolean(projectRootPath)}
@@ -2785,11 +2881,16 @@ export default function PhotoOrganizer() {
       )}
       <OnboardingModal
         isOpen={showOnboarding}
-        onClose={() => setShowOnboarding(false)}
-        onComplete={handleOnboardingComplete}
+        onClose={() => {
+          setShowOnboarding(false);
+          setProjectNeedingReselection(null);
+        }}
+        onComplete={state => handleOnboardingComplete(state, projectNeedingReselection)}
         recentProjects={recentProjects}
         onSelectRecent={rootPath => {
           setProjectError(null);
+          setProjectNeedingReselection(null);
+          setShowOnboarding(false);
           loadProject(rootPath);
         }}
       />
