@@ -72,6 +72,9 @@ function generateId() {
 }
 
 async function openHandleDb(): Promise<IDBDatabase> {
+  if (!window.indexedDB) {
+    throw new Error('IndexedDB is not available in this environment.');
+  }
   return new Promise((resolve, reject) => {
     const req = indexedDB.open(HANDLE_DB, 1);
     req.onupgradeneeded = () => {
@@ -534,7 +537,12 @@ export async function initProject(options: {
   onProgress?: (progress: number, message: string) => void;
 }): Promise<ProjectInitResponse> {
   const { dirHandle, projectName, rootLabel, onProgress } = options;
-  const permission = await dirHandle.requestPermission({ mode: 'read' });
+  let permission;
+  try {
+    permission = await dirHandle.requestPermission({ mode: 'read' });
+  } catch (err) {
+    throw new Error('File System Access API is not available or supported in this environment.');
+  }
   if (permission !== 'granted') {
     throw new Error('Folder access was not granted.');
   }
@@ -576,7 +584,12 @@ export async function getState(projectId: string): Promise<ProjectState> {
   if (!handle) {
     throw new Error('Project folder access not available. Please reselect the folder.');
   }
-  const permission = await handle.requestPermission({ mode: 'read' });
+  let permission;
+  try {
+    permission = await handle.requestPermission({ mode: 'read' });
+  } catch (err) {
+    throw new Error('File System Access API is not available or supported in this environment.');
+  }
   if (permission !== 'granted') {
     throw new Error('Folder access was not granted.');
   }
