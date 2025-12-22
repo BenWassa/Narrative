@@ -229,10 +229,14 @@ export const PhotoViewer: React.FC<PhotoViewerProps> = ({
                 {buckets.map(bucket => (
                   <button
                     key={bucket.key}
-                    onClick={() => {
+                    onClick={(e) => {
                       // Toggle bucket if already selected, otherwise set it
                       const newBucket = currentPhoto.bucket === bucket.key ? null : bucket.key;
                       onAssignBucket(currentPhoto.id, newBucket || '');
+                      // Auto-advance to next photo if Shift is held
+                      if (e.shiftKey) {
+                        handleNavigate('next');
+                      }
                     }}
                     className={`w-full px-3 py-2 rounded text-sm text-left transition-colors ${
                       currentPhoto.bucket === bucket.key

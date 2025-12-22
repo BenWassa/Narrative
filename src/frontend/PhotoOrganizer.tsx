@@ -2173,7 +2173,14 @@ export default function PhotoOrganizer() {
                       <PhotoViewer
                         photo={focusedPhotoData}
                         filteredPhotos={displayPhotos}
-                        onClose={() => setViewMode('gallery')}
+                        onClose={() => {
+                          setViewMode('gallery');
+                          // Validate that focusedPhoto still exists in current view
+                          if (focusedPhoto && !displayPhotos.find(p => p.id === focusedPhoto)) {
+                            setFocusedPhoto(null);
+                            setSelectedPhotos(new Set());
+                          }
+                        }}
                         onNavigate={photoId => {
                           setFocusedPhoto(photoId);
                           setSelectedPhotos(new Set([photoId]));
@@ -2189,13 +2196,35 @@ export default function PhotoOrganizer() {
                           );
                         }}
                         onAssignBucket={(photoId, bucket) => {
-                          const finalBucket = bucket === '' ? null : bucket;
-                          setPhotos(prev =>
-                            prev.map(p => (p.id === photoId ? { ...p, bucket: finalBucket } : p)),
-                          );
-                          persistState(
-                            photos.map(p => (p.id === photoId ? { ...p, bucket: finalBucket } : p)),
-                          );
+                          // If archiving the focused photo, calculate next photo before state update
+                          let nextPhotoId = null;
+                          if (bucket === 'X' && focusedPhoto === photoId) {
+                            const currentIndex = displayPhotos.findIndex(p => p.id === photoId);
+                            if (currentIndex !== -1) {
+                              // Try next photo first
+                              if (currentIndex < displayPhotos.length - 1) {
+                                nextPhotoId = displayPhotos[currentIndex + 1].id;
+                              }
+                              // If no next photo, try previous
+                              else if (currentIndex > 0) {
+                                nextPhotoId = displayPhotos[currentIndex - 1].id;
+                              }
+                              // If no photos remain, exit Inspect mode
+                              else {
+                                setViewMode('gallery');
+                                setFocusedPhoto(null);
+                                return;
+                              }
+                            }
+                          }
+                          
+                          assignBucket(photoId, bucket);
+                          
+                          // Navigate to next photo if we calculated one
+                          if (nextPhotoId) {
+                            setFocusedPhoto(nextPhotoId);
+                            setSelectedPhotos(new Set([nextPhotoId]));
+                          }
                         }}
                         onAssignDay={(photoId, day) => {
                           setPhotos(prev => prev.map(p => (p.id === photoId ? { ...p, day } : p)));
