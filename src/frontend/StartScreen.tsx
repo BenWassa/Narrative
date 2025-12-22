@@ -41,7 +41,32 @@ export default function StartScreen({
     fetchVersion();
   }, []);
 
-  if (!isOpen) return null;
+  // Check if required APIs are available (skip in test environment)
+  const isTest = import.meta.env.VITEST;
+  const hasFileSystemAPI = 'showDirectoryPicker' in window;
+  const hasIndexedDB = 'indexedDB' in window;
+
+  if (!isTest && (!hasFileSystemAPI || !hasIndexedDB)) {
+    return (
+      <div className="h-screen bg-gray-950 text-gray-100 flex items-center justify-center">
+        <div className="max-w-md mx-auto text-center p-6">
+          <div className="text-red-400 text-6xl mb-4">⚠️</div>
+          <h1 className="text-2xl font-bold mb-4">Browser Not Supported</h1>
+          <p className="text-gray-400 mb-4">
+            This app requires a modern browser with support for the File System Access API and
+            IndexedDB.
+          </p>
+          <div className="text-sm text-gray-500 space-y-1">
+            {!hasFileSystemAPI && <div>• File System Access API not available</div>}
+            {!hasIndexedDB && <div>• IndexedDB not available</div>}
+          </div>
+          <p className="text-gray-400 text-sm mt-4">
+            Please use a recent version of Chrome, Edge, or another supported browser.
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="h-screen bg-gray-950 text-gray-100 flex flex-col">
