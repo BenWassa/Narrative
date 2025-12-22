@@ -708,11 +708,12 @@ export default function PhotoOrganizer() {
     }
 
     const activeProjectId = safeLocalStorage.get(ACTIVE_PROJECT_KEY);
-    if (activeProjectId) {
+    const isTest = typeof globalThis !== 'undefined' && (globalThis.vitest || globalThis.__APP_VERSION__ === '0.0.0');
+    if (activeProjectId && (isTest || 'showDirectoryPicker' in window)) {
       loadProject(activeProjectId, { addRecent: false });
       setShowWelcome(false);
     } else {
-      // Show the main menu when there is no active project
+      // Show the main menu when there is no active project or File System API is not available
       setShowWelcome(true);
     }
   }, [loadProject]);
@@ -2763,6 +2764,12 @@ export default function PhotoOrganizer() {
           onCreateComplete={handleOnboardingComplete}
           onOpenProject={rootPath => {
             setProjectError(null);
+            // Check if File System API is available before attempting to load (skip in test environment)
+            const isTest = typeof globalThis !== 'undefined' && (globalThis.vitest || globalThis.__APP_VERSION__ === '0.0.0');
+            if (!isTest && !('showDirectoryPicker' in window)) {
+              setProjectError('This app requires the File System Access API, which is not available in this browser environment. Please use a compatible browser like Chrome or Edge.');
+              return;
+            }
             loadProject(rootPath);
           }}
           recentProjects={recentProjects}
