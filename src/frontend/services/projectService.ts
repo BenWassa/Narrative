@@ -605,7 +605,9 @@ export async function getState(projectId: string): Promise<ProjectState> {
     // 1. The handle is stale/invalid
     // 2. Some other API error
     console.warn('Permission request failed:', err);
-    throw new Error('Unable to access project folder. The folder may have been moved or permission revoked. Please reselect the folder.');
+    throw new Error(
+      'Unable to access project folder. The folder may have been moved or permission revoked. Please reselect the folder.',
+    );
   }
   if (permission !== 'granted') {
     throw new Error('Folder access was not granted. Please allow access to continue.');
