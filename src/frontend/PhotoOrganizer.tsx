@@ -2751,8 +2751,8 @@ export default function PhotoOrganizer() {
             <div className="px-5 py-4 space-y-3">
               <p className="text-sm text-gray-400">
                 Copy these commands and run them in your terminal from the project root directory.
-                They create organized day folders and copy your photos with the current bucket naming.
-                Originals are preserved.
+                They create organized day folders and copy your photos with the current bucket
+                naming. Originals are preserved.
               </p>
               <div className="flex items-center gap-3">
                 <button
