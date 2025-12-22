@@ -1812,30 +1812,47 @@ export default function PhotoOrganizer() {
           </div>
 
           {/* View Mode Toggle */}
-          {filteredPhotos.length > 0 && (
-            <div className="flex gap-2 px-6 pb-3">
-              <button
-                onClick={() => setViewMode('gallery')}
-                className={`px-3 py-1.5 rounded text-sm font-medium transition-colors ${
-                  viewMode === 'gallery'
-                    ? 'bg-blue-600 text-white'
-                    : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
-                }`}
-              >
-                Gallery
-              </button>
-              <button
-                onClick={() => setViewMode('inspect')}
-                className={`px-3 py-1.5 rounded text-sm font-medium transition-colors ${
-                  viewMode === 'inspect'
-                    ? 'bg-blue-600 text-white'
-                    : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
-                }`}
-              >
-                Inspect
-              </button>
-            </div>
-          )}
+          <div className="flex gap-2 px-6 pb-3">
+            <button
+              onClick={() => setViewMode('gallery')}
+              disabled={filteredPhotos.length === 0}
+              className={`px-3 py-1.5 rounded text-sm font-medium transition-colors ${
+                filteredPhotos.length === 0
+                  ? 'bg-gray-800 text-gray-500 cursor-not-allowed opacity-50'
+                  : viewMode === 'gallery'
+                  ? 'bg-blue-600 text-white'
+                  : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
+              }`}
+            >
+              Gallery
+            </button>
+            <button
+              onClick={() => {
+                if (filteredPhotos.length > 0) {
+                  setViewMode('inspect');
+                  // Set focus to first photo if none selected
+                  // Use filteredPhotos directly since we're at component level
+                  if (!focusedPhoto || !filteredPhotos.find(p => p.id === focusedPhoto)) {
+                    const firstPhoto = filteredPhotos[0];
+                    if (firstPhoto) {
+                      setFocusedPhoto(firstPhoto.id);
+                      setSelectedPhotos(new Set([firstPhoto.id]));
+                    }
+                  }
+                }
+              }}
+              disabled={filteredPhotos.length === 0}
+              className={`px-3 py-1.5 rounded text-sm font-medium transition-colors ${
+                filteredPhotos.length === 0
+                  ? 'bg-gray-800 text-gray-500 cursor-not-allowed opacity-50'
+                  : viewMode === 'inspect'
+                  ? 'bg-blue-600 text-white'
+                  : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
+              }`}
+            >
+              Inspect
+            </button>
+          </div>
 
           {projectError && (
             <div className="mx-6 mb-3 rounded-lg border border-red-800 bg-red-950/60 px-4 py-3">
@@ -2308,11 +2325,6 @@ export default function PhotoOrganizer() {
                       <div
                         key={photo.id}
                         onClick={e => handleSelectPhoto(e, photo.id, idx)}
-                        onDoubleClick={() => {
-                          setViewMode('inspect');
-                          setFocusedPhoto(photo.id);
-                          setSelectedPhotos(new Set([photo.id]));
-                        }}
                         data-testid={`photo-${photo.id}`}
                         className={`relative group cursor-pointer rounded-lg overflow-hidden transition-all ${
                           selectedPhotos.has(photo.id)

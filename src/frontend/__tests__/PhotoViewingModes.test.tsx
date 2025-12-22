@@ -85,7 +85,7 @@ test('view mode toggle persists to localStorage and reflects active state', asyn
   await waitFor(() => expect(localStorage.getItem('narrative:viewMode')).toBe('gallery'));
 });
 
-test('double-clicking a photo opens Inspect mode and Esc closes it', async () => {
+test('clicking Inspect button opens Inspect mode and Esc closes it', async () => {
   const state = makeSampleState();
   localStorage.setItem(
     'narrative:recentProjects',
@@ -97,12 +97,12 @@ test('double-clicking a photo opens Inspect mode and Esc closes it', async () =>
   const projectButton = await screen.findByRole('button', { name: /Viewer Project/i });
   fireEvent.click(projectButton);
 
-  // Wait for images to render
-  const photoTile = await screen.findByTestId('photo-photo_1');
-  expect(photoTile).toBeInTheDocument();
+  // Wait for Inspect button to render
+  const inspectBtn = await screen.findByRole('button', { name: /Inspect/i });
+  expect(inspectBtn).toBeInTheDocument();
 
-  // Double-click should open Inspect (PhotoViewer)
-  fireEvent.doubleClick(photoTile);
+  // Click Inspect button to open Inspect mode
+  fireEvent.click(inspectBtn);
   const inspectHeader = await screen.findByText(/Inspect Mode/i);
   expect(inspectHeader).toBeInTheDocument();
 
@@ -126,9 +126,9 @@ test('arrow keys navigate within Inspect and update the counter', async () => {
   const projectButton = await screen.findByRole('button', { name: /Viewer Project/i });
   fireEvent.click(projectButton);
 
-  // Open inspect for the first photo
-  const first = await screen.findByTestId('photo-photo_1');
-  fireEvent.doubleClick(first);
+  // Open inspect via Inspect button
+  const inspectBtn = await screen.findByRole('button', { name: /Inspect/i });
+  fireEvent.click(inspectBtn);
   const counter = await screen.findByText(/1 \//i);
   expect(counter).toBeInTheDocument();
 
@@ -156,9 +156,9 @@ test('assigning a bucket in Inspect updates the gallery badge', async () => {
   const projectButton = await screen.findByRole('button', { name: /Viewer Project/i });
   fireEvent.click(projectButton);
 
-  // Open inspect for the first photo
-  const first = await screen.findByTestId('photo-photo_1');
-  fireEvent.doubleClick(first);
+  // Open inspect via Inspect button
+  const inspectBtn = await screen.findByRole('button', { name: /Inspect/i });
+  fireEvent.click(inspectBtn);
   await screen.findByText(/Inspect Mode/i);
 
   // Click the 'Establishing' bucket (A)
@@ -194,9 +194,9 @@ test('archiving a photo in Inspect auto-advances to next photo', async () => {
   const projectButton = await screen.findByRole('button', { name: /Viewer Project/i });
   fireEvent.click(projectButton);
 
-  // Open inspect for the first photo
-  const first = await screen.findByTestId('photo-photo_1');
-  fireEvent.doubleClick(first);
+  // Open inspect via Inspect button
+  const inspectBtn = await screen.findByRole('button', { name: /Inspect/i });
+  fireEvent.click(inspectBtn);
   await screen.findByText(/Inspect Mode/i);
 
   // Archive the photo (bucket X)
@@ -239,9 +239,9 @@ test('archiving the last photo in Inspect exits to gallery', async () => {
   const projectButton = await screen.findByRole('button', { name: /Viewer Project/i });
   fireEvent.click(projectButton);
 
-  // Open inspect for the only photo
-  const first = await screen.findByTestId('photo-photo_1');
-  fireEvent.doubleClick(first);
+  // Open inspect via Inspect button
+  const inspectBtn = await screen.findByRole('button', { name: /Inspect/i });
+  fireEvent.click(inspectBtn);
   await screen.findByText(/Inspect Mode/i);
 
   // Archive the photo
@@ -271,9 +271,9 @@ test('exiting Inspect validates focused photo exists in current view', async () 
   const projectButton = await screen.findByRole('button', { name: /Viewer Project/i });
   fireEvent.click(projectButton);
 
-  // Open inspect for the first photo
-  const first = await screen.findByTestId('photo-photo_1');
-  fireEvent.doubleClick(first);
+  // Open inspect via Inspect button
+  const inspectBtn = await screen.findByRole('button', { name: /Inspect/i });
+  fireEvent.click(inspectBtn);
   await screen.findByText(/Inspect Mode/i);
 
   // Switch to a different view that doesn't include this photo (e.g., favorites - assuming photo is not favorited)
@@ -302,9 +302,9 @@ test('Shift+click bucket auto-advances to next photo', async () => {
   const projectButton = await screen.findByRole('button', { name: /Viewer Project/i });
   fireEvent.click(projectButton);
 
-  // Open inspect for the first photo
-  const first = await screen.findByTestId('photo-photo_1');
-  fireEvent.doubleClick(first);
+  // Open inspect via Inspect button
+  const inspectBtn = await screen.findByRole('button', { name: /Inspect/i });
+  fireEvent.click(inspectBtn);
   await screen.findByText(/Inspect Mode/i);
 
   // Shift+click the 'Establishing' bucket (A)
