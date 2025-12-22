@@ -92,6 +92,7 @@ export default function PhotoOrganizer() {
   const [recentProjects, setRecentProjects] = useState<RecentProject[]>([]);
   const [showProjectMenu, setShowProjectMenu] = useState(false);
   const [projectError, setProjectError] = useState<string | null>(null);
+  const [permissionRetryProjectId, setPermissionRetryProjectId] = useState<string | null>(null);
   const [loadingProject, setLoadingProject] = useState(false);
   const [loadingProgress, setLoadingProgress] = useState(0);
   const [loadingMessage, setLoadingMessage] = useState('Loading project...');
@@ -572,9 +573,20 @@ export default function PhotoOrganizer() {
           });
         }
         setLoadingProgress(100);
+        setPermissionRetryProjectId(null); // Clear any pending permission retry
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Failed to load project';
         setProjectError(message);
+
+        // Check if this is a permission error that can be retried
+        if (
+          message.includes('access') ||
+          message.includes('permission') ||
+          message.includes('granted')
+        ) {
+          setPermissionRetryProjectId(projectId);
+        }
+
         showToast(message, 'error');
         safeLocalStorage.remove(ACTIVE_PROJECT_KEY);
         // Show the welcome page so the user can try other options
@@ -586,6 +598,45 @@ export default function PhotoOrganizer() {
     },
     [getState, applyDayContainers, setProjectFromState, showToast, updateRecentProjects],
   );
+
+  const retryProjectPermission = useCallback(async () => {
+    if (!permissionRetryProjectId) return;
+
+    setLoadingProject(true);
+    setLoadingProgress(0);
+    setLoadingMessage('Requesting folder access...');
+    setProjectError(null);
+
+    try {
+      // Try to get the handle again and request permission
+      const handle = await getHandle(permissionRetryProjectId);
+      if (handle) {
+        setLoadingProgress(25);
+        setLoadingMessage('Re-requesting permissions...');
+        const permission = await handle.requestPermission({ mode: 'read' });
+
+        if (permission === 'granted') {
+          // Permission granted, try loading the project again
+          setLoadingProgress(50);
+          setLoadingMessage('Loading project...');
+          await loadProject(permissionRetryProjectId, { addRecent: false });
+          setPermissionRetryProjectId(null);
+          return;
+        }
+      }
+
+      // If we get here, permission was not granted
+      throw new Error('Folder access was not granted.');
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to retry permission';
+      setProjectError(message);
+      showToast(message, 'error');
+      setShowWelcome(true);
+    } finally {
+      setLoadingProject(false);
+      setLoadingProgress(0);
+    }
+  }, [permissionRetryProjectId, loadProject, showToast]);
 
   // Fetch current version on mount for robustness
   useEffect(() => {
@@ -1239,6 +1290,7 @@ export default function PhotoOrganizer() {
         // Hide the welcome view after successfully creating a project
         setShowWelcome(false);
         setLoadingProgress(100);
+        setPermissionRetryProjectId(null); // Clear any pending permission retry
       } catch (err) {
         setProjectError(err instanceof Error ? err.message : 'Failed to initialize project');
         setShowOnboarding(true);
@@ -1786,8 +1838,18 @@ export default function PhotoOrganizer() {
           )}
 
           {projectError && (
-            <div className="mx-6 mb-3 rounded-lg border border-red-800 bg-red-950/60 px-4 py-3 text-sm text-red-200">
-              {projectError}
+            <div className="mx-6 mb-3 rounded-lg border border-red-800 bg-red-950/60 px-4 py-3">
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-red-200">{projectError}</span>
+                {permissionRetryProjectId && (
+                  <button
+                    onClick={retryProjectPermission}
+                    className="ml-3 px-3 py-1 bg-red-700 hover:bg-red-600 text-white text-xs rounded transition-colors"
+                  >
+                    Try Again
+                  </button>
+                )}
+              </div>
             </div>
           )}
         </header>
