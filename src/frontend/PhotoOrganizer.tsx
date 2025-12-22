@@ -44,7 +44,7 @@ const MECE_BUCKETS = [
   },
   { key: 'D', label: 'Action/Moment', color: 'bg-orange-500', description: 'Events, activities' },
   { key: 'E', label: 'Transition', color: 'bg-yellow-500', description: 'Travel, movement' },
-  { key: 'F', label: 'Mood/Night', color: 'bg-indigo-500', description: 'Atmosphere, evening' },
+  { key: 'M', label: 'Mood/Food', color: 'bg-indigo-500', description: 'Food, mood' },
   { key: 'X', label: 'Archive', color: 'bg-gray-500', description: 'Unwanted shots' },
 ];
 
@@ -1474,9 +1474,6 @@ export default function PhotoOrganizer() {
 
       // MECE bucket assignment
       let bucketKey = e.key.toUpperCase();
-      if (bucketKey === 'M') {
-        bucketKey = 'F';
-      }
       const bucket = MECE_BUCKETS.find(b => b.key === bucketKey);
       if (bucket && bucket.key !== 'F') {
         const targets = selectedPhotos.size > 0 ? Array.from(selectedPhotos) : [primaryId];
@@ -1493,11 +1490,7 @@ export default function PhotoOrganizer() {
         return;
       }
 
-      if (bucket?.key === 'F' && e.key.toLowerCase() === 'm') {
-        const targets = selectedPhotos.size > 0 ? Array.from(selectedPhotos) : [primaryId];
-        assignBucket(targets, bucket.key);
-        return;
-      }
+      // (No special-case mapping needed for M — Mood uses key 'M' directly)
 
       // Navigation
       if (e.key === 'ArrowRight') {
@@ -2793,7 +2786,7 @@ export default function PhotoOrganizer() {
                     ))}
                   </div>
                   <p className="text-xs text-gray-400 mt-3">
-                    Keyboard shortcuts: A–E, X, M (Mood/Night). F is reserved for Favorite.
+                    Keyboard shortcuts: A–E, X, M (Mood/Food). F is reserved for Favorite.
                   </p>
                 </div>
 

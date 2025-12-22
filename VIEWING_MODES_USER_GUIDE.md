@@ -122,7 +122,7 @@ Your selection and position are preserved when you return to Gallery mode.
 ### Both Modes
 | Key | Action |
 |-----|--------|
-| `A`–`E`, `X`, `M` | Assign MECE category (M = Mood/Night) |
+| `A`–`E`, `X`, `M` | Assign MECE category (M = Mood/Food) |
 | `F` | Toggle favorite |
 | ⌘Z / Ctrl+Z | Undo |
 | ⌘⇧Z / Ctrl⇧Z | Redo |

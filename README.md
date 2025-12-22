@@ -14,7 +14,7 @@ Narrative is a local-first, keyboard-driven workflow for curating travel photos.
 
 ## Features
 
-- **Keyboard-first organization**: A–E and M (Mood/Night), X (Archive), F (Favorite), undo/redo.
+- **Keyboard-first organization**: A–E and M (Mood/Food), X (Archive), F (Favorite), undo/redo.
 - **Day-aware grouping**: Detects day folders or infers days from timestamps.
 - **Archive-aware imports**: Files under `98_ARCHIVE/` load as archived automatically.
 - **Export rename script**: Generates a script that copies photos into day folders.
@@ -82,7 +82,7 @@ If your project includes a `98_ARCHIVE/` folder, those files are treated as arch
 | Key     | Action                |
 | ------- | --------------------- |
 | `A–E`   | Assign story category |
-| `M`     | Mood/Night            |
+| `M`     | Mood/Food             |
 | `X`     | Archive photo         |
 | `F`     | Toggle favorite       |
 | `←→`    | Navigate photos       |
