@@ -335,19 +335,40 @@ export default function PhotoOrganizer() {
   const buildExportScript = useCallback(() => {
     const lines: string[] = [];
 
-    // Group photos by day
-    const photosByDay: Record<number, ProjectPhoto[]> = {};
-    photos
-      .filter(p => p.bucket && !p.archived)
-      .forEach(p => {
+    // Bucket name mapping for folder naming
+    const bucketNames: Record<string, string> = {
+      A: 'Establishing',
+      B: 'People',
+      C: 'Culture-Detail',
+      D: 'Action-Moment',
+      E: 'Transition',
+      M: 'Mood-Food',
+    };
+
+    // Group photos by day and bucket
+    const photosByDay: Record<number, Record<string, ProjectPhoto[]>> = {};
+    const archivePhotos: ProjectPhoto[] = [];
+    const rootPhotos: ProjectPhoto[] = [];
+
+    photos.forEach(p => {
+      if (p.archived) {
+        archivePhotos.push(p);
+      } else if (p.bucket) {
         const day = p.day as number;
         if (!photosByDay[day]) {
-          photosByDay[day] = [];
+          photosByDay[day] = {};
         }
-        photosByDay[day].push(p);
-      });
+        if (!photosByDay[day][p.bucket]) {
+          photosByDay[day][p.bucket] = [];
+        }
+        photosByDay[day][p.bucket].push(p);
+      } else {
+        rootPhotos.push(p);
+      }
+    });
 
     const daysFolder = projectSettings.folderStructure.daysFolder;
+    const archiveFolder = projectSettings.folderStructure.archiveFolder;
 
     // Header: show a preview and require confirmation before executing
     lines.push('#!/usr/bin/env bash');
@@ -357,30 +378,60 @@ export default function PhotoOrganizer() {
     lines.push(`# Run as-is to preview, or paste and confirm to execute.`);
     lines.push('');
     lines.push(`DAYS_FOLDER="${daysFolder}"`);
+    lines.push(`ARCHIVE_FOLDER="${archiveFolder}"`);
     lines.push('TARGET_DIR="$(pwd)/${DAYS_FOLDER}"');
     lines.push('');
     lines.push('echo "This will create folders under: ${TARGET_DIR}"');
     lines.push('echo');
     lines.push('echo "Preview of actions:"');
 
-    // Add preview of mkdir and copy commands
+    // Preview: root files
+    if (rootPhotos.length > 0) {
+      lines.push('echo "Root files:"');
+      rootPhotos.forEach(p => {
+        if (p.filePath) {
+          lines.push(`echo "cp \"${p.filePath}\" \"${p.currentName}\""`);
+        }
+      });
+      lines.push('');
+    }
+
+    // Preview: days with bucket subfolders
     lines.push(`echo "mkdir -p \"${daysFolder}\""`);
     Object.keys(photosByDay)
-      .sort((a, b) => parseInt(a) - parseInt(b))
-      .forEach(dayStr => {
-        const day = parseInt(dayStr);
-        const dayPhotos = photosByDay[day];
+      .map(Number)
+      .sort((a, b) => a - b)
+      .forEach(day => {
         const label = dayLabels[day] || `Day ${String(day).padStart(2, '0')}`;
         const dayFolder = `${daysFolder}/${label}`;
+        const buckets = photosByDay[day];
 
-        lines.push(`echo "mkdir -p \"${dayFolder}\""`);
+        Object.keys(buckets)
+          .sort()
+          .forEach(bucket => {
+            const bucketLabel = bucketNames[bucket] || bucket;
+            const bucketFolder = `${dayFolder}/${bucket}_${bucketLabel}`;
+            const photos = buckets[bucket];
 
-        dayPhotos.forEach(p => {
-          if (p.filePath) {
-            lines.push(`echo "cp \"${p.filePath}\" \"${dayFolder}/${p.currentName}\""`);
-          }
-        });
+            lines.push(`echo "mkdir -p \"${bucketFolder}\""`);
+
+            photos.forEach(p => {
+              if (p.filePath) {
+                lines.push(`echo "cp \"${p.filePath}\" \"${bucketFolder}/${p.currentName}\""`);
+              }
+            });
+          });
       });
+
+    // Preview: archive
+    if (archivePhotos.length > 0) {
+      lines.push(`echo "mkdir -p \"${archiveFolder}\""`);
+      archivePhotos.forEach(p => {
+        if (p.filePath) {
+          lines.push(`echo "cp \"${p.filePath}\" \"${archiveFolder}/${p.currentName}\""`);
+        }
+      });
+    }
 
     lines.push('');
     lines.push('read -r -p "Execute these actions now? [y/N] " ans');
@@ -390,27 +441,56 @@ export default function PhotoOrganizer() {
     lines.push('fi');
     lines.push('');
     lines.push('echo "Running commands..."');
+    lines.push('');
 
-    // Execution: create folders and copy files, skipping existing targets
+    // Execution: root files
+    if (rootPhotos.length > 0) {
+      rootPhotos.forEach(p => {
+        if (p.filePath) {
+          lines.push(`if [ -e "${p.currentName}" ]; then echo "Skipping existing: ${p.currentName}"; else cp "${p.filePath}" "${p.currentName}"; fi`);
+        }
+      });
+      lines.push('');
+    }
+
+    // Execution: create day folders with bucket subfolders and copy files
     lines.push('mkdir -p "${DAYS_FOLDER}"');
     Object.keys(photosByDay)
-      .sort((a, b) => parseInt(a) - parseInt(b))
-      .forEach(dayStr => {
-        const day = parseInt(dayStr);
-        const dayPhotos = photosByDay[day];
+      .map(Number)
+      .sort((a, b) => a - b)
+      .forEach(day => {
         const label = dayLabels[day] || `Day ${String(day).padStart(2, '0')}`;
         const dayFolder = `${daysFolder}/${label}`;
+        const buckets = photosByDay[day];
 
-        lines.push(`mkdir -p "${dayFolder}"`);
+        Object.keys(buckets)
+          .sort()
+          .forEach(bucket => {
+            const bucketLabel = bucketNames[bucket] || bucket;
+            const bucketFolder = `${dayFolder}/${bucket}_${bucketLabel}`;
+            const photos = buckets[bucket];
 
-        dayPhotos.forEach(p => {
-          if (p.filePath) {
-            // Skip if destination already exists to avoid accidental overwrite
-            lines.push(`if [ -e "${dayFolder}/${p.currentName}" ]; then echo "Skipping existing: ${dayFolder}/${p.currentName}"; else cp "${p.filePath}" "${dayFolder}/${p.currentName}"; fi`);
-          }
-        });
+            lines.push(`mkdir -p "${bucketFolder}"`);
+
+            photos.forEach(p => {
+              if (p.filePath) {
+                lines.push(`if [ -e "${bucketFolder}/${p.currentName}" ]; then echo "Skipping existing: ${bucketFolder}/${p.currentName}"; else cp "${p.filePath}" "${bucketFolder}/${p.currentName}"; fi`);
+              }
+            });
+          });
       });
 
+    // Execution: archive
+    if (archivePhotos.length > 0) {
+      lines.push('mkdir -p "${ARCHIVE_FOLDER}"');
+      archivePhotos.forEach(p => {
+        if (p.filePath) {
+          lines.push(`if [ -e "${archiveFolder}/${p.currentName}" ]; then echo "Skipping existing: ${archiveFolder}/${p.currentName}"; else cp "${p.filePath}" "${archiveFolder}/${p.currentName}"; fi`);
+        }
+      });
+    }
+
+    lines.push('');
     lines.push('echo "Done."');
 
     return lines.join('\n');

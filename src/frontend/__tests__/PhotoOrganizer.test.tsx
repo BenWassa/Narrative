@@ -155,7 +155,8 @@ test('renames a day label and export script uses it', async () => {
   fireEvent.click(exportBtn);
 
   const textarea = await screen.findByRole('textbox');
-  expect(textarea.value).toContain('mkdir -p "01_DAYS/Beach"');
+  // Script should include bucket folder structure with Establishing
+  expect(textarea.value).toContain('A_Establishing');
   // Script should include a preview prompt and require confirmation
   expect(textarea.value).toContain('Preview of actions:');
   expect(textarea.value).toContain('Execute these actions now?');
