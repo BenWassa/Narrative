@@ -2889,15 +2889,27 @@ export default function PhotoOrganizer() {
             try {
               const handle = await getHandle(rootPath);
               if (!handle) {
-                // No handle found, need to reselect folder
-                setProjectNeedingReselection(rootPath);
-                setShowOnboarding(true);
-                return;
+                // No stored handle — try to reselect immediately (this click is a user gesture)
+                try {
+                  const picked = await (window as any).showDirectoryPicker();
+                  await saveHandle(rootPath, picked);
+                  // Now load using the newly saved handle
+                  loadProject(rootPath);
+                  return;
+                } catch (pickErr) {
+                  // User cancelled or an error occurred — fall back to onboarding modal to guide reselection
+                  console.warn('Folder re-selection cancelled or failed:', pickErr);
+                  setProjectNeedingReselection(rootPath);
+                  setShowOnboarding(true);
+                  return;
+                }
               }
+
               // Handle exists, try to load the project
               loadProject(rootPath);
             } catch (err) {
-              // Error checking handle, try to reselect folder
+              // Error checking handle, fall back to onboarding modal
+              console.warn('Error checking stored handle on project open:', err);
               setProjectNeedingReselection(rootPath);
               setShowOnboarding(true);
             }
