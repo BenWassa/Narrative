@@ -37,6 +37,14 @@ export const PhotoViewer: React.FC<PhotoViewerProps> = ({
   const [loadError, setLoadError] = useState<string | null>(null);
   const objectUrlRef = useRef<string | null>(null);
 
+  // Update currentIndex when filteredPhotos or photo changes
+  useEffect(() => {
+    const newIndex = filteredPhotos.findIndex(p => p.id === photo.id);
+    if (newIndex !== -1 && newIndex !== currentIndex) {
+      setCurrentIndex(newIndex);
+    }
+  }, [filteredPhotos, photo.id, currentIndex]);
+
   const currentPhoto = filteredPhotos[currentIndex] || photo;
 
   // Load full resolution image/video
