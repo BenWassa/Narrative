@@ -347,11 +347,52 @@ export default function PhotoOrganizer() {
         photosByDay[day].push(p);
       });
 
-    // Create days folder
     const daysFolder = projectSettings.folderStructure.daysFolder;
-    lines.push(`mkdir -p "${daysFolder}"`);
 
-    // For each day, create folder and copy files
+    // Header: show a preview and require confirmation before executing
+    lines.push('#!/usr/bin/env bash');
+    lines.push('set -e');
+    lines.push('');
+    lines.push(`# Preview mode: this script prints planned actions and requests confirmation before executing.`);
+    lines.push(`# Run as-is to preview, or paste and confirm to execute.`);
+    lines.push('');
+    lines.push(`DAYS_FOLDER="${daysFolder}"`);
+    lines.push('TARGET_DIR="$(pwd)/${DAYS_FOLDER}"');
+    lines.push('');
+    lines.push('echo "This will create folders under: ${TARGET_DIR}"');
+    lines.push('echo');
+    lines.push('echo "Preview of actions:"');
+
+    // Add preview of mkdir and copy commands
+    lines.push(`echo "mkdir -p \"${daysFolder}\""`);
+    Object.keys(photosByDay)
+      .sort((a, b) => parseInt(a) - parseInt(b))
+      .forEach(dayStr => {
+        const day = parseInt(dayStr);
+        const dayPhotos = photosByDay[day];
+        const label = dayLabels[day] || `Day ${String(day).padStart(2, '0')}`;
+        const dayFolder = `${daysFolder}/${label}`;
+
+        lines.push(`echo "mkdir -p \"${dayFolder}\""`);
+
+        dayPhotos.forEach(p => {
+          if (p.filePath) {
+            lines.push(`echo "cp \"${p.filePath}\" \"${dayFolder}/${p.currentName}\""`);
+          }
+        });
+      });
+
+    lines.push('');
+    lines.push('read -r -p "Execute these actions now? [y/N] " ans');
+    lines.push('if [ "$ans" != "y" ]; then');
+    lines.push('  echo "Aborted."');
+    lines.push('  exit 1');
+    lines.push('fi');
+    lines.push('');
+    lines.push('echo "Running commands..."');
+
+    // Execution: create folders and copy files, skipping existing targets
+    lines.push('mkdir -p "${DAYS_FOLDER}"');
     Object.keys(photosByDay)
       .sort((a, b) => parseInt(a) - parseInt(b))
       .forEach(dayStr => {
@@ -364,10 +405,13 @@ export default function PhotoOrganizer() {
 
         dayPhotos.forEach(p => {
           if (p.filePath) {
-            lines.push(`cp "${p.filePath}" "${dayFolder}/${p.currentName}"`);
+            // Skip if destination already exists to avoid accidental overwrite
+            lines.push(`if [ -e "${dayFolder}/${p.currentName}" ]; then echo "Skipping existing: ${dayFolder}/${p.currentName}"; else cp "${p.filePath}" "${dayFolder}/${p.currentName}"; fi`);
           }
         });
       });
+
+    lines.push('echo "Done."');
 
     return lines.join('\n');
   }, [photos, dayLabels, projectSettings]);

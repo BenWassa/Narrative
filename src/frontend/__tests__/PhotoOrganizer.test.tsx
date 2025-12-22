@@ -156,6 +156,9 @@ test('renames a day label and export script uses it', async () => {
 
   const textarea = await screen.findByRole('textbox');
   expect(textarea.value).toContain('mkdir -p "01_DAYS/Beach"');
+  // Script should include a preview prompt and require confirmation
+  expect(textarea.value).toContain('Preview of actions:');
+  expect(textarea.value).toContain('Execute these actions now?');
 });
 
 test('root view groups by top-level folder and opens group', async () => {
