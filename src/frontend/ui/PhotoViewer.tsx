@@ -229,7 +229,7 @@ export const PhotoViewer: React.FC<PhotoViewerProps> = ({
                 {buckets.map(bucket => (
                   <button
                     key={bucket.key}
-                    onClick={(e) => {
+                    onClick={e => {
                       // Toggle bucket if already selected, otherwise set it
                       const newBucket = currentPhoto.bucket === bucket.key ? null : bucket.key;
                       onAssignBucket(currentPhoto.id, newBucket || '');

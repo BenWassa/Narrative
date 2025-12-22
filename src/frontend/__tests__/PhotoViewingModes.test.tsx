@@ -225,7 +225,13 @@ test('archiving the last photo in Inspect exits to gallery', async () => {
   };
   localStorage.setItem(
     'narrative:recentProjects',
-    JSON.stringify([{ projectName: singlePhotoState.projectName, projectId: 'p1', rootPath: singlePhotoState.rootPath }]),
+    JSON.stringify([
+      {
+        projectName: singlePhotoState.projectName,
+        projectId: 'p1',
+        rootPath: singlePhotoState.rootPath,
+      },
+    ]),
   );
   vi.mocked(projectService.getState).mockResolvedValue(singlePhotoState as any);
 
@@ -305,7 +311,9 @@ test('Shift+click bucket auto-advances to next photo', async () => {
   const meceLabel = await screen.findByText(/MECE Category/i);
   const meceContainer = meceLabel.closest('div');
   expect(meceContainer).toBeTruthy();
-  const establishingBtn = within(meceContainer as Element).getByRole('button', { name: /Establishing/i });
+  const establishingBtn = within(meceContainer as Element).getByRole('button', {
+    name: /Establishing/i,
+  });
   fireEvent.click(establishingBtn, { shiftKey: true });
 
   // Should auto-advance to photo #2

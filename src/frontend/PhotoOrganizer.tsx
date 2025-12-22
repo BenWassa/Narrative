@@ -2217,9 +2217,9 @@ export default function PhotoOrganizer() {
                               }
                             }
                           }
-                          
+
                           assignBucket(photoId, bucket);
-                          
+
                           // Navigate to next photo if we calculated one
                           if (nextPhotoId) {
                             setFocusedPhoto(nextPhotoId);
