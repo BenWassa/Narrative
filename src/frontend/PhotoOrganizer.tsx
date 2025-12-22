@@ -576,11 +576,12 @@ export default function PhotoOrganizer() {
         setPermissionRetryProjectId(null); // Clear any pending permission retry
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Failed to load project';
+        console.error('Failed to load project:', err);
         setProjectError(message);
 
         // Check if this is a permission error that can be retried
         if (
-          message.includes('access') ||
+          (message.includes('access') && !message.includes('no longer available')) ||
           message.includes('permission') ||
           message.includes('granted')
         ) {
@@ -623,15 +624,22 @@ export default function PhotoOrganizer() {
           setPermissionRetryProjectId(null);
           return;
         }
+      } else {
+        // Handle not found - project data was lost
+        throw new Error(
+          'Project folder access is no longer available. Please reselect the folder from the start screen.',
+        );
       }
 
       // If we get here, permission was not granted
       throw new Error('Folder access was not granted.');
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to retry permission';
+      console.error('Failed to retry permission:', err);
       setProjectError(message);
       showToast(message, 'error');
       setShowWelcome(true);
+      setPermissionRetryProjectId(null); // Clear retry state
     } finally {
       setLoadingProject(false);
       setLoadingProgress(0);
