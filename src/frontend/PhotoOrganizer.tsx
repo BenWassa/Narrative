@@ -948,11 +948,12 @@ export default function PhotoOrganizer() {
         return photos.filter(p => p.day !== null && !p.archived);
       case 'folders':
         if (selectedRootFolder !== null) {
-          return photos.filter(
-            p =>
-              !p.archived &&
-              ((p.filePath || p.originalName).split('/')[0] || '(root)') === selectedRootFolder,
-          );
+          return photos.filter(p => {
+            if (p.archived) return false;
+            const parts = (p.filePath || p.originalName || '').split('/');
+            const folder = parts.length > 1 ? parts[0] : '(root)';
+            return folder === selectedRootFolder;
+          });
         }
         if (selectedDay !== null) {
           return photos.filter(p => !p.archived && p.day === selectedDay);
@@ -1189,7 +1190,8 @@ export default function PhotoOrganizer() {
           console.group('🎯 FINAL PHOTO ORGANIZATION');
           const folderGroups = new Map<string, ProjectPhoto[]>();
           hydratedPhotos.forEach(photo => {
-            const topFolder = (photo.filePath || photo.originalName || '').split('/')[0] || 'root';
+            const parts = (photo.filePath || photo.originalName || '').split('/');
+            const topFolder = parts.length > 1 ? parts[0] : '(root)';
             if (!folderGroups.has(topFolder)) {
               folderGroups.set(topFolder, []);
             }
@@ -1233,7 +1235,8 @@ export default function PhotoOrganizer() {
           dayGroups.forEach((photos, day) => {
             const folderCounts = new Map<string, number>();
             photos.forEach(p => {
-              const folder = (p.filePath || p.originalName || '').split('/')[0] || 'root';
+              const parts = (p.filePath || p.originalName || '').split('/');
+              const folder = parts.length > 1 ? parts[0] : '(root)';
               folderCounts.set(folder, (folderCounts.get(folder) || 0) + 1);
             });
 
