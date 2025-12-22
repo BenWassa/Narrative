@@ -152,7 +152,7 @@ export const PhotoViewer: React.FC<PhotoViewerProps> = ({
       {/* Main Content */}
       <div className="flex-1 flex overflow-hidden">
         {/* Viewer */}
-        <div className="flex-1 flex items-center justify-center bg-gray-950 overflow-auto relative group">
+        <div className="flex-1 flex items-center justify-center bg-gray-950 overflow-auto relative group pb-4">
           {isLoading && (
             <div className="absolute inset-0 flex items-center justify-center bg-gray-900/50 z-10">
               <div className="text-center">
