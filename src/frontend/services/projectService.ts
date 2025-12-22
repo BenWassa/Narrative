@@ -537,14 +537,21 @@ export async function initProject(options: {
   onProgress?: (progress: number, message: string) => void;
 }): Promise<ProjectInitResponse> {
   const { dirHandle, projectName, rootLabel, onProgress } = options;
+
+  // Check if File System Access API is supported
+  if (!('requestPermission' in dirHandle)) {
+    throw new Error('File System Access API is not available or supported in this environment.');
+  }
+
   let permission;
   try {
     permission = await dirHandle.requestPermission({ mode: 'read' });
   } catch (err) {
-    throw new Error('File System Access API is not available or supported in this environment.');
+    console.warn('Permission request failed:', err);
+    throw new Error('Unable to request folder access. Please try again.');
   }
   if (permission !== 'granted') {
-    throw new Error('Folder access was not granted.');
+    throw new Error('Folder access was not granted. Please allow access to create the project.');
   }
 
   onProgress?.(5, 'Scanning folder structure...');
@@ -584,14 +591,24 @@ export async function getState(projectId: string): Promise<ProjectState> {
   if (!handle) {
     throw new Error('Project folder access not available. Please reselect the folder.');
   }
+
+  // Check if File System Access API is supported
+  if (!('requestPermission' in handle)) {
+    throw new Error('File System Access API is not available or supported in this environment.');
+  }
+
   let permission;
   try {
     permission = await handle.requestPermission({ mode: 'read' });
   } catch (err) {
-    throw new Error('File System Access API is not available or supported in this environment.');
+    // If requestPermission throws, it could be because:
+    // 1. The handle is stale/invalid
+    // 2. Some other API error
+    console.warn('Permission request failed:', err);
+    throw new Error('Unable to access project folder. The folder may have been moved or permission revoked. Please reselect the folder.');
   }
   if (permission !== 'granted') {
-    throw new Error('Folder access was not granted.');
+    throw new Error('Folder access was not granted. Please allow access to continue.');
   }
 
   const raw = safeLocalStorage.get(`${STATE_PREFIX}${projectId}`);
