@@ -715,9 +715,37 @@ export default function PhotoOrganizer() {
     const isTest =
       typeof globalThis !== 'undefined' &&
       (globalThis.vitest || globalThis.__APP_VERSION__ === '0.0.0');
+
     if (activeProjectId && (isTest || 'showDirectoryPicker' in window)) {
-      loadProject(activeProjectId, { addRecent: false });
-      setShowWelcome(false);
+      if (isTest) {
+        // In tests, proceed to load directly
+        loadProject(activeProjectId, { addRecent: false });
+        setShowWelcome(false);
+      } else {
+        // In real browsers, avoid requesting permissions during mount (no user activation).
+        // Instead check if we have a stored handle and prompt the user to re-authorize via a
+        // user gesture (Try Again button) which will call requestPermission.
+        (async () => {
+          try {
+            const handle = await getHandle(activeProjectId);
+            if (handle) {
+              // Do not call requestPermission here (will throw SecurityError without user gesture)
+              setPermissionRetryProjectId(activeProjectId);
+              setProjectError(
+                'Project needs permission to access its folder. Click "Try Again" to grant access.',
+              );
+              setShowWelcome(true);
+            } else {
+              // No stored handle — show welcome so user can reselect
+              setShowWelcome(true);
+            }
+          } catch (err) {
+            // Any error while checking handle shouldn't crash startup — show welcome
+            console.warn('Error checking stored handle on startup:', err);
+            setShowWelcome(true);
+          }
+        })();
+      }
     } else {
       // Show the main menu when there is no active project or File System API is not available
       setShowWelcome(true);
