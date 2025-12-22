@@ -334,16 +334,43 @@ export default function PhotoOrganizer() {
 
   const buildExportScript = useCallback(() => {
     const lines: string[] = [];
+
+    // Group photos by day
+    const photosByDay: Record<number, ProjectPhoto[]> = {};
     photos
       .filter(p => p.bucket && !p.archived)
       .forEach(p => {
-        const day = p.day as number | null;
-        const label =
-          day !== null ? dayLabels[day] || `Day ${String(day).padStart(2, '0')}` : '(root)';
-        lines.push(`${label}: ${p.currentName}`);
+        const day = p.day as number;
+        if (!photosByDay[day]) {
+          photosByDay[day] = [];
+        }
+        photosByDay[day].push(p);
       });
+
+    // Create days folder
+    const daysFolder = projectSettings.folderStructure.daysFolder;
+    lines.push(`mkdir -p "${daysFolder}"`);
+
+    // For each day, create folder and copy files
+    Object.keys(photosByDay)
+      .sort((a, b) => parseInt(a) - parseInt(b))
+      .forEach(dayStr => {
+        const day = parseInt(dayStr);
+        const dayPhotos = photosByDay[day];
+        const label = dayLabels[day] || `Day ${String(day).padStart(2, '0')}`;
+        const dayFolder = `${daysFolder}/${label}`;
+
+        lines.push(`mkdir -p "${dayFolder}"`);
+
+        dayPhotos.forEach(p => {
+          if (p.filePath) {
+            lines.push(`cp "${p.filePath}" "${dayFolder}/${p.currentName}"`);
+          }
+        });
+      });
+
     return lines.join('\n');
-  }, [photos, dayLabels]);
+  }, [photos, dayLabels, projectSettings]);
 
   const showToast = useCallback((message: string, tone: 'info' | 'error' = 'info') => {
     setToast({ message, tone });
@@ -2712,7 +2739,7 @@ export default function PhotoOrganizer() {
         <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-6">
           <div className="bg-gray-900 rounded-lg max-w-2xl w-full overflow-hidden border border-gray-800">
             <div className="px-5 py-4 border-b border-gray-800 flex items-center justify-between">
-              <h2 className="text-lg font-semibold text-gray-100">Export Rename Script</h2>
+              <h2 className="text-lg font-semibold text-gray-100">Export Script</h2>
               <button
                 onClick={() => setShowExportScript(false)}
                 className="p-2 hover:bg-gray-800 rounded"
@@ -2723,8 +2750,9 @@ export default function PhotoOrganizer() {
             </div>
             <div className="px-5 py-4 space-y-3">
               <p className="text-sm text-gray-400">
-                This script copies your organized photos into day folders using the current bucket
-                naming. Originals are preserved.
+                Copy these commands and run them in your terminal from the project root directory.
+                They create organized day folders and copy your photos with the current bucket naming.
+                Originals are preserved.
               </p>
               <div className="flex items-center gap-3">
                 <button

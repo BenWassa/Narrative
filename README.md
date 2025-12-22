@@ -17,7 +17,7 @@ Narrative is a local-first, keyboard-driven workflow for curating travel photos.
 - **Keyboard-first organization**: A–E and M (Mood/Food), X (Archive), F (Favorite), undo/redo.
 - **Day-aware grouping**: Detects day folders or infers days from timestamps.
 - **Archive-aware imports**: Files under `98_ARCHIVE/` load as archived automatically.
-- **Export rename script**: Generates a script that copies photos into day folders.
+- **Export script**: Generates a bash script that copies photos into day folders.
 - **Local-only storage**: Project state stored in localStorage + IndexedDB handles.
 - **Main menu**: Jump back to the project picker from any project.
 - **Supported formats**: JPG, JPEG, PNG, HEIC, WEBP.
@@ -61,7 +61,7 @@ Open `http://localhost:5173` in Chrome or Edge.
 ### Export
 
 - Click **Export Script** in the header.
-- Copy and run the script to create a new, organized folder tree.
+- Copy and run the generated bash script from your project root directory.
 
 ---
 

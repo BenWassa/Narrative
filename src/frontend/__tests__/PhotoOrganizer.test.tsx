@@ -150,12 +150,12 @@ test('renames a day label and export script uses it', async () => {
   const bucketBtn = await screen.findByRole('button', { name: /Establishing/i });
   fireEvent.click(bucketBtn);
 
-  // Export script should include the new label
+  // Export script should include the new label in the folder name
   const exportBtn = await screen.findByRole('button', { name: /Export Script/i });
   fireEvent.click(exportBtn);
 
   const textarea = await screen.findByRole('textbox');
-  expect(textarea.value).toContain('Beach');
+  expect(textarea.value).toContain('mkdir -p "01_DAYS/Beach"');
 });
 
 test('root view groups by top-level folder and opens group', async () => {
