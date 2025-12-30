@@ -157,9 +157,9 @@ test('renames a day label and export script uses it', async () => {
   const textarea = await screen.findByRole('textbox');
   // Script should include bucket folder structure with Establishing
   expect(textarea.value).toContain('A_Establishing');
-  // Script should include a preview prompt and require confirmation
-  expect(textarea.value).toContain('Preview of actions:');
-  expect(textarea.value).toContain('Execute these actions now?');
+  // Script should include the new dry run preview and confirmation
+  expect(textarea.value).toContain('EXPORT SCRIPT - DRY RUN PREVIEW');
+  expect(textarea.value).toContain('Type \\"yes\\" to confirm');
 });
 
 test('root view groups by top-level folder and opens group', async () => {
