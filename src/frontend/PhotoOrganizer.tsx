@@ -459,7 +459,7 @@ export default function PhotoOrganizer() {
 
     // Preview: archive
     if (archivePhotos.length > 0) {
-      lines.push(`echo "  \\${YELLOW}Archive (${archivePhotos.length})\\${NC}"`);
+      lines.push('echo "  \\${YELLOW}Archive (' + archivePhotos.length + ')\\${NC}"');
     }
 
     lines.push('');
