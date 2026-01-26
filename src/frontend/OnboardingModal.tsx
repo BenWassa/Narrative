@@ -76,9 +76,7 @@ export default function OnboardingModal({
         const normalized = name.toLowerCase().replace(/[^a-z0-9]+/g, '');
         return normalized === '01days' || normalized === 'days';
       };
-      const countFilesRecursive = async (
-        handle: FileSystemDirectoryHandle,
-      ): Promise<number> => {
+      const countFilesRecursive = async (handle: FileSystemDirectoryHandle): Promise<number> => {
         let count = 0;
         // @ts-ignore - entries() is supported in modern browsers
         for await (const [, nested] of handle.entries()) {

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { X, Heart, Loader } from 'lucide-react';
+import { X, Heart, Loader, ChevronUp, ChevronDown } from 'lucide-react';
 import { ProjectPhoto } from '../services/projectService';
 import { PhotoStrip } from './PhotoStrip';
 
@@ -36,6 +36,8 @@ export const PhotoViewer: React.FC<PhotoViewerProps> = ({
   const [fullResUrl, setFullResUrl] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [showQuickActions, setShowQuickActions] = useState(true);
+  const [showBuckets, setShowBuckets] = useState(true);
   const objectUrlRef = useRef<string | null>(null);
 
   // Update currentIndex when filteredPhotos or photo changes
@@ -50,7 +52,6 @@ export const PhotoViewer: React.FC<PhotoViewerProps> = ({
 
   // Load full resolution image/video
   useEffect(() => {
-    setFullResUrl(null);
     setIsLoading(true);
     setLoadError(null);
     objectUrlRef.current = null;
@@ -94,6 +95,28 @@ export const PhotoViewer: React.FC<PhotoViewerProps> = ({
       }
     };
   }, [currentPhoto.id, currentPhoto.fileHandle, currentPhoto.thumbnail]);
+
+  // Preload next/prev images to prevent blinking on navigation
+  useEffect(() => {
+    const preloadImages = async () => {
+      const nextIndex = Math.min(currentIndex + 1, filteredPhotos.length - 1);
+      const prevIndex = Math.max(currentIndex - 1, 0);
+      const indicesToPreload = [nextIndex, prevIndex].filter(i => i !== currentIndex);
+
+      for (const index of indicesToPreload) {
+        const photoToPreload = filteredPhotos[index];
+        if (photoToPreload?.fileHandle) {
+          try {
+            await photoToPreload.fileHandle.getFile();
+          } catch (e) {
+            // preload failed, will load on demand
+          }
+        }
+      }
+    };
+
+    preloadImages();
+  }, [currentIndex, filteredPhotos]);
 
   const handleNavigate = useCallback(
     (direction: 'next' | 'prev') => {
@@ -152,7 +175,14 @@ export const PhotoViewer: React.FC<PhotoViewerProps> = ({
         }
       }
     },
-    [currentPhoto.id, currentPhoto.bucket, onClose, handleNavigate, onToggleFavorite, onAssignBucket],
+    [
+      currentPhoto.id,
+      currentPhoto.bucket,
+      onClose,
+      handleNavigate,
+      onToggleFavorite,
+      onAssignBucket,
+    ],
   );
 
   useEffect(() => {
@@ -257,23 +287,64 @@ export const PhotoViewer: React.FC<PhotoViewerProps> = ({
         </div>
 
         {/* Quick Action Hints */}
-        <div className="absolute top-4 left-4 bg-gray-900/80 backdrop-blur rounded-lg px-3 py-2 text-xs text-gray-300 space-y-1">
-          <div className="flex items-center gap-2">
-            <kbd className="px-1.5 py-0.5 bg-gray-800 rounded text-[10px]">←→</kbd>
-            <span>Navigate</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <kbd className="px-1.5 py-0.5 bg-gray-800 rounded text-[10px]">A-E,M,X</kbd>
-            <span>Assign</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <kbd className="px-1.5 py-0.5 bg-gray-800 rounded text-[10px]">F</kbd>
-            <span>Favorite</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <kbd className="px-1.5 py-0.5 bg-gray-800 rounded text-[10px]">Esc</kbd>
-            <span>Exit</span>
-          </div>
+        <div className="absolute top-4 left-4 bg-gray-900/80 backdrop-blur rounded-lg shadow-lg overflow-hidden flex flex-col">
+          <button
+            onClick={() => setShowQuickActions(!showQuickActions)}
+            className="flex items-center justify-between px-3 py-2 text-xs text-gray-300 hover:bg-gray-800 transition-colors border-b border-gray-700"
+          >
+            <span className="font-semibold">Quick Actions</span>
+            {showQuickActions ? (
+              <ChevronUp className="w-4 h-4" />
+            ) : (
+              <ChevronDown className="w-4 h-4" />
+            )}
+          </button>
+          {showQuickActions && (
+            <div className="px-3 py-2 space-y-1">
+              <div className="flex items-center gap-2">
+                <kbd className="px-1.5 py-0.5 bg-gray-800 rounded text-[10px]">←→</kbd>
+                <span>Navigate</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <kbd className="px-1.5 py-0.5 bg-gray-800 rounded text-[10px]">A-E,M,X</kbd>
+                <span>Assign</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <kbd className="px-1.5 py-0.5 bg-gray-800 rounded text-[10px]">F</kbd>
+                <span>Favorite</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <kbd className="px-1.5 py-0.5 bg-gray-800 rounded text-[10px]">Esc</kbd>
+                <span>Exit</span>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* MECE Bucket Reference Panel */}
+        <div className="absolute top-4 right-4 bg-gray-900/80 backdrop-blur rounded-lg shadow-lg overflow-hidden flex flex-col max-w-xs">
+          <button
+            onClick={() => setShowBuckets(!showBuckets)}
+            className="flex items-center justify-between px-3 py-2 text-xs text-gray-300 hover:bg-gray-800 transition-colors border-b border-gray-700"
+          >
+            <span className="font-semibold">MECE Categories</span>
+            {showBuckets ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+          </button>
+          {showBuckets && (
+            <div className="px-3 py-3 space-y-2 max-h-80 overflow-y-auto">
+              {buckets.map(bucket => (
+                <div
+                  key={bucket.key}
+                  className={`${bucket.color} text-white px-3 py-2 rounded text-xs`}
+                >
+                  <div className="font-bold text-sm">
+                    {bucket.key} - {bucket.label}
+                  </div>
+                  <div className="opacity-90 text-[11px] mt-0.5">{bucket.description}</div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
 

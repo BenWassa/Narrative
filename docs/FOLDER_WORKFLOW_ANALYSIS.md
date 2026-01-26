@@ -10,11 +10,13 @@
 The app currently follows this workflow when creating a new project:
 
 1. **Folder Selection** (`OnboardingModal.tsx`)
+
    - User selects a root folder via File System Access API
    - App scans immediate child folders (1 level deep only)
    - Detects day mappings using `folderDetectionService.ts`
 
 2. **Folder Detection** (`folderDetectionService.ts`)
+
    - Analyzes folder names for patterns:
      - `Day 1`, `D01`, `day_2` (high confidence)
      - ISO dates `2024-03-15` (high/medium confidence)
@@ -23,6 +25,7 @@ The app currently follows this workflow when creating a new project:
    - Provides suggested mappings for review
 
 3. **Photo Collection** (`projectService.ts`)
+
    - **Recursively** scans ALL subfolders
    - Collects all supported image files (jpg, jpeg, png, heic, webp, mp4, mov)
    - Flattens everything into a single photo list
@@ -35,6 +38,7 @@ The app currently follows this workflow when creating a new project:
 ### 2. **Photo Organization**
 
 During the app session:
+
 - Photos can be assigned to days (1-99)
 - Photos can be assigned to buckets (A-E, M, X for archive)
 - App generates sequential filenames based on assignments
@@ -43,6 +47,7 @@ During the app session:
 ### 3. **Export Process**
 
 When exporting (`buildExportScript`):
+
 - Generates a bash script that **copies** files
 - Creates new folder structure:
   ```
@@ -66,6 +71,7 @@ When exporting (`buildExportScript`):
 ### ❌ **Gap 1: No Recognition of Existing Structure**
 
 **Issue**: If a user already has organized folders like:
+
 ```
 01_Days/
   Day 01/
@@ -76,6 +82,7 @@ When exporting (`buildExportScript`):
 ```
 
 The app will:
+
 - Scan all these subfolders recursively
 - Flatten all photos into one list
 - **Lose the subfolder structure** entirely
@@ -83,6 +90,7 @@ The app will:
 - User would have to manually re-assign buckets
 
 **What's Missing**:
+
 - Detection of bucket subfolders (A_Establishing, B_People, etc.)
 - Preservation of existing day/bucket assignments from folder structure
 - Auto-mapping photos to days/buckets based on their current location
@@ -94,11 +102,13 @@ The app will:
 **Scenario**: User has organized 500 photos into days/buckets. Now they want to add 50 new diving photos from Day 2 only.
 
 **Current Behavior**:
+
 - Would need to create a NEW project
 - OR re-scan the entire folder (loses existing organization)
 - Cannot selectively add/review new folders
 
 **What's Missing**:
+
 - Ability to add additional folders to an existing project
 - Selective folder import
 - Merge new photos with existing organization
@@ -109,11 +119,13 @@ The app will:
 ### ❌ **Gap 3: Export Script Touches ALL Files**
 
 **Issue**: Export script will try to copy:
+
 - Files that are already in the correct location
 - Files that haven't been edited
 - Files that were part of the original structure
 
 **What's Missing**:
+
 - Smart detection of which files need to be moved
 - Skip files that are already in target locations
 - Only process "new" files or files with changed assignments
@@ -123,11 +135,13 @@ The app will:
 ### ❌ **Gap 4: No Flexible Folder Viewing**
 
 **Current UI**:
+
 - Gallery view shows all photos
 - Filter by day/bucket
 - No visual representation of folder hierarchy
 
 **What's Missing**:
+
 - Folder tree/hierarchy view
 - See photos grouped by their current folder location
 - Navigate subfolders within the UI
@@ -138,6 +152,7 @@ The app will:
 ### ❌ **Gap 5: Cannot Handle Mixed Input**
 
 **Scenario**: User receives:
+
 ```
 Iceland_Trip/
   Organized_Photos/
@@ -152,11 +167,13 @@ Iceland_Trip/
 ```
 
 **Current Behavior**:
+
 - Scans everything recursively
 - Flattens all into one list
 - Loses context about which folders are organized vs. messy
 
 **What's Missing**:
+
 - Mixed-mode handling (some folders organized, some not)
 - Preserve organized folders while organizing messy ones
 - Selective organization workflows
@@ -170,19 +187,23 @@ Iceland_Trip/
 When scanning a folder, detect:
 
 1. **Pre-organized structure** (high confidence):
+
    ```
    01_Days/Day 01/A_Establishing/
    ```
+
    - Has days folder container
    - Has day subfolders
    - Has bucket subfolders with A-E naming
    - **Action**: Preserve structure, auto-assign photos
 
 2. **Partially organized** (medium confidence):
+
    ```
    Day 01/photos_here.jpg
    Day 02/photos_here.jpg
    ```
+
    - Has day folders but no buckets
    - **Action**: Preserve days, allow bucket assignment
 
@@ -196,18 +217,20 @@ When scanning a folder, detect:
 ### ✅ **Feature 2: Folder-Aware Photo Import**
 
 Store additional metadata for each photo:
+
 ```typescript
 interface ProjectPhoto {
   // ... existing fields
-  sourceFolder?: string;        // Immediate parent folder
-  folderPath?: string;          // Full folder hierarchy
-  isPreOrganized?: boolean;     // Was this in an organized structure?
-  detectedDay?: number | null;  // Day detected from folder structure
+  sourceFolder?: string; // Immediate parent folder
+  folderPath?: string; // Full folder hierarchy
+  isPreOrganized?: boolean; // Was this in an organized structure?
+  detectedDay?: number | null; // Day detected from folder structure
   detectedBucket?: string | null; // Bucket detected from folder structure
 }
 ```
 
 During import:
+
 - Parse `folderPath` to detect structure
 - Extract day number from folder names
 - Extract bucket from subfolder names (A_Establishing → A)
@@ -216,11 +239,13 @@ During import:
 ### ✅ **Feature 3: Folder Hierarchy View**
 
 Add new viewing mode to PhotoOrganizer:
+
 ```typescript
 type ViewMode = 'gallery' | 'inspect' | 'folders';
 ```
 
 Folder view should:
+
 - Display collapsible folder tree
 - Show photo counts per folder
 - Allow drilling down into subfolders
@@ -232,11 +257,13 @@ Folder view should:
 Export script improvements:
 
 1. **Track file state**:
+
    - `unchanged`: Already in correct location with correct name
    - `new`: Not in organized structure yet
    - `modified`: Assignment changed from original
 
 2. **Only process changed files**:
+
    ```bash
    # Skip files already in correct location
    if [ -e "${target_path}/${new_name}" ]; then
@@ -252,12 +279,14 @@ Export script improvements:
 ### ✅ **Feature 5: Incremental Project Updates**
 
 Add capability to:
+
 - Add new folders to existing project
 - Detect new/modified photos since last scan
 - Merge new photos with existing organization
 - Preserve user edits during re-scan
 
 API additions:
+
 ```typescript
 async function addFolderToProject(
   projectId: string,
@@ -265,8 +294,8 @@ async function addFolderToProject(
   options?: {
     mergeStrategy: 'preserve' | 'overwrite';
     detectExisting: boolean;
-  }
-): Promise<{ newPhotos: ProjectPhoto[], conflicts: PhotoConflict[] }>;
+  },
+): Promise<{ newPhotos: ProjectPhoto[]; conflicts: PhotoConflict[] }>;
 ```
 
 ---
@@ -274,30 +303,35 @@ async function addFolderToProject(
 ## Recommended Implementation Plan
 
 ### Phase 1: Structure Detection Enhancement
+
 1. Update `folderDetectionService.ts` to detect bucket subfolders
 2. Add bucket pattern matching (A_Establishing, B_People, etc.)
 3. Enhance `FolderMapping` to include detected buckets
 4. Store folder hierarchy metadata in photos
 
 ### Phase 2: Smart Photo Import
+
 1. Modify `buildPhotosFromHandle` to preserve folder context
 2. Add detection logic for pre-organized photos
 3. Auto-assign day/bucket from folder structure
 4. Flag pre-organized vs. new photos
 
 ### Phase 3: Export Intelligence
+
 1. Add file state tracking (unchanged/new/modified)
 2. Update `buildExportScript` to skip unchanged files
 3. Add dry-run summary showing what will actually move
 4. Preserve files already in organized structure
 
 ### Phase 4: Folder View UI
+
 1. Create folder tree component
 2. Add folder navigation
 3. Bulk operations per folder
 4. Visual indicators for organization status
 
 ### Phase 5: Incremental Updates
+
 1. Add "Add Folder" capability
 2. Merge logic for new photos
 3. Conflict resolution UI
@@ -319,6 +353,7 @@ async function addFolderToProject(
 ## Example Workflows
 
 ### Workflow A: Pre-Organized Folder
+
 ```
 Input:
   01_Days/
@@ -334,6 +369,7 @@ App Behavior:
 ```
 
 ### Workflow B: Mixed Structure
+
 ```
 Input:
   01_Days/Day 01/A_Establishing/IMG_001.jpg  (organized)
@@ -349,6 +385,7 @@ App Behavior:
 ```
 
 ### Workflow C: Add New Photos Later
+
 ```
 Existing Project: 500 photos organized
 New Input: Diving_Photos_Day_2/ (50 new photos)

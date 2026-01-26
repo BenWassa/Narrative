@@ -229,11 +229,7 @@ export function analyzePathStructure(
 
   const daysIndex = pathSegments.findIndex(segment => {
     const lower = segment.toLowerCase();
-    return (
-      lower === daysFolder.toLowerCase() ||
-      lower === '01_days' ||
-      lower === 'days'
-    );
+    return lower === daysFolder.toLowerCase() || lower === '01_days' || lower === 'days';
   });
 
   if (daysIndex !== -1 && daysIndex < pathSegments.length - 1) {

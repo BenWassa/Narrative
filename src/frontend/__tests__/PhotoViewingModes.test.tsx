@@ -60,7 +60,7 @@ const makeSampleState = () => {
   };
 };
 
-test('view mode toggle persists to localStorage and reflects active state', async () => {
+test('double-clicking a photo opens PhotoViewer (Gallery View)', async () => {
   const state = makeSampleState();
   localStorage.setItem(
     'narrative:recentProjects',
@@ -72,22 +72,18 @@ test('view mode toggle persists to localStorage and reflects active state', asyn
   const projectButton = await screen.findByRole('button', { name: /Viewer Project/i });
   fireEvent.click(projectButton);
 
-  // Inspect/Gallery toggles should be visible
-  const inspectBtn = await screen.findByRole('button', { name: /Inspect/i });
-  const galleryBtn = await screen.findByRole('button', { name: /Gallery/i });
-  expect(inspectBtn).toBeInTheDocument();
-  expect(galleryBtn).toBeInTheDocument();
+  // Gallery view should show photos
+  const photoTile = await screen.findByTestId('photo-photo_1');
+  expect(photoTile).toBeInTheDocument();
 
-  // Click Inspect and expect persistence
-  fireEvent.click(inspectBtn);
-  await waitFor(() => expect(localStorage.getItem('narrative:viewMode')).toBe('inspect'));
+  // Double-click to open PhotoViewer
+  fireEvent.doubleClick(photoTile);
 
-  // Click Gallery and expect persistence
-  fireEvent.click(galleryBtn);
-  await waitFor(() => expect(localStorage.getItem('narrative:viewMode')).toBe('gallery'));
+  // PhotoViewer should open (look for "Gallery View" header)
+  await screen.findByText(/Gallery View/i);
 });
 
-test('clicking Inspect button opens Inspect mode and Esc closes it', async () => {
+test('Esc key closes PhotoViewer', async () => {
   const state = makeSampleState();
   localStorage.setItem(
     'narrative:recentProjects',
@@ -99,24 +95,21 @@ test('clicking Inspect button opens Inspect mode and Esc closes it', async () =>
   const projectButton = await screen.findByRole('button', { name: /Viewer Project/i });
   fireEvent.click(projectButton);
 
-  // Wait for Inspect button to render
-  const inspectBtn = await screen.findByRole('button', { name: /Inspect/i });
-  expect(inspectBtn).toBeInTheDocument();
+  const photoTile = await screen.findByTestId('photo-photo_1');
+  fireEvent.doubleClick(photoTile);
 
-  // Click Inspect button to open Inspect mode
-  fireEvent.click(inspectBtn);
-  const inspectHeader = await screen.findByText(/Inspect Mode/i);
-  expect(inspectHeader).toBeInTheDocument();
+  // Verify PhotoViewer opened
+  await screen.findByText(/Gallery View/i);
 
-  // Press Escape to close
+  // Press Esc to close
   fireEvent.keyDown(window, { key: 'Escape' });
-  await waitFor(() => expect(screen.queryByText(/Inspect Mode/i)).toBeNull());
+  await waitFor(() => expect(screen.queryByText(/Gallery View/i)).not.toBeInTheDocument());
 
   // The gallery should still show the photo tile
-  expect(screen.queryByTestId('photo-photo_1')).toBeInTheDocument();
+  expect(screen.getByTestId('photo-photo_1')).toBeInTheDocument();
 });
 
-test('arrow keys navigate within Inspect and update the counter', async () => {
+test('arrow keys navigate within PhotoViewer and update the counter', async () => {
   const state = makeSampleState();
   localStorage.setItem(
     'narrative:recentProjects',
@@ -128,25 +121,26 @@ test('arrow keys navigate within Inspect and update the counter', async () => {
   const projectButton = await screen.findByRole('button', { name: /Viewer Project/i });
   fireEvent.click(projectButton);
 
-  // Open inspect via Inspect button
-  const inspectBtn = await screen.findByRole('button', { name: /Inspect/i });
-  fireEvent.click(inspectBtn);
-  const counter = await screen.findByText(/1 \//i);
+  // Open PhotoViewer by double-clicking a photo
+  const photoTile = await screen.findByTestId('photo-photo_1');
+  fireEvent.doubleClick(photoTile);
+
+  const counter = await screen.findByText(/1 \/ 4/i);
   expect(counter).toBeInTheDocument();
 
   // Press ArrowRight and expect counter to increment
   fireEvent.keyDown(window, { key: 'ArrowRight' });
-  await waitFor(() => expect(screen.getByText(/2 \//i)).toBeInTheDocument());
+  await waitFor(() => expect(screen.getByText(/2 \/ 4/i)).toBeInTheDocument());
 
   // Press ArrowLeft and expect counter to decrement
   fireEvent.keyDown(window, { key: 'ArrowLeft' });
-  await waitFor(() => expect(screen.getByText(/1 \//i)).toBeInTheDocument());
+  await waitFor(() => expect(screen.getByText(/1 \/ 4/i)).toBeInTheDocument());
 
   // Press Escape to exit
   fireEvent.keyDown(window, { key: 'Escape' });
 });
 
-test('assigning a bucket in Inspect updates the gallery badge', async () => {
+test('assigning a bucket in PhotoViewer updates the gallery badge', async () => {
   const state = makeSampleState();
   localStorage.setItem(
     'narrative:recentProjects',
@@ -158,23 +152,17 @@ test('assigning a bucket in Inspect updates the gallery badge', async () => {
   const projectButton = await screen.findByRole('button', { name: /Viewer Project/i });
   fireEvent.click(projectButton);
 
-  // Open inspect via Inspect button
-  const inspectBtn = await screen.findByRole('button', { name: /Inspect/i });
-  fireEvent.click(inspectBtn);
-  await screen.findByText(/Inspect Mode/i);
+  // Open PhotoViewer by double-clicking first photo
+  const photoTile = await screen.findByTestId('photo-photo_1');
+  fireEvent.doubleClick(photoTile);
+  await screen.findByText(/Gallery View/i);
 
-  // Click the 'Establishing' bucket (A)
-  const meceLabel = await screen.findByText(/MECE Category/i);
-  const meceContainer = meceLabel.closest('div');
-  expect(meceContainer).toBeTruthy();
-  const establishingBtn = within(meceContainer as Element).getByRole('button', {
-    name: /Establishing/i,
-  });
-  fireEvent.click(establishingBtn);
+  // Press 'A' key to assign Establishing bucket
+  fireEvent.keyDown(window, { key: 'a' });
 
-  // Exit inspect
+  // Exit PhotoViewer
   fireEvent.keyDown(window, { key: 'Escape' });
-  await waitFor(() => expect(screen.queryByText(/Inspect Mode/i)).toBeNull());
+  await waitFor(() => expect(screen.queryByText(/Gallery View/i)).toBeNull());
 
   // The gallery tile should now contain the bucket badge 'A'
   const tile = await screen.findByTestId('photo-photo_1');
@@ -184,7 +172,7 @@ test('assigning a bucket in Inspect updates the gallery badge', async () => {
   expect(badge.closest('.absolute')).toBeTruthy();
 });
 
-test('archiving a photo in Inspect auto-advances to next photo', async () => {
+test('archiving a photo in PhotoViewer auto-advances to next photo', async () => {
   const state = makeSampleState();
   localStorage.setItem(
     'narrative:recentProjects',
@@ -196,30 +184,29 @@ test('archiving a photo in Inspect auto-advances to next photo', async () => {
   const projectButton = await screen.findByRole('button', { name: /Viewer Project/i });
   fireEvent.click(projectButton);
 
-  // Open inspect via Inspect button
-  const inspectBtn = await screen.findByRole('button', { name: /Inspect/i });
-  fireEvent.click(inspectBtn);
-  await screen.findByText(/Inspect Mode/i);
+  // Open PhotoViewer by double-clicking first photo
+  const photoTile = await screen.findByTestId('photo-photo_1');
+  fireEvent.doubleClick(photoTile);
+  await screen.findByText(/Gallery View/i);
 
-  // Archive the photo (bucket X)
-  const meceLabel = await screen.findByText(/MECE Category/i);
-  const meceContainer = meceLabel.closest('div');
-  expect(meceContainer).toBeTruthy();
-  const archiveBtn = within(meceContainer as Element).getByRole('button', { name: /Archive/i });
-  fireEvent.click(archiveBtn);
+  // Verify we start at photo 1 of 4
+  expect(screen.getByText(/1 of 4/i)).toBeInTheDocument();
 
-  // Should auto-advance to photo #2 (now 1st in filtered list)
-  await waitFor(() => expect(screen.getByText(/1 \/ 3/i)).toBeInTheDocument());
+  // Press 'X' key to archive the photo
+  fireEvent.keyDown(window, { key: 'x' });
 
-  // Exit inspect and verify photo #1 is archived (no longer visible in gallery)
+  // Should auto-advance - still showing 1 of 3 (since we archived one, but advanced to what was #2)
+  await waitFor(() => expect(screen.getByText(/1 of 3/i)).toBeInTheDocument());
+
+  // Exit PhotoViewer and verify photo #1 is archived (no longer visible in gallery)
   fireEvent.keyDown(window, { key: 'Escape' });
-  await waitFor(() => expect(screen.queryByText(/Inspect Mode/i)).toBeNull());
+  await waitFor(() => expect(screen.queryByText(/Gallery View/i)).toBeNull());
 
   // Photo #1 should not be visible in the gallery (archived)
   expect(screen.queryByTestId('photo-photo_1')).toBeNull();
 });
 
-test('archiving the last photo in Inspect exits to gallery', async () => {
+test('archiving the last photo in PhotoViewer exits to gallery', async () => {
   // Create state with only one photo
   const singlePhotoState = {
     ...makeSampleState(),
@@ -241,83 +228,17 @@ test('archiving the last photo in Inspect exits to gallery', async () => {
   const projectButton = await screen.findByRole('button', { name: /Viewer Project/i });
   fireEvent.click(projectButton);
 
-  // Open inspect via Inspect button
-  const inspectBtn = await screen.findByRole('button', { name: /Inspect/i });
-  fireEvent.click(inspectBtn);
-  await screen.findByText(/Inspect Mode/i);
+  // Open PhotoViewer by double-clicking first photo
+  const photoTile = await screen.findByTestId('photo-photo_1');
+  fireEvent.doubleClick(photoTile);
+  await screen.findByText(/Gallery View/i);
 
-  // Archive the photo
-  const meceLabel = await screen.findByText(/MECE Category/i);
-  const meceContainer = meceLabel.closest('div');
-  expect(meceContainer).toBeTruthy();
-  const archiveBtn = within(meceContainer as Element).getByRole('button', { name: /Archive/i });
-  fireEvent.click(archiveBtn);
+  // Press 'X' key to archive the photo
+  fireEvent.keyDown(window, { key: 'x' });
 
-  // Should exit Inspect mode automatically (no photos left)
-  await waitFor(() => expect(screen.queryByText(/Inspect Mode/i)).toBeNull());
+  // Should exit PhotoViewer automatically (no photos left)
+  await waitFor(() => expect(screen.queryByText(/Gallery View/i)).toBeNull());
 
-  // The photo may still be visible in the gallery depending on the view
-  // The important thing is that Inspect mode exited
-  expect(screen.queryByText(/Inspect Mode/i)).toBeNull();
-});
-
-test('exiting Inspect validates focused photo exists in current view', async () => {
-  const state = makeSampleState();
-  localStorage.setItem(
-    'narrative:recentProjects',
-    JSON.stringify([{ projectName: state.projectName, projectId: 'p1', rootPath: state.rootPath }]),
-  );
-  vi.mocked(projectService.getState).mockResolvedValue(state as any);
-
-  render(<PhotoOrganizer />);
-  const projectButton = await screen.findByRole('button', { name: /Viewer Project/i });
-  fireEvent.click(projectButton);
-
-  // Open inspect via Inspect button
-  const inspectBtn = await screen.findByRole('button', { name: /Inspect/i });
-  fireEvent.click(inspectBtn);
-  await screen.findByText(/Inspect Mode/i);
-
-  // Switch to a different view that doesn't include this photo (e.g., favorites - assuming photo is not favorited)
-  const favoritesBtn = await screen.findByRole('button', { name: /Favorites/i });
-  fireEvent.click(favoritesBtn);
-
-  // Exit inspect
-  fireEvent.keyDown(window, { key: 'Escape' });
-  await waitFor(() => expect(screen.queryByText(/Inspect Mode/i)).toBeNull());
-
-  // The focused photo should be cleared since it's not in the current view
-  // (No photo should be selected in the gallery)
-  const selectedPhotos = screen.queryAllByTestId(/^photo-/, { selector: '[class*="ring-4"]' });
-  expect(selectedPhotos).toHaveLength(0);
-});
-
-test('Shift+click bucket auto-advances to next photo', async () => {
-  const state = makeSampleState();
-  localStorage.setItem(
-    'narrative:recentProjects',
-    JSON.stringify([{ projectName: state.projectName, projectId: 'p1', rootPath: state.rootPath }]),
-  );
-  vi.mocked(projectService.getState).mockResolvedValue(state as any);
-
-  render(<PhotoOrganizer />);
-  const projectButton = await screen.findByRole('button', { name: /Viewer Project/i });
-  fireEvent.click(projectButton);
-
-  // Open inspect via Inspect button
-  const inspectBtn = await screen.findByRole('button', { name: /Inspect/i });
-  fireEvent.click(inspectBtn);
-  await screen.findByText(/Inspect Mode/i);
-
-  // Shift+click the 'Establishing' bucket (A)
-  const meceLabel = await screen.findByText(/MECE Category/i);
-  const meceContainer = meceLabel.closest('div');
-  expect(meceContainer).toBeTruthy();
-  const establishingBtn = within(meceContainer as Element).getByRole('button', {
-    name: /Establishing/i,
-  });
-  fireEvent.click(establishingBtn, { shiftKey: true });
-
-  // Should auto-advance to photo #2
-  await waitFor(() => expect(screen.getByText(/2 \/ 4/i)).toBeInTheDocument());
+  // The important thing is that PhotoViewer exited
+  expect(screen.queryByText(/Gallery View/i)).toBeNull();
 });

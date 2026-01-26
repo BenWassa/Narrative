@@ -15,6 +15,7 @@ Enable the app to detect and preserve pre-organized folder structures, automatic
 ## Scope
 
 ### In Scope
+
 - ✅ Detect bucket subfolders (A-M pattern matching)
 - ✅ Detect day-bucket hierarchy (01_Days/Day XX/Y_Bucket/)
 - ✅ Auto-assign photos to days/buckets from folder structure
@@ -23,6 +24,7 @@ Enable the app to detect and preserve pre-organized folder structures, automatic
 - ✅ Add confidence levels for bucket detection
 
 ### Out of Scope
+
 - ❌ UI for folder tree view (Phase 4)
 - ❌ Adding new folders to existing projects (Phase 5)
 - ❌ Smart export logic (Phase 3)
@@ -57,13 +59,13 @@ export interface ProjectPhoto {
     width?: number;
     height?: number;
   };
-  
+
   // NEW: Structure detection metadata
-  sourceFolder?: string;              // Immediate parent folder name
-  folderHierarchy?: string[];         // Full path as array: ['01_Days', 'Day 01', 'A_Establishing']
-  detectedDay?: number | null;        // Day number detected from folder structure
-  detectedBucket?: string | null;     // Bucket letter detected from folder structure
-  isPreOrganized?: boolean;           // True if found in organized structure
+  sourceFolder?: string; // Immediate parent folder name
+  folderHierarchy?: string[]; // Full path as array: ['01_Days', 'Day 01', 'A_Establishing']
+  detectedDay?: number | null; // Day number detected from folder structure
+  detectedBucket?: string | null; // Bucket letter detected from folder structure
+  isPreOrganized?: boolean; // True if found in organized structure
   organizationConfidence?: 'high' | 'medium' | 'low' | 'none'; // Detection confidence
 }
 ```
@@ -90,20 +92,20 @@ export interface FolderMapping {
     start: string;
     end: string;
   };
-  
+
   // NEW: Bucket detection
-  detectedBuckets?: BucketInfo[];     // Subfolders detected as buckets
-  isOrganizedStructure?: boolean;     // True if this is a day folder with bucket subfolders
+  detectedBuckets?: BucketInfo[]; // Subfolders detected as buckets
+  isOrganizedStructure?: boolean; // True if this is a day folder with bucket subfolders
   bucketConfidence?: 'high' | 'medium' | 'low' | 'none';
 }
 
 // NEW: Bucket detection metadata
 export interface BucketInfo {
-  bucketLetter: string;               // 'A', 'B', 'C', 'D', 'E', 'M'
-  folderName: string;                 // 'A_Establishing', 'B_People', etc.
+  bucketLetter: string; // 'A', 'B', 'C', 'D', 'E', 'M'
+  folderName: string; // 'A_Establishing', 'B_People', etc.
   photoCount: number;
   confidence: 'high' | 'medium' | 'low';
-  patternMatched: string;             // 'standard', 'custom', 'numeric'
+  patternMatched: string; // 'standard', 'custom', 'numeric'
 }
 ```
 
@@ -124,7 +126,8 @@ export interface BucketInfo {
 
 // Pattern 1: Standard bucket naming (highest confidence)
 // Matches: "A_Establishing", "B_People", "C_Culture-Detail", etc.
-const BUCKET_STANDARD_PATTERN = /^([A-M])_(Establishing|People|Culture|Detail|Action|Moment|Transition|Mood|Food)/i;
+const BUCKET_STANDARD_PATTERN =
+  /^([A-M])_(Establishing|People|Culture|Detail|Action|Moment|Transition|Mood|Food)/i;
 
 // Pattern 2: Simple bucket letter (high confidence)
 // Matches: "A", "B", "C", etc.
@@ -154,16 +157,15 @@ const NUMERIC_TO_BUCKET_MAP: Record<string, string> = {
  * Detect if a folder name matches bucket patterns
  */
 export function detectBucketFromFolderName(
-  folderName: string
+  folderName: string,
 ): { bucket: string; confidence: 'high' | 'medium' | 'low'; pattern: string } | null {
-  
   // Pattern 1: Standard naming (A_Establishing, B_People, etc.)
   const standardMatch = folderName.match(BUCKET_STANDARD_PATTERN);
   if (standardMatch) {
     return {
       bucket: standardMatch[1].toUpperCase(),
       confidence: 'high',
-      pattern: 'standard'
+      pattern: 'standard',
     };
   }
 
@@ -173,7 +175,7 @@ export function detectBucketFromFolderName(
     return {
       bucket: letterMatch[1].toUpperCase(),
       confidence: 'high',
-      pattern: 'letter'
+      pattern: 'letter',
     };
   }
 
@@ -183,7 +185,7 @@ export function detectBucketFromFolderName(
     return {
       bucket: customMatch[1].toUpperCase(),
       confidence: 'medium',
-      pattern: 'custom'
+      pattern: 'custom',
     };
   }
 
@@ -193,7 +195,7 @@ export function detectBucketFromFolderName(
     return {
       bucket: NUMERIC_TO_BUCKET_MAP[numericMatch[1]],
       confidence: 'low',
-      pattern: 'numeric'
+      pattern: 'numeric',
     };
   }
 
@@ -207,8 +209,8 @@ export function detectBucketFromFolderName(
 export function analyzePathStructure(
   filePath: string,
   options?: {
-    daysFolder?: string;  // Expected days container (default: '01_DAYS')
-  }
+    daysFolder?: string; // Expected days container (default: '01_DAYS')
+  },
 ): {
   detectedDay: number | null;
   detectedBucket: string | null;
@@ -218,33 +220,34 @@ export function analyzePathStructure(
 } {
   const daysFolder = options?.daysFolder || '01_DAYS';
   const pathSegments = filePath.split(/[\\/]/).filter(Boolean);
-  
+
   let detectedDay: number | null = null;
   let detectedBucket: string | null = null;
   let dayConfidence: 'high' | 'medium' | 'low' | 'none' = 'none';
   let bucketConfidence: 'high' | 'medium' | 'low' | 'none' = 'none';
-  
+
   // Look for days container folder
-  const daysIndex = pathSegments.findIndex(seg => 
-    seg.toLowerCase() === daysFolder.toLowerCase() ||
-    seg.toLowerCase() === '01_days' ||
-    seg.toLowerCase() === 'days'
+  const daysIndex = pathSegments.findIndex(
+    seg =>
+      seg.toLowerCase() === daysFolder.toLowerCase() ||
+      seg.toLowerCase() === '01_days' ||
+      seg.toLowerCase() === 'days',
   );
-  
+
   if (daysIndex !== -1 && daysIndex < pathSegments.length - 1) {
     // Next folder after days container should be a day folder
     const dayFolder = pathSegments[daysIndex + 1];
     const dayDetection = extractDayFromFolderName(dayFolder);
-    
+
     if (dayDetection) {
       detectedDay = dayDetection.day;
       dayConfidence = dayDetection.confidence;
-      
+
       // If there's another folder after the day folder, check if it's a bucket
       if (daysIndex + 2 < pathSegments.length) {
         const bucketFolder = pathSegments[daysIndex + 2];
         const bucketDetection = detectBucketFromFolderName(bucketFolder);
-        
+
         if (bucketDetection) {
           detectedBucket = bucketDetection.bucket;
           bucketConfidence = bucketDetection.confidence;
@@ -256,16 +259,16 @@ export function analyzePathStructure(
     for (let i = 0; i < pathSegments.length; i++) {
       const segment = pathSegments[i];
       const dayDetection = extractDayFromFolderName(segment);
-      
+
       if (dayDetection) {
         detectedDay = dayDetection.day;
         dayConfidence = dayDetection.confidence === 'high' ? 'medium' : 'low';
-        
+
         // Check next folder for bucket
         if (i + 1 < pathSegments.length) {
           const bucketFolder = pathSegments[i + 1];
           const bucketDetection = detectBucketFromFolderName(bucketFolder);
-          
+
           if (bucketDetection) {
             detectedBucket = bucketDetection.bucket;
             bucketConfidence = bucketDetection.confidence;
@@ -275,11 +278,11 @@ export function analyzePathStructure(
       }
     }
   }
-  
+
   // Determine overall confidence and pre-organized status
   const isPreOrganized = detectedDay !== null && detectedBucket !== null;
   let overallConfidence: 'high' | 'medium' | 'low' | 'none' = 'none';
-  
+
   if (isPreOrganized) {
     // Both day and bucket detected
     if (dayConfidence === 'high' && bucketConfidence === 'high') {
@@ -293,13 +296,13 @@ export function analyzePathStructure(
     // Only day detected
     overallConfidence = dayConfidence;
   }
-  
+
   return {
     detectedDay,
     detectedBucket,
     isPreOrganized,
     confidence: overallConfidence,
-    pathSegments
+    pathSegments,
   };
 }
 
@@ -307,15 +310,15 @@ export function analyzePathStructure(
  * Scan a day folder for bucket subfolders
  */
 export async function detectBucketsInFolder(
-  dirHandle: FileSystemDirectoryHandle
+  dirHandle: FileSystemDirectoryHandle,
 ): Promise<BucketInfo[]> {
   const buckets: BucketInfo[] = [];
-  
+
   try {
     // @ts-ignore - entries() is supported in modern browsers
     for await (const [name, handle] of dirHandle.entries()) {
       if (handle.kind !== 'directory') continue;
-      
+
       const bucketDetection = detectBucketFromFolderName(name);
       if (bucketDetection) {
         // Count photos in this bucket folder
@@ -328,25 +331,26 @@ export async function detectBucketsInFolder(
             photoCount++;
           }
         }
-        
+
         buckets.push({
           bucketLetter: bucketDetection.bucket,
           folderName: name,
           photoCount,
           confidence: bucketDetection.confidence,
-          patternMatched: bucketDetection.pattern
+          patternMatched: bucketDetection.pattern,
         });
       }
     }
   } catch (error) {
     console.warn('Failed to scan for buckets:', error);
   }
-  
+
   return buckets.sort((a, b) => a.bucketLetter.localeCompare(b.bucketLetter));
 }
 ```
 
-**Manual Check**: 
+**Manual Check**:
+
 1. Test bucket detection with various folder naming conventions
 2. Verify pattern matching works correctly for all cases
 3. Check that path parsing handles different separators (\ and /)
@@ -418,7 +422,7 @@ export async function buildPhotosFromHandle(
     // NEW: Auto-assign day/bucket if detected with high confidence
     let day: number | null = null;
     let bucket: string | null = null;
-    
+
     if (pathAnalysis.isPreOrganized && pathAnalysis.confidence === 'high') {
       day = pathAnalysis.detectedDay;
       bucket = pathAnalysis.detectedBucket;
@@ -439,7 +443,7 @@ export async function buildPhotosFromHandle(
       mimeType: file.type || (isHeic ? 'image/heic' : ''),
       fileHandle: entry.handle,
       filePath: entry.path,
-      
+
       // NEW: Structure detection metadata
       sourceFolder,
       folderHierarchy: pathSegments,
@@ -455,6 +459,7 @@ export async function buildPhotosFromHandle(
 ```
 
 **Manual Check**:
+
 1. Import a test folder with organized structure (01_Days/Day 01/A_Establishing/)
 2. Verify photos are auto-assigned to correct day/bucket
 3. Check that `isPreOrganized` flag is set correctly
@@ -485,13 +490,13 @@ const handleDetect = useCallback(async () => {
     const photoCountMap = new Map<string, number>();
     const folders: string[] = [];
     const folderHandles = new Map<string, FileSystemDirectoryHandle>();
-    
+
     // @ts-ignore - entries() is supported in modern browsers
     for await (const [name, handle] of dirHandle.entries()) {
       if (handle.kind !== 'directory') continue;
       folders.push(name);
       folderHandles.set(name, handle);
-      
+
       let count = 0;
       // @ts-ignore
       for await (const [, nested] of handle.entries()) {
@@ -503,36 +508,39 @@ const handleDetect = useCallback(async () => {
       }
       photoCountMap.set(name, count);
     }
-    
+
     const detected = detectFolderStructure(folders, { photoCountMap, projectName });
-    
+
     // NEW: For each detected day folder, scan for bucket subfolders
     const enhancedMappings = await Promise.all(
-      detected.map(async (mapping) => {
+      detected.map(async mapping => {
         const folderHandle = folderHandles.get(mapping.folder);
         if (!folderHandle || mapping.confidence === 'undetected') {
           return mapping;
         }
-        
+
         // Scan for bucket subfolders
         const buckets = await detectBucketsInFolder(folderHandle);
-        
+
         return {
           ...mapping,
           detectedBuckets: buckets,
           isOrganizedStructure: buckets.length > 0,
-          bucketConfidence: buckets.length > 0 ? 
-            (buckets.every(b => b.confidence === 'high') ? 'high' : 'medium') : 
-            'none'
+          bucketConfidence:
+            buckets.length > 0
+              ? buckets.every(b => b.confidence === 'high')
+                ? 'high'
+                : 'medium'
+              : 'none',
         };
-      })
+      }),
     );
-    
+
     const withSkips = enhancedMappings.map(m => ({
       ...m,
       skip: m.confidence === 'undetected' ? true : m.skip ?? false,
     }));
-    
+
     setMappings(withSkips);
     setStep('preview');
   } catch (err) {
@@ -544,6 +552,7 @@ const handleDetect = useCallback(async () => {
 ```
 
 **Manual Check**:
+
 1. Run onboarding with a pre-organized folder
 2. Verify that bucket subfolders are detected and shown in preview
 3. Check that photo counts are accurate for buckets
@@ -560,14 +569,18 @@ const handleDetect = useCallback(async () => {
 Add bucket information to the folder mapping table:
 
 ```tsx
-{/* After the day number column, add bucket info column */}
-<th className="text-left px-3 py-2 font-medium text-gray-700">Buckets</th>
+{
+  /* After the day number column, add bucket info column */
+}
+<th className="text-left px-3 py-2 font-medium text-gray-700">Buckets</th>;
 
-{/* In the mapping row: */}
+{
+  /* In the mapping row: */
+}
 <td className="px-3 py-2">
   {mapping.detectedBuckets && mapping.detectedBuckets.length > 0 ? (
     <div className="flex flex-wrap gap-1">
-      {mapping.detectedBuckets.map((bucket) => (
+      {mapping.detectedBuckets.map(bucket => (
         <span
           key={bucket.bucketLetter}
           className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800"
@@ -581,10 +594,11 @@ Add bucket information to the folder mapping table:
   ) : (
     <span className="text-xs text-gray-400 italic">None detected</span>
   )}
-</td>
+</td>;
 ```
 
 **Manual Check**:
+
 1. Verify bucket badges display correctly
 2. Check that photo counts are shown
 3. Ensure tooltips work on hover
@@ -599,24 +613,33 @@ Add bucket information to the folder mapping table:
 Add visual indicator in photo cards/thumbnails:
 
 ```tsx
-{/* In photo card rendering, add badge for pre-organized photos */}
-{photo.isPreOrganized && (
-  <div className="absolute top-1 left-1 z-10">
-    <span 
-      className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-blue-500 text-white"
-      title={`Auto-assigned: Day ${photo.detectedDay}, Bucket ${photo.detectedBucket}`}
-    >
-      <svg className="w-3 h-3 mr-0.5" fill="currentColor" viewBox="0 0 20 20">
-        <path d="M9 2a1 1 0 000 2h2a1 1 0 100-2H9z"/>
-        <path fillRule="evenodd" d="M4 5a2 2 0 012-2 3 3 0 003 3h2a3 3 0 003-3 2 2 0 012 2v11a2 2 0 01-2 2H6a2 2 0 01-2-2V5zm9.707 5.707a1 1 0 00-1.414-1.414L9 12.586l-1.293-1.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd"/>
-      </svg>
-      Organized
-    </span>
-  </div>
-)}
+{
+  /* In photo card rendering, add badge for pre-organized photos */
+}
+{
+  photo.isPreOrganized && (
+    <div className="absolute top-1 left-1 z-10">
+      <span
+        className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-blue-500 text-white"
+        title={`Auto-assigned: Day ${photo.detectedDay}, Bucket ${photo.detectedBucket}`}
+      >
+        <svg className="w-3 h-3 mr-0.5" fill="currentColor" viewBox="0 0 20 20">
+          <path d="M9 2a1 1 0 000 2h2a1 1 0 100-2H9z" />
+          <path
+            fillRule="evenodd"
+            d="M4 5a2 2 0 012-2 3 3 0 003 3h2a3 3 0 003-3 2 2 0 012 2v11a2 2 0 01-2 2H6a2 2 0 01-2-2V5zm9.707 5.707a1 1 0 00-1.414-1.414L9 12.586l-1.293-1.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
+            clipRule="evenodd"
+          />
+        </svg>
+        Organized
+      </span>
+    </div>
+  );
+}
 ```
 
 **Manual Check**:
+
 1. Import pre-organized folder and verify badge appears
 2. Check tooltip shows correct day/bucket info
 3. Ensure badge doesn't overlap with other UI elements
@@ -629,6 +652,7 @@ Add visual indicator in photo cards/thumbnails:
 ### Manual Testing Checklist
 
 #### Test Case 1: Pre-Organized Folder (High Confidence)
+
 ```
 Test Folder Structure:
 01_Days/
@@ -649,6 +673,7 @@ Expected Results:
 ```
 
 #### Test Case 2: Day Folders Without Buckets (Medium Confidence)
+
 ```
 Test Folder Structure:
 Day 01/
@@ -667,6 +692,7 @@ Expected Results:
 ```
 
 #### Test Case 3: Unorganized Folder
+
 ```
 Test Folder Structure:
 Random_Photos/
@@ -683,6 +709,7 @@ Expected Results:
 ```
 
 #### Test Case 4: Mixed Structure
+
 ```
 Test Folder Structure:
 01_Days/
@@ -699,6 +726,7 @@ Expected Results:
 ```
 
 #### Test Case 5: Custom Bucket Names
+
 ```
 Test Folder Structure:
 Day 01/
@@ -714,6 +742,7 @@ Expected Results:
 ```
 
 #### Test Case 6: Numeric Bucket Folders
+
 ```
 Test Folder Structure:
 Day 01/
@@ -732,6 +761,7 @@ Expected Results:
 ## Implementation Tasks
 
 ### Task 1: Core Service Functions
+
 **Estimated Time**: 3-4 hours
 
 - [ ] Add bucket detection patterns to `folderDetectionService.ts`
@@ -742,6 +772,7 @@ Expected Results:
 - [ ] Test with various naming conventions
 
 **Manual Check Points**:
+
 - [ ] Run unit tests and verify all pass
 - [ ] Test pattern matching with edge cases
 - [ ] Verify confidence levels are set correctly
@@ -749,6 +780,7 @@ Expected Results:
 ---
 
 ### Task 2: Data Model Updates
+
 **Estimated Time**: 1-2 hours
 
 - [ ] Update `ProjectPhoto` interface in `projectService.ts`
@@ -759,6 +791,7 @@ Expected Results:
 - [ ] Ensure backward compatibility with existing saved states
 
 **Manual Check Points**:
+
 - [ ] Open existing project and verify it loads without errors
 - [ ] Create new project and verify new fields are saved
 - [ ] Check localStorage to confirm new fields are persisted
@@ -766,6 +799,7 @@ Expected Results:
 ---
 
 ### Task 3: Enhanced Photo Import
+
 **Estimated Time**: 2-3 hours
 
 - [ ] Modify `buildPhotosFromHandle()` to call `analyzePathStructure()`
@@ -776,6 +810,7 @@ Expected Results:
 - [ ] Test with various folder structures
 
 **Manual Check Points**:
+
 - [ ] Import pre-organized folder and check auto-assignments
 - [ ] Verify `isPreOrganized` flag is accurate
 - [ ] Check that unorganized photos aren't auto-assigned
@@ -784,6 +819,7 @@ Expected Results:
 ---
 
 ### Task 4: Onboarding Enhancement
+
 **Estimated Time**: 2-3 hours
 
 - [ ] Update `handleDetect()` in `OnboardingModal.tsx`
@@ -794,6 +830,7 @@ Expected Results:
 - [ ] Test onboarding flow with organized folders
 
 **Manual Check Points**:
+
 - [ ] Run onboarding with organized folder
 - [ ] Verify bucket badges display correctly
 - [ ] Check photo counts are accurate
@@ -803,6 +840,7 @@ Expected Results:
 ---
 
 ### Task 5: Visual Indicators
+
 **Estimated Time**: 1-2 hours
 
 - [ ] Add "Organized" badge to photo cards in `PhotoOrganizer.tsx`
@@ -813,6 +851,7 @@ Expected Results:
 - [ ] Add accessibility attributes
 
 **Manual Check Points**:
+
 - [ ] Badge appears on pre-organized photos
 - [ ] Badge does not appear on unorganized photos
 - [ ] Tooltip shows correct information
@@ -822,6 +861,7 @@ Expected Results:
 ---
 
 ### Task 6: Testing & Documentation
+
 **Estimated Time**: 2-3 hours
 
 - [ ] Create test folders for all test cases
@@ -832,6 +872,7 @@ Expected Results:
 - [ ] Create example screenshots
 
 **Manual Check Points**:
+
 - [ ] All test cases pass
 - [ ] No regressions in existing functionality
 - [ ] Documentation is clear and accurate
@@ -840,6 +881,7 @@ Expected Results:
 ---
 
 ## Total Estimated Time
+
 **12-17 hours** (approximately 2-3 days of focused work)
 
 ---
@@ -868,14 +910,17 @@ Phase 1 is complete when:
 ## Blockers & Risks
 
 ### Risk 1: Ambiguous Folder Names
+
 **Issue**: Numeric folders (01, 02) could be days or buckets  
 **Mitigation**: Use context (parent folder) and confidence levels
 
 ### Risk 2: Performance with Large Folders
+
 **Issue**: Scanning bucket subfolders during onboarding could be slow  
 **Mitigation**: Show progress indicator, scan in parallel where possible
 
 ### Risk 3: Backward Compatibility
+
 **Issue**: New fields might break existing saved projects  
 **Mitigation**: Make all new fields optional, test with existing projects
 

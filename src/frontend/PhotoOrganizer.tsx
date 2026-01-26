@@ -2,15 +2,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import safeLocalStorage from './utils/safeLocalStorage';
 import * as coverStorage from './utils/coverStorageService';
 import { resizeImageBlob } from './utils/imageProcessing';
-import {
-  ChevronDown,
-  Calendar,
-  Heart,
-  X,
-  FolderOpen,
-  Download,
-  Loader,
-} from 'lucide-react';
+import { ChevronDown, Calendar, Heart, X, FolderOpen, Download, Loader } from 'lucide-react';
 import { Pencil, Save, X as XIcon } from 'lucide-react';
 import OnboardingModal, { OnboardingState, RecentProject } from './OnboardingModal';
 import StartScreen from './StartScreen';
@@ -72,9 +64,13 @@ export default function PhotoOrganizer() {
   // Support multi-selection: set of IDs, and a focused photo for keyboard actions
   const [selectedPhotos, setSelectedPhotos] = useState<Set<string>>(new Set());
   const [focusedPhoto, setFocusedPhoto] = useState<string | null>(null);
+  // Gallery view photo - when user clicks a photo, open PhotoViewer
+  const [galleryViewPhoto, setGalleryViewPhoto] = useState<string | null>(null);
   const [lastSelectedIndex, setLastSelectedIndex] = useState<number | null>(null);
   const lastSelectedIndexRef = useRef<number | null>(null);
   const [fullscreenPhoto, setFullscreenPhoto] = useState<string | null>(null);
+  // Removed viewMode - gallery is now the only view mode
+  // Clicking a photo opens PhotoViewer directly
   const [selectedDay, setSelectedDay] = useState<number | null>(null);
   const [history, setHistory] = useState<ProjectPhoto[][]>([]);
   const [historyIndex, setHistoryIndex] = useState(-1);
@@ -114,10 +110,7 @@ export default function PhotoOrganizer() {
     onAction?: () => void;
   } | null>(null);
   const [coverSelectionMode, setCoverSelectionMode] = useState(false);
-  const [viewMode, setViewMode] = useState<'gallery' | 'inspect'>(() => {
-    const saved = safeLocalStorage.get('narrative:viewMode');
-    return (saved as 'gallery' | 'inspect') || 'gallery';
-  });
+  // Removed viewMode - gallery is now the only view mode. Clicking a photo opens PhotoViewer.
   const [hideAssigned, setHideAssigned] = useState(false);
   const toastTimerRef = useRef<number | null>(null);
   const foldersViewStateRef = useRef<{
@@ -1008,11 +1001,6 @@ export default function PhotoOrganizer() {
     }
   }, [loadProject]);
 
-  // Persist viewMode to localStorage
-  useEffect(() => {
-    safeLocalStorage.set('narrative:viewMode', viewMode);
-  }, [viewMode]);
-
   // Get days from photos
   const days = React.useMemo(() => {
     const dayMap = new Map();
@@ -1118,10 +1106,7 @@ export default function PhotoOrganizer() {
   );
 
   const normalizePath = useCallback((value: string) => {
-    return value
-      .split(/[\\/]/)
-      .filter(Boolean)
-      .join('/');
+    return value.split(/[\\/]/).filter(Boolean).join('/');
   }, []);
 
   const isVideoPhoto = useCallback((photo: ProjectPhoto) => {
@@ -1292,8 +1277,7 @@ export default function PhotoOrganizer() {
   // Filter photos based on current view
   const filteredPhotos = React.useMemo(() => {
     const isAssigned = (photo: ProjectPhoto) =>
-      Boolean(photo.bucket) ||
-      (photo.isPreOrganized && Boolean(photo.detectedBucket));
+      Boolean(photo.bucket) || (photo.isPreOrganized && Boolean(photo.detectedBucket));
     const baseFilter = (photo: ProjectPhoto) =>
       !hideAssigned || (!isAssigned(photo) && !photo.archived);
     switch (currentView) {
@@ -1324,8 +1308,8 @@ export default function PhotoOrganizer() {
           return photos.filter(
             p =>
               !p.archived &&
-              ((normalizePath(p.filePath || p.originalName || '').split('/')[0] || '(root)') ===
-                normalizePath(selectedRootFolder)) &&
+              (normalizePath(p.filePath || p.originalName || '').split('/')[0] || '(root)') ===
+                normalizePath(selectedRootFolder) &&
               baseFilter(p),
           );
         }
@@ -2220,47 +2204,8 @@ export default function PhotoOrganizer() {
             ))}
           </div>
 
-          {/* View Mode Toggle */}
+          {/* Filters */}
           <div className="flex flex-wrap items-center gap-2 px-6 pb-3">
-            <button
-              onClick={() => setViewMode('gallery')}
-              disabled={filteredPhotos.length === 0}
-              className={`px-3 py-1.5 rounded text-sm font-medium transition-colors ${
-                filteredPhotos.length === 0
-                  ? 'bg-gray-800 text-gray-500 cursor-not-allowed opacity-50'
-                  : viewMode === 'gallery'
-                  ? 'bg-blue-600 text-white'
-                  : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
-              }`}
-            >
-              Gallery
-            </button>
-            <button
-              onClick={() => {
-                if (filteredPhotos.length > 0) {
-                  setViewMode('inspect');
-                  // Set focus to first photo if none selected
-                  // Use filteredPhotos directly since we're at component level
-                  if (!focusedPhoto || !filteredPhotos.find(p => p.id === focusedPhoto)) {
-                    const firstPhoto = filteredPhotos[0];
-                    if (firstPhoto) {
-                      setFocusedPhoto(firstPhoto.id);
-                      setSelectedPhotos(new Set([firstPhoto.id]));
-                    }
-                  }
-                }
-              }}
-              disabled={filteredPhotos.length === 0}
-              className={`px-3 py-1.5 rounded text-sm font-medium transition-colors ${
-                filteredPhotos.length === 0
-                  ? 'bg-gray-800 text-gray-500 cursor-not-allowed opacity-50'
-                  : viewMode === 'inspect'
-                  ? 'bg-blue-600 text-white'
-                  : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
-              }`}
-            >
-              Inspect
-            </button>
             <button
               onClick={() => setHideAssigned(prev => !prev)}
               className={`px-3 py-1.5 rounded text-sm font-medium transition-colors ${
@@ -2424,9 +2369,7 @@ export default function PhotoOrganizer() {
                     const normalized = normalizePath(path);
                     return photos.filter(p => {
                       const filePath = normalizePath(p.filePath || p.originalName || '');
-                      return (
-                        filePath === normalized || filePath.startsWith(`${normalized}/`)
-                      );
+                      return filePath === normalized || filePath.startsWith(`${normalized}/`);
                     });
                   };
 
@@ -2469,7 +2412,9 @@ export default function PhotoOrganizer() {
                         daysByNumber.set(dayNumber, {
                           dayNumber,
                           photos: dayPhotos,
-                          folderName: `${normalizedDaysContainer}/${dayLabels[dayNumber] || `Day ${String(dayNumber).padStart(2, '0')}`}`,
+                          folderName: `${normalizedDaysContainer}/${
+                            dayLabels[dayNumber] || `Day ${String(dayNumber).padStart(2, '0')}`
+                          }`,
                         });
                       }
                     });
@@ -2778,25 +2723,20 @@ export default function PhotoOrganizer() {
                   );
                 }
 
-                // Inspect Mode
-                if (viewMode === 'inspect' && focusedPhoto) {
-                  const focusedPhotoData = displayPhotos.find(p => p.id === focusedPhoto);
-                  if (focusedPhotoData) {
+                // Gallery mode - show photo grid
+                // When user clicks a photo, open PhotoViewer
+                if (galleryViewPhoto) {
+                  const photoData = displayPhotos.find(p => p.id === galleryViewPhoto);
+                  if (photoData) {
                     return (
                       <PhotoViewer
-                        photo={focusedPhotoData}
+                        photo={photoData}
                         filteredPhotos={displayPhotos}
                         onClose={() => {
-                          setViewMode('gallery');
-                          // Validate that focusedPhoto still exists in current view
-                          if (focusedPhoto && !displayPhotos.find(p => p.id === focusedPhoto)) {
-                            setFocusedPhoto(null);
-                            setSelectedPhotos(new Set());
-                          }
+                          setGalleryViewPhoto(null);
                         }}
                         onNavigate={photoId => {
-                          setFocusedPhoto(photoId);
-                          setSelectedPhotos(new Set([photoId]));
+                          setGalleryViewPhoto(photoId);
                         }}
                         onToggleFavorite={photoId => {
                           setPhotos(prev =>
@@ -2809,42 +2749,32 @@ export default function PhotoOrganizer() {
                           );
                         }}
                         onAssignBucket={(photoId, bucket) => {
-                          // If archiving the focused photo, calculate next photo before state update
-                          let nextPhotoId = null;
-                          if (bucket === 'X' && focusedPhoto === photoId) {
+                          assignBucket(photoId, bucket);
+                          // If archiving, stay in viewer and navigate to next
+                          if (bucket === 'X') {
                             const currentIndex = displayPhotos.findIndex(p => p.id === photoId);
                             if (currentIndex !== -1) {
                               // Try next photo first
                               if (currentIndex < displayPhotos.length - 1) {
-                                nextPhotoId = displayPhotos[currentIndex + 1].id;
+                                setGalleryViewPhoto(displayPhotos[currentIndex + 1].id);
                               }
                               // If no next photo, try previous
                               else if (currentIndex > 0) {
-                                nextPhotoId = displayPhotos[currentIndex - 1].id;
+                                setGalleryViewPhoto(displayPhotos[currentIndex - 1].id);
                               }
-                              // If no photos remain, exit Inspect mode
+                              // If no photos remain, exit viewer
                               else {
-                                setViewMode('gallery');
-                                setFocusedPhoto(null);
-                                return;
+                                setGalleryViewPhoto(null);
                               }
                             }
-                          }
-
-                          assignBucket(photoId, bucket);
-
-                          // Navigate to next photo if we calculated one
-                          if (nextPhotoId) {
-                            setFocusedPhoto(nextPhotoId);
-                            setSelectedPhotos(new Set([nextPhotoId]));
                           }
                         }}
                         onAssignDay={(photoId, day) => {
                           setPhotos(prev => prev.map(p => (p.id === photoId ? { ...p, day } : p)));
                           persistState(photos.map(p => (p.id === photoId ? { ...p, day } : p)));
                         }}
-                        selectedBucket={focusedPhotoData.bucket}
-                        selectedDay={focusedPhotoData.day}
+                        selectedBucket={photoData.bucket}
+                        selectedDay={photoData.day}
                         buckets={MECE_BUCKETS}
                         dayLabels={dayLabels}
                       />
@@ -2857,33 +2787,27 @@ export default function PhotoOrganizer() {
                   orderedList: ProjectPhoto[],
                   indexMap?: Map<string, number>,
                 ) => (
-                  <div className="grid grid-cols-4 gap-4">
+                  <div className="grid grid-cols-5 gap-3">
                     {photosList.map((photo, idx) => (
                       <div
                         key={photo.id}
-                        onClick={e => {
-                          const mappedIndex = indexMap?.get(photo.id);
-                          handleSelectPhoto(
-                            e,
-                            photo.id,
-                            mappedIndex ?? idx,
-                            orderedList,
-                          );
+                        onDoubleClick={e => {
+                          // Open PhotoViewer on double-click
+                          e.stopPropagation();
+                          setGalleryViewPhoto(photo.id);
                         }}
                         data-testid={`photo-${photo.id}`}
-                        className={`relative group cursor-pointer rounded-lg overflow-hidden transition-all ${
-                          selectedPhotos.has(photo.id)
-                            ? 'ring-4 ring-blue-500 scale-105'
-                            : !photo.bucket && !photo.archived
-                            ? 'ring-2 ring-blue-400/40 hover:ring-blue-400/70'
-                            : 'hover:ring-2 hover:ring-gray-600'
-                        } ${photo.bucket || photo.archived ? 'opacity-60 saturate-50' : ''}`}
+                        className={`relative group cursor-pointer rounded-lg overflow-hidden transition-all shadow-lg hover:shadow-xl ${
+                          photo.bucket || photo.archived
+                            ? 'opacity-70 saturate-75'
+                            : 'hover:scale-105'
+                        }`}
                       >
                         {photo.thumbnail ? (
                           photo.mimeType?.startsWith('video/') ? (
                             <video
                               src={photo.thumbnail}
-                              className="w-full aspect-[4/3] object-cover"
+                              className="w-full aspect-square object-cover"
                               muted
                               preload="metadata"
                             />
@@ -2891,19 +2815,34 @@ export default function PhotoOrganizer() {
                             <img
                               src={photo.thumbnail}
                               alt={photo.currentName}
-                              className="w-full aspect-[4/3] object-cover"
+                              className="w-full aspect-square object-cover"
                             />
                           )
                         ) : (
-                          <div className="w-full aspect-[4/3] bg-gray-900 flex items-center justify-center text-xs text-gray-400 px-2 text-center">
+                          <div className="w-full aspect-square bg-gray-900 flex items-center justify-center text-xs text-gray-400 px-2 text-center">
                             {photo.currentName}
                           </div>
                         )}
 
-                        {/* Overlay info */}
-                        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity">
-                          <div className="absolute bottom-0 left-0 right-0 p-3">
-                            <p className="text-xs font-mono truncate">{photo.currentName}</p>
+                        {/* Video indicator */}
+                        {photo.mimeType?.startsWith('video/') && (
+                          <div className="absolute top-2 left-2 bg-black/70 backdrop-blur-sm rounded-full p-1.5">
+                            <svg
+                              className="w-4 h-4 text-white"
+                              fill="currentColor"
+                              viewBox="0 0 20 20"
+                            >
+                              <path d="M6.3 2.84A1.5 1.5 0 004 4.11v11.78a1.5 1.5 0 002.3 1.27l9.344-5.891a1.5 1.5 0 000-2.538L6.3 2.841z" />
+                            </svg>
+                          </div>
+                        )}
+
+                        {/* Overlay info on hover */}
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/30 to-transparent opacity-0 group-hover:opacity-100 transition-opacity">
+                          <div className="absolute bottom-0 left-0 right-0 p-2">
+                            <p className="text-xs font-medium text-white truncate">
+                              {photo.currentName}
+                            </p>
                           </div>
                         </div>
 
@@ -2911,8 +2850,10 @@ export default function PhotoOrganizer() {
                         {photo.isPreOrganized && (
                           <div className="absolute top-2 right-2 z-10">
                             <span
-                              className="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-blue-600 text-white shadow"
-                              title={`Auto-assigned: Day ${photo.detectedDay ?? '—'}, Bucket ${photo.detectedBucket ?? '—'}`}
+                              className="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-blue-600 text-white shadow-lg"
+                              title={`Auto-assigned: Day ${photo.detectedDay ?? '—'}, Bucket ${
+                                photo.detectedBucket ?? '—'
+                              }`}
                             >
                               Organized
                             </span>
@@ -2922,14 +2863,21 @@ export default function PhotoOrganizer() {
                         {/* Bucket badge */}
                         {photo.bucket && (
                           <div
-                            className={`absolute top-2 left-2 px-2 py-1 rounded text-xs font-bold ${
+                            className={`absolute bottom-2 left-2 px-2 py-1 rounded text-xs font-bold ${
                               MECE_BUCKETS.find(b => b.key === photo.bucket)?.color
                             } text-white shadow-lg`}
                           >
                             <div className="flex items-center gap-1">
                               <span>{photo.bucket}</span>
-                              {photo.favorite && <Heart className="w-3.5 h-3.5 fill-current" />}
+                              {photo.favorite && <Heart className="w-3 h-3 fill-current" />}
                             </div>
+                          </div>
+                        )}
+
+                        {/* Favorite-only badge (when no bucket) */}
+                        {!photo.bucket && photo.favorite && (
+                          <div className="absolute bottom-2 left-2 bg-yellow-500 text-white rounded-full p-1.5 shadow-lg">
+                            <Heart className="w-3.5 h-3.5 fill-current" />
                           </div>
                         )}
                       </div>
@@ -2938,10 +2886,7 @@ export default function PhotoOrganizer() {
                 );
 
                 if (selectedDay !== null) {
-                  const groups = new Map<
-                    string,
-                    { label: string; photos: ProjectPhoto[] }
-                  >();
+                  const groups = new Map<string, { label: string; photos: ProjectPhoto[] }>();
                   displayPhotos.forEach(photo => {
                     const groupLabel = getSubfolderGroup(photo, selectedDay);
                     if (!groups.has(groupLabel)) {
@@ -2989,9 +2934,7 @@ export default function PhotoOrganizer() {
                         return (
                           <div key={group.label}>
                             <div className="flex items-center justify-between mb-3">
-                              <h3 className="text-sm font-semibold text-gray-200">
-                                {group.label}
-                              </h3>
+                              <h3 className="text-sm font-semibold text-gray-200">{group.label}</h3>
                               <div className="flex items-center gap-3 text-xs text-gray-400">
                                 <span>{group.photos.length} items</span>
                                 {showIngestActions && (
