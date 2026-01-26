@@ -103,7 +103,12 @@ export default function PhotoOrganizer() {
   const [showExportScript, setShowExportScript] = useState(false);
   const [exportScriptText, setExportScriptText] = useState('');
   const [exportCopyStatus, setExportCopyStatus] = useState<'idle' | 'copied' | 'failed'>('idle');
-  const [toast, setToast] = useState<{ message: string; tone: 'info' | 'error' } | null>(null);
+  const [toast, setToast] = useState<{
+    message: string;
+    tone: 'info' | 'error';
+    actionLabel?: string;
+    onAction?: () => void;
+  } | null>(null);
   const [coverSelectionMode, setCoverSelectionMode] = useState(false);
   const [viewMode, setViewMode] = useState<'gallery' | 'inspect'>(() => {
     const saved = safeLocalStorage.get('narrative:viewMode');
@@ -556,16 +561,32 @@ export default function PhotoOrganizer() {
     return lines.join('\n');
   }, [photos, dayLabels, projectSettings]);
 
-  const showToast = useCallback((message: string, tone: 'info' | 'error' = 'info') => {
-    setToast({ message, tone });
+  const clearToast = useCallback(() => {
+    setToast(null);
     if (toastTimerRef.current) {
       window.clearTimeout(toastTimerRef.current);
-    }
-    toastTimerRef.current = window.setTimeout(() => {
-      setToast(null);
       toastTimerRef.current = null;
-    }, 2500);
+    }
   }, []);
+
+  const showToast = useCallback(
+    (
+      message: string,
+      tone: 'info' | 'error' = 'info',
+      options?: { durationMs?: number; actionLabel?: string; onAction?: () => void },
+    ) => {
+      setToast({ message, tone, actionLabel: options?.actionLabel, onAction: options?.onAction });
+      if (toastTimerRef.current) {
+        window.clearTimeout(toastTimerRef.current);
+      }
+      const durationMs = options?.durationMs ?? 2500;
+      toastTimerRef.current = window.setTimeout(() => {
+        setToast(null);
+        toastTimerRef.current = null;
+      }, durationMs);
+    },
+    [],
+  );
 
   const setCoverFromSelection = useCallback(async () => {
     // Use the selected photo if one is selected
@@ -2993,6 +3014,7 @@ export default function PhotoOrganizer() {
                                     <button
                                       className="text-xs text-blue-300 hover:text-blue-200"
                                       onClick={() => {
+                                        const previousPhotos = photos;
                                         const updated = photos.map(p => {
                                           if (p.day !== selectedDay) return p;
                                           const derived = getDerivedSubfolderGroup(p, selectedDay);
@@ -3000,6 +3022,16 @@ export default function PhotoOrganizer() {
                                           return { ...p, subfolderOverride: null };
                                         });
                                         saveToHistory(updated);
+                                        const dayLabel =
+                                          dayLabels[selectedDay] ||
+                                          `Day ${String(selectedDay).padStart(2, '0')}`;
+                                        showToast(`Photos moved to ${dayLabel}.`, 'info', {
+                                          durationMs: 5000,
+                                          actionLabel: 'Undo',
+                                          onAction: () => {
+                                            saveToHistory(previousPhotos);
+                                          },
+                                        });
                                       }}
                                     >
                                       Ingest to Day
@@ -3415,13 +3447,33 @@ export default function PhotoOrganizer() {
       {toast && (
         <div className="fixed bottom-6 right-6 z-50">
           <div
-            className={`px-4 py-2 rounded-lg text-sm shadow-lg ${
+            className={`flex items-center gap-3 px-4 py-2 rounded-lg text-sm shadow-lg ${
               toast.tone === 'error' ? 'bg-red-600 text-white' : 'bg-gray-800 text-gray-100'
             }`}
             role="status"
             aria-live="polite"
           >
-            {toast.message}
+            <span>{toast.message}</span>
+            <div className="flex items-center gap-2">
+              {toast.actionLabel && (
+                <button
+                  onClick={() => {
+                    toast.onAction?.();
+                    clearToast();
+                  }}
+                  className="px-2 py-0.5 rounded bg-white/10 text-xs text-white hover:bg-white/20"
+                >
+                  {toast.actionLabel}
+                </button>
+              )}
+              <button
+                onClick={clearToast}
+                className="p-1 rounded hover:bg-white/10"
+                aria-label="Dismiss toast"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
           </div>
         </div>
       )}
