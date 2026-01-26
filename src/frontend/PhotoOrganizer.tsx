@@ -1098,6 +1098,12 @@ export default function PhotoOrganizer() {
       .join('/');
   }, []);
 
+  const isVideoPhoto = useCallback((photo: ProjectPhoto) => {
+    if (photo.mimeType?.startsWith('video/')) return true;
+    const ext = photo.originalName.split('.').pop()?.toLowerCase() || '';
+    return ['mp4', 'mov', 'webm', 'avi', 'mkv'].includes(ext);
+  }, []);
+
   // Root-level groups (top-level folders under the project root)
   const rootGroups = React.useMemo(() => {
     const map = new Map<string, ProjectPhoto[]>();
@@ -1817,7 +1823,7 @@ export default function PhotoOrganizer() {
 
   // Selection helpers
   const handleSelectPhoto = useCallback(
-    async (e, photoId, index) => {
+    async (e, photoId, index, orderedList = filteredPhotos) => {
       // Shift-range selection (use ref for synchronous access)
       if (
         e.shiftKey &&
@@ -1826,7 +1832,7 @@ export default function PhotoOrganizer() {
       ) {
         const start = Math.min(lastSelectedIndexRef.current, index);
         const end = Math.max(lastSelectedIndexRef.current, index);
-        const rangeIds = filteredPhotos.slice(start, end + 1).map(p => p.id);
+        const rangeIds = orderedList.slice(start, end + 1).map(p => p.id);
         setSelectedPhotos(new Set(rangeIds));
         setFocusedPhoto(photoId);
         setLastSelectedIndex(index);
@@ -2564,26 +2570,67 @@ export default function PhotoOrganizer() {
                   // Show only non-day folders in Other section
                   // All day-like folders (dayLike) are now shown in the Days section
                   const nonSelectedFolders = nonDay;
+                  const daysContainer = projectSettings?.folderStructure?.daysFolder;
+                  const nestedOtherFolders: Array<{
+                    key: string;
+                    label: string;
+                    items: ProjectPhoto[];
+                  }> = [];
+
+                  if (daysContainer) {
+                    const normalizedDaysContainer = normalizePath(daysContainer);
+                    const nestedMap = new Map<string, ProjectPhoto[]>();
+                    photos.forEach(p => {
+                      if (p.archived) return;
+                      const filePath = normalizePath(p.filePath || p.originalName || '');
+                      const parts = filePath.split('/');
+                      if (parts.length < 3) return;
+                      if (parts[0] !== normalizedDaysContainer) return;
+                      const dayNumber = detectDayNumberFromFolderName(parts[1]);
+                      if (dayNumber != null) return;
+                      const childFolder = parts[1];
+                      const key = `${normalizedDaysContainer}/${childFolder}`;
+                      if (!nestedMap.has(key)) nestedMap.set(key, []);
+                      nestedMap.get(key)!.push(p);
+                    });
+
+                    nestedMap.forEach((items, key) => {
+                      nestedOtherFolders.push({
+                        key,
+                        label: key,
+                        items,
+                      });
+                    });
+                  }
+
+                  const combinedOtherFolders = [
+                    ...nonSelectedFolders.map(f => ({
+                      key: f.folder,
+                      label: f.folder,
+                      items: f.items,
+                    })),
+                    ...nestedOtherFolders,
+                  ];
 
                   return (
                     <>
-                      {nonSelectedFolders.map(f => (
+                      {combinedOtherFolders.map(f => (
                         <div
-                          key={f.folder}
+                          key={f.key}
                           role="button"
                           tabIndex={0}
                           onClick={() => {
-                            setSelectedRootFolder(f.folder);
+                            setSelectedRootFolder(f.key);
                             setSelectedDay(null); // Clear day selection when selecting a folder
                           }}
                           className={`w-full text-left px-3 py-2 rounded text-sm transition-colors ${
-                            selectedRootFolder === f.folder
+                            selectedRootFolder === f.key
                               ? 'bg-blue-600 text-white'
                               : 'hover:bg-gray-800 text-gray-300'
                           }`}
                         >
                           <div className="flex items-center justify-between">
-                            <div className="font-medium">{f.folder}</div>
+                            <div className="font-medium">{f.label}</div>
                             <div className="flex gap-2" />
                           </div>
                           <div className="text-xs opacity-70">
@@ -2593,7 +2640,7 @@ export default function PhotoOrganizer() {
                         </div>
                       ))}
 
-                      {nonSelectedFolders.length === 0 && (
+                      {combinedOtherFolders.length === 0 && (
                         <div className="text-xs text-gray-400">No other folders</div>
                       )}
                     </>
@@ -2722,13 +2769,24 @@ export default function PhotoOrganizer() {
                   }
                 }
 
-                // Gallery Mode
-                return (
+                const renderPhotoGrid = (
+                  photosList: ProjectPhoto[],
+                  orderedList: ProjectPhoto[],
+                  indexMap?: Map<string, number>,
+                ) => (
                   <div className="grid grid-cols-4 gap-4">
-                    {displayPhotos.map((photo, idx) => (
+                    {photosList.map((photo, idx) => (
                       <div
                         key={photo.id}
-                        onClick={e => handleSelectPhoto(e, photo.id, idx)}
+                        onClick={e => {
+                          const mappedIndex = indexMap?.get(photo.id);
+                          handleSelectPhoto(
+                            e,
+                            photo.id,
+                            mappedIndex ?? idx,
+                            orderedList,
+                          );
+                        }}
                         data-testid={`photo-${photo.id}`}
                         className={`relative group cursor-pointer rounded-lg overflow-hidden transition-all ${
                           selectedPhotos.has(photo.id)
@@ -2795,6 +2853,89 @@ export default function PhotoOrganizer() {
                     ))}
                   </div>
                 );
+
+                if (selectedDay !== null) {
+                  const groups = new Map<
+                    string,
+                    { label: string; photos: ProjectPhoto[] }
+                  >();
+                  displayPhotos.forEach(photo => {
+                    const filePath = normalizePath(photo.filePath || photo.originalName || '');
+                    const folderSegments = filePath.split('/').slice(0, -1);
+                    const dayIndex = folderSegments.findIndex(
+                      segment => detectDayNumberFromFolderName(segment) === selectedDay,
+                    );
+                    let groupLabel = 'Day Root';
+                    if (dayIndex !== -1 && dayIndex + 1 < folderSegments.length) {
+                      groupLabel = folderSegments[dayIndex + 1];
+                    }
+                    if (!groups.has(groupLabel)) {
+                      groups.set(groupLabel, { label: groupLabel, photos: [] });
+                    }
+                    groups.get(groupLabel)!.photos.push(photo);
+                  });
+
+                  const sortedGroups = Array.from(groups.values()).sort((a, b) => {
+                    if (a.label === 'Day Root') return -1;
+                    if (b.label === 'Day Root') return 1;
+                    return a.label.localeCompare(b.label);
+                  });
+
+                  const orderedPhotos: ProjectPhoto[] = [];
+                  sortedGroups.forEach(group => {
+                    const videos = group.photos.filter(isVideoPhoto);
+                    const stills = group.photos.filter(p => !isVideoPhoto(p));
+                    if (videos.length > 0 && stills.length > 0) {
+                      orderedPhotos.push(...stills, ...videos);
+                    } else {
+                      orderedPhotos.push(...group.photos);
+                    }
+                  });
+                  const orderedIndex = new Map<string, number>();
+                  orderedPhotos.forEach((photo, idx) => orderedIndex.set(photo.id, idx));
+
+                  return (
+                    <div className="space-y-8">
+                      {sortedGroups.map(group => {
+                        const videos = group.photos.filter(isVideoPhoto);
+                        const stills = group.photos.filter(p => !isVideoPhoto(p));
+                        const hasSplit = videos.length > 0 && stills.length > 0;
+
+                        return (
+                          <div key={group.label}>
+                            <div className="flex items-center justify-between mb-3">
+                              <h3 className="text-sm font-semibold text-gray-200">
+                                {group.label}
+                              </h3>
+                              <div className="text-xs text-gray-400">
+                                {group.photos.length} items
+                              </div>
+                            </div>
+
+                            {hasSplit && (
+                              <>
+                                <div className="mb-2 text-xs uppercase tracking-wider text-gray-500">
+                                  Photos
+                                </div>
+                                {renderPhotoGrid(stills, orderedPhotos, orderedIndex)}
+                                <div className="mt-6 mb-2 text-xs uppercase tracking-wider text-gray-500">
+                                  Videos
+                                </div>
+                                {renderPhotoGrid(videos, orderedPhotos, orderedIndex)}
+                              </>
+                            )}
+
+                            {!hasSplit &&
+                              renderPhotoGrid(group.photos, orderedPhotos, orderedIndex)}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  );
+                }
+
+                // Gallery Mode
+                return renderPhotoGrid(displayPhotos, displayPhotos);
               })()
             )}
           </div>
