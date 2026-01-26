@@ -2,7 +2,16 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import safeLocalStorage from './utils/safeLocalStorage';
 import * as coverStorage from './utils/coverStorageService';
 import { resizeImageBlob } from './utils/imageProcessing';
-import { ChevronDown, Calendar, Heart, X, FolderOpen, Download, Loader } from 'lucide-react';
+import {
+  ChevronDown,
+  ChevronLeft,
+  Calendar,
+  Heart,
+  X,
+  FolderOpen,
+  Download,
+  Loader,
+} from 'lucide-react';
 import { Pencil, Save, X as XIcon } from 'lucide-react';
 import OnboardingModal, { OnboardingState, RecentProject } from './OnboardingModal';
 import StartScreen from './StartScreen';
@@ -112,6 +121,7 @@ export default function PhotoOrganizer() {
   const [coverSelectionMode, setCoverSelectionMode] = useState(false);
   // Removed viewMode - gallery is now the only view mode. Clicking a photo opens PhotoViewer.
   const [hideAssigned, setHideAssigned] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const toastTimerRef = useRef<number | null>(null);
   const foldersViewStateRef = useRef<{
     selectedRootFolder: string | null;
@@ -1486,13 +1496,6 @@ export default function PhotoOrganizer() {
     [photos, saveToHistory],
   );
 
-  const clearSelectedDay = useCallback(() => {
-    setSelectedDay(null);
-    setSelectedRootFolder(null);
-    setEditingDay(null);
-    showToast('Day selection cleared.');
-  }, [showToast]);
-
   // Toggle favorite for a single or multiple photos
   const toggleFavorite = useCallback(
     photoIds => {
@@ -2239,10 +2242,20 @@ export default function PhotoOrganizer() {
       {/* Main Content */}
       <div className="flex-1 flex overflow-hidden">
         {/* Sidebar - Days list when in days view */}
-        {currentView === 'days' && (
+        {currentView === 'days' && !sidebarCollapsed && (
           <aside className="w-48 border-r border-gray-800 bg-gray-900 overflow-y-auto">
             <div className="p-4">
-              <h3 className="text-xs font-semibold text-gray-400 uppercase mb-3">Days</h3>
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-xs font-semibold text-gray-400 uppercase">Days</h3>
+                <button
+                  onClick={() => setSidebarCollapsed(true)}
+                  className="p-1 hover:bg-gray-800 rounded"
+                  aria-label="Collapse sidebar"
+                  title="Collapse sidebar"
+                >
+                  <ChevronLeft className="w-4 h-4 text-gray-400" />
+                </button>
+              </div>
               <div className="space-y-1">
                 {visibleDays.map(([day, dayPhotos], idx) => (
                   <div
@@ -2516,19 +2529,6 @@ export default function PhotoOrganizer() {
                                     `Day ${String(entry.dayNumber).padStart(2, '0')}`}
                                 </div>
                                 <div className="flex items-center gap-2">
-                                  {selectedDay === entry.dayNumber && (
-                                    <button
-                                      onClick={e => {
-                                        e.stopPropagation();
-                                        clearSelectedDay();
-                                      }}
-                                      className="px-2 py-0.5 rounded bg-gray-800 text-xs text-gray-300 hover:text-white"
-                                      aria-label="Clear day selection"
-                                      title="Clear day selection"
-                                    >
-                                      Clear
-                                    </button>
-                                  )}
                                   <button
                                     onClick={e => {
                                       e.stopPropagation();
@@ -2679,6 +2679,18 @@ export default function PhotoOrganizer() {
           </aside>
         )}
 
+        {/* Sidebar Expand Button */}
+        {currentView === 'days' && sidebarCollapsed && (
+          <button
+            onClick={() => setSidebarCollapsed(false)}
+            className="w-12 border-r border-gray-800 bg-gray-900 flex items-center justify-center hover:bg-gray-800 transition-colors"
+            aria-label="Expand sidebar"
+            title="Expand sidebar"
+          >
+            <ChevronLeft className="w-4 h-4 text-gray-400 rotate-180" />
+          </button>
+        )}
+
         {/* Photo Grid */}
         <main className="flex-1 overflow-y-auto">
           <div className="p-6">
@@ -2791,8 +2803,13 @@ export default function PhotoOrganizer() {
                     {photosList.map((photo, idx) => (
                       <div
                         key={photo.id}
+                        onClick={e => {
+                          // Single click to select for bucket assignment
+                          e.stopPropagation();
+                          setSelectedPhotos(new Set([photo.id]));
+                        }}
                         onDoubleClick={e => {
-                          // Open PhotoViewer on double-click
+                          // Double-click to open PhotoViewer
                           e.stopPropagation();
                           setGalleryViewPhoto(photo.id);
                         }}
@@ -2801,7 +2818,7 @@ export default function PhotoOrganizer() {
                           photo.bucket || photo.archived
                             ? 'opacity-70 saturate-75'
                             : 'hover:scale-105'
-                        }`}
+                        } ${selectedPhotos.has(photo.id) ? 'ring-2 ring-blue-500' : ''}`}
                       >
                         {photo.thumbnail ? (
                           photo.mimeType?.startsWith('video/') ? (
