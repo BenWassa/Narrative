@@ -45,6 +45,12 @@ const MECE_BUCKETS = [
   { key: 'M', label: 'Mood/Food', color: 'bg-indigo-500', description: 'Food, mood' },
   { key: 'X', label: 'Archive', color: 'bg-gray-500', description: 'Unwanted shots' },
 ];
+const MECE_BUCKET_KEYS = new Set(MECE_BUCKETS.map(bucket => bucket.key));
+const isMeceBucketLabel = (label: string) => {
+  const trimmed = label.trim();
+  const firstToken = trimmed.split(/[\s_-]+/)[0] || '';
+  return MECE_BUCKET_KEYS.has(firstToken.toUpperCase());
+};
 
 const RECENT_PROJECTS_KEY = 'narrative:recentProjects';
 const ACTIVE_PROJECT_KEY = 'narrative:activeProject';
@@ -1496,6 +1502,13 @@ export default function PhotoOrganizer() {
     [photos, saveToHistory],
   );
 
+  const clearSelectedDay = useCallback(() => {
+    setSelectedDay(null);
+    setSelectedRootFolder(null);
+    setEditingDay(null);
+    showToast('Day selection cleared.');
+  }, [showToast]);
+
   // Toggle favorite for a single or multiple photos
   const toggleFavorite = useCallback(
     photoIds => {
@@ -2345,19 +2358,34 @@ export default function PhotoOrganizer() {
                           <div className="font-medium">
                             {dayLabels[day] || `Day ${String(day).padStart(2, '0')}`}
                           </div>
-                          <button
-                            onClick={e => {
-                              e.stopPropagation();
-                              setEditingDay(day);
-                              setEditingDayName(
-                                dayLabels[day] || `Day ${String(day).padStart(2, '0')}`,
-                              );
-                            }}
-                            className="p-1 ml-2"
-                            aria-label={`Edit day ${day}`}
-                          >
-                            <Pencil className="w-4 h-4 text-gray-400" />
-                          </button>
+                          <div className="flex items-center gap-2">
+                            {selectedDay === day && (
+                              <button
+                                onClick={e => {
+                                  e.stopPropagation();
+                                  clearSelectedDay();
+                                }}
+                                className="px-2 py-0.5 rounded bg-gray-800 text-xs text-gray-300 hover:text-white"
+                                aria-label="Clear day selection"
+                                title="Clear day selection"
+                              >
+                                Clear
+                              </button>
+                            )}
+                            <button
+                              onClick={e => {
+                                e.stopPropagation();
+                                setEditingDay(day);
+                                setEditingDayName(
+                                  dayLabels[day] || `Day ${String(day).padStart(2, '0')}`,
+                                );
+                              }}
+                              className="p-1"
+                              aria-label={`Edit day ${day}`}
+                            >
+                              <Pencil className="w-4 h-4 text-gray-400" />
+                            </button>
+                          </div>
                         </>
                       )}
                     </div>
@@ -2542,20 +2570,35 @@ export default function PhotoOrganizer() {
                                   {dayLabels[entry.dayNumber] ||
                                     `Day ${String(entry.dayNumber).padStart(2, '0')}`}
                                 </div>
-                                <button
-                                  onClick={e => {
-                                    e.stopPropagation();
-                                    setEditingDay(entry.dayNumber);
-                                    setEditingDayName(
-                                      dayLabels[entry.dayNumber] ||
-                                        `Day ${String(entry.dayNumber).padStart(2, '0')}`,
-                                    );
-                                  }}
-                                  className="p-1 ml-2"
-                                  aria-label={`Edit day ${entry.dayNumber}`}
-                                >
-                                  <Pencil className="w-4 h-4 text-gray-400" />
-                                </button>
+                                <div className="flex items-center gap-2">
+                                  {selectedDay === entry.dayNumber && (
+                                    <button
+                                      onClick={e => {
+                                        e.stopPropagation();
+                                        clearSelectedDay();
+                                      }}
+                                      className="px-2 py-0.5 rounded bg-gray-800 text-xs text-gray-300 hover:text-white"
+                                      aria-label="Clear day selection"
+                                      title="Clear day selection"
+                                    >
+                                      Clear
+                                    </button>
+                                  )}
+                                  <button
+                                    onClick={e => {
+                                      e.stopPropagation();
+                                      setEditingDay(entry.dayNumber);
+                                      setEditingDayName(
+                                        dayLabels[entry.dayNumber] ||
+                                          `Day ${String(entry.dayNumber).padStart(2, '0')}`,
+                                      );
+                                    }}
+                                    className="p-1"
+                                    aria-label={`Edit day ${entry.dayNumber}`}
+                                  >
+                                    <Pencil className="w-4 h-4 text-gray-400" />
+                                  </button>
+                                </div>
                               </>
                             )}
                           </div>
@@ -2939,6 +2982,9 @@ export default function PhotoOrganizer() {
                         const hasExplicitOverride = derivedGroupPhotos.some(
                           p => p.subfolderOverride !== undefined,
                         );
+                        const isDayRootGroup = group.label === 'Day Root';
+                        const isMeceGroup = isMeceBucketLabel(group.label);
+                        const showIngestActions = !isDayRootGroup && !isMeceGroup;
 
                         return (
                           <div key={group.label}>
@@ -2948,10 +2994,11 @@ export default function PhotoOrganizer() {
                               </h3>
                               <div className="flex items-center gap-3 text-xs text-gray-400">
                                 <span>{group.photos.length} items</span>
-                                {group.label !== 'Day Root' && (
+                                {showIngestActions && (
                                   <div className="flex items-center gap-2">
                                     <button
                                       className="text-xs text-blue-300 hover:text-blue-200"
+                                      title="Move photos in this subfolder to the day root"
                                       onClick={() => {
                                         const previousPhotos = photos;
                                         const updated = photos.map(p => {
