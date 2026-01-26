@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { X, Heart, ChevronLeft, ChevronRight, Loader } from 'lucide-react';
+import { X, Heart, Loader } from 'lucide-react';
 import { ProjectPhoto } from '../services/projectService';
+import { PhotoStrip } from './PhotoStrip';
 
 interface PhotoViewerProps {
   photo: ProjectPhoto;
@@ -111,6 +112,17 @@ export const PhotoViewer: React.FC<PhotoViewerProps> = ({
     [currentIndex, filteredPhotos, onNavigate],
   );
 
+  const handleSelectPhoto = useCallback(
+    (photoId: string) => {
+      const newIndex = filteredPhotos.findIndex(p => p.id === photoId);
+      if (newIndex !== -1 && newIndex !== currentIndex) {
+        setCurrentIndex(newIndex);
+        onNavigate(photoId);
+      }
+    },
+    [filteredPhotos, currentIndex, onNavigate],
+  );
+
   const handleKeyDown = useCallback(
     (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
@@ -125,9 +137,22 @@ export const PhotoViewer: React.FC<PhotoViewerProps> = ({
       } else if (e.key === 'f' || e.key === 'F') {
         e.preventDefault();
         onToggleFavorite(currentPhoto.id);
+      } else if (e.key.toLowerCase() === 'x') {
+        e.preventDefault();
+        onAssignBucket(currentPhoto.id, 'X');
+      } else {
+        // Check for bucket assignment shortcuts (A, B, C, D, E, M)
+        const key = e.key.toUpperCase();
+        const validBuckets = ['A', 'B', 'C', 'D', 'E', 'M'];
+        if (validBuckets.includes(key)) {
+          e.preventDefault();
+          // Toggle if already assigned, otherwise assign
+          const newBucket = currentPhoto.bucket === key ? '' : key;
+          onAssignBucket(currentPhoto.id, newBucket);
+        }
       }
     },
-    [currentPhoto.id, onClose, handleNavigate, onToggleFavorite],
+    [currentPhoto.id, currentPhoto.bucket, onClose, handleNavigate, onToggleFavorite, onAssignBucket],
   );
 
   useEffect(() => {
@@ -135,185 +160,129 @@ export const PhotoViewer: React.FC<PhotoViewerProps> = ({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [handleKeyDown]);
 
+  // Get bucket info for current photo
+  const currentBucket = buckets.find(b => b.key === currentPhoto.bucket);
+
   return (
     <div className="fixed inset-0 bg-black z-40 flex flex-col">
       {/* Header */}
-      <div className="flex items-center justify-between px-6 py-4 border-b border-gray-800">
-        <h2 className="text-lg font-semibold text-gray-100">Inspect Mode</h2>
+      <div className="flex items-center justify-between px-6 py-3 border-b border-gray-800 bg-gray-900/95 backdrop-blur">
+        <div className="flex items-center gap-4">
+          <h2 className="text-lg font-semibold text-gray-100">Gallery View</h2>
+          <div className="text-sm text-gray-400">
+            {currentIndex + 1} of {filteredPhotos.length}
+          </div>
+        </div>
         <button
           onClick={onClose}
           className="p-2 hover:bg-gray-800 rounded-lg transition-colors"
-          aria-label="Close inspect mode"
+          aria-label="Close gallery view"
         >
           <X className="w-5 h-5" />
         </button>
       </div>
 
-      {/* Main Content */}
-      <div className="flex-1 flex overflow-hidden">
-        {/* Viewer */}
-        <div className="flex-1 flex items-center justify-center bg-gray-950 overflow-auto relative group pb-4">
-          {isLoading && (
-            <div className="absolute inset-0 flex items-center justify-center bg-gray-900/50 z-10">
-              <div className="text-center">
-                <Loader className="w-8 h-8 animate-spin text-blue-400 mx-auto mb-2" />
-                <p className="text-sm text-gray-400">Loading image...</p>
-              </div>
+      {/* Main Content - Enlarged Photo */}
+      <div className="flex-1 flex items-center justify-center bg-gray-950 overflow-hidden relative">
+        {isLoading && (
+          <div className="absolute inset-0 flex items-center justify-center bg-gray-900/50 z-10">
+            <div className="text-center">
+              <Loader className="w-12 h-12 animate-spin text-blue-400 mx-auto mb-3" />
+              <p className="text-sm text-gray-400">Loading image...</p>
             </div>
-          )}
-
-          {loadError && (
-            <div className="absolute inset-0 flex items-center justify-center bg-gray-900/50 z-10">
-              <div className="text-center">
-                <p className="text-sm text-red-400">{loadError}</p>
-              </div>
-            </div>
-          )}
-
-          {fullResUrl && (
-            <>
-              {currentPhoto.mimeType?.startsWith('video/') ? (
-                <video
-                  src={fullResUrl}
-                  className="max-w-full max-h-full object-contain"
-                  controls
-                  muted
-                />
-              ) : (
-                <img
-                  src={fullResUrl}
-                  alt={currentPhoto.currentName}
-                  className="max-w-full max-h-full object-contain"
-                />
-              )}
-            </>
-          )}
-
-          {/* Navigation Arrows */}
-          {currentIndex > 0 && (
-            <button
-              onClick={() => handleNavigate('prev')}
-              className="absolute left-4 p-2 bg-black/60 hover:bg-black/80 rounded-lg text-white opacity-0 group-hover:opacity-100 transition-opacity"
-              aria-label="Previous photo"
-            >
-              <ChevronLeft className="w-6 h-6" />
-            </button>
-          )}
-          {currentIndex < filteredPhotos.length - 1 && (
-            <button
-              onClick={() => handleNavigate('next')}
-              className="absolute right-4 p-2 bg-black/60 hover:bg-black/80 rounded-lg text-white opacity-0 group-hover:opacity-100 transition-opacity"
-              aria-label="Next photo"
-            >
-              <ChevronRight className="w-6 h-6" />
-            </button>
-          )}
-
-          {/* Photo counter */}
-          <div className="absolute bottom-4 left-4 text-sm text-gray-400">
-            {currentIndex + 1} / {filteredPhotos.length}
           </div>
-        </div>
+        )}
 
-        {/* Right Panel - Controls */}
-        <div className="w-80 border-l border-gray-800 bg-gray-900 overflow-y-auto flex flex-col">
-          {/* Photo Info */}
-          <div className="p-4 border-b border-gray-800">
-            <h3 className="text-sm font-semibold text-gray-100 mb-2">Photo Details</h3>
-            <p className="text-xs text-gray-400 break-words">{currentPhoto.currentName}</p>
-            {currentPhoto.filePath && (
-              <p className="text-xs text-gray-500 mt-1 break-words">{currentPhoto.filePath}</p>
+        {loadError && (
+          <div className="absolute inset-0 flex items-center justify-center bg-gray-900/50 z-10">
+            <div className="text-center">
+              <p className="text-sm text-red-400 mb-2">{loadError}</p>
+              <p className="text-xs text-gray-500">File: {currentPhoto.currentName}</p>
+            </div>
+          </div>
+        )}
+
+        {fullResUrl && (
+          <div className="relative w-full h-full flex items-center justify-center p-4">
+            {currentPhoto.mimeType?.startsWith('video/') ? (
+              <video
+                src={fullResUrl}
+                className="max-w-full max-h-full object-contain rounded-lg shadow-2xl"
+                controls
+                autoPlay
+                muted
+              />
+            ) : (
+              <img
+                src={fullResUrl}
+                alt={currentPhoto.currentName}
+                className="max-w-full max-h-full object-contain rounded-lg shadow-2xl"
+              />
             )}
           </div>
+        )}
 
-          {/* Assignment Controls */}
-          <div className="p-4 space-y-4 flex-1">
-            {/* Bucket Assignment */}
-            <div>
-              <label className="text-xs font-semibold text-gray-400 uppercase mb-2 block">
-                MECE Category
-              </label>
-              <div className="space-y-1">
-                {buckets.map(bucket => (
-                  <button
-                    key={bucket.key}
-                    onClick={e => {
-                      // Toggle bucket if already selected, otherwise set it
-                      const newBucket = currentPhoto.bucket === bucket.key ? null : bucket.key;
-                      onAssignBucket(currentPhoto.id, newBucket || '');
-                      // Auto-advance to next photo if Shift is held
-                      if (e.shiftKey) {
-                        handleNavigate('next');
-                      }
-                    }}
-                    className={`w-full px-3 py-2 rounded text-sm text-left transition-colors ${
-                      currentPhoto.bucket === bucket.key
-                        ? `${bucket.color} text-white font-semibold`
-                        : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
-                    }`}
-                  >
-                    <div className="flex items-center gap-2">
-                      <span className="font-bold">{bucket.key}</span>
-                      <span>{bucket.label}</span>
-                    </div>
-                  </button>
-                ))}
+        {/* Metadata Overlay */}
+        <div className="absolute bottom-4 right-4 flex flex-col items-end gap-2">
+          {/* Bucket Assignment */}
+          {currentBucket && (
+            <div
+              className={`${currentBucket.color} text-white px-4 py-2 rounded-lg shadow-xl flex items-center gap-2`}
+            >
+              <span className="text-xl font-bold">{currentBucket.key}</span>
+              <div className="text-left">
+                <div className="text-sm font-semibold">{currentBucket.label}</div>
+                <div className="text-xs opacity-90">{currentBucket.description}</div>
               </div>
             </div>
+          )}
 
-            {/* Day Assignment */}
-            <div>
-              <label className="text-xs font-semibold text-gray-400 uppercase mb-2 block">
-                Day
-              </label>
-              <select
-                value={currentPhoto.day ?? ''}
-                onChange={e => {
-                  const day = e.target.value ? Number.parseInt(e.target.value, 10) : null;
-                  onAssignDay(currentPhoto.id, day);
-                }}
-                className="w-full px-3 py-2 rounded bg-gray-800 border border-gray-700 text-gray-100 text-sm"
-              >
-                <option value="">Unassigned</option>
-                {Array.from({ length: 31 }, (_, i) => i + 1).map(day => (
-                  <option key={day} value={day}>
-                    {dayLabels[day] || `Day ${String(day).padStart(2, '0')}`}
-                  </option>
-                ))}
-              </select>
+          {/* Day Info */}
+          {currentPhoto.day && (
+            <div className="bg-gray-900/90 backdrop-blur text-white px-4 py-2 rounded-lg shadow-xl">
+              <div className="text-xs text-gray-400">Day</div>
+              <div className="text-sm font-semibold">
+                {dayLabels[currentPhoto.day] || `Day ${String(currentPhoto.day).padStart(2, '0')}`}
+              </div>
             </div>
+          )}
 
-            {/* Favorite Toggle */}
-            <button
-              onClick={() => onToggleFavorite(currentPhoto.id)}
-              className={`w-full px-3 py-2 rounded text-sm font-semibold transition-colors flex items-center gap-2 ${
-                currentPhoto.favorite
-                  ? 'bg-yellow-600 text-white hover:bg-yellow-700'
-                  : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
-              }`}
-            >
-              <Heart className={`w-4 h-4 ${currentPhoto.favorite ? 'fill-current' : ''}`} />
-              {currentPhoto.favorite ? 'Favorited' : 'Mark as Favorite'}
-            </button>
+          {/* Favorite Indicator */}
+          {currentPhoto.favorite && (
+            <div className="bg-yellow-500 text-white px-3 py-2 rounded-lg shadow-xl flex items-center gap-2">
+              <Heart className="w-4 h-4 fill-current" />
+              <span className="text-sm font-semibold">Favorite</span>
+            </div>
+          )}
+        </div>
+
+        {/* Quick Action Hints */}
+        <div className="absolute top-4 left-4 bg-gray-900/80 backdrop-blur rounded-lg px-3 py-2 text-xs text-gray-300 space-y-1">
+          <div className="flex items-center gap-2">
+            <kbd className="px-1.5 py-0.5 bg-gray-800 rounded text-[10px]">←→</kbd>
+            <span>Navigate</span>
           </div>
-
-          {/* Keyboard Hints */}
-          <div className="px-4 py-3 border-t border-gray-800 bg-gray-950 space-y-1 text-xs text-gray-400">
-            <div className="flex justify-between">
-              <span>←→</span>
-              <span>Navigate</span>
-            </div>
-            <div className="flex justify-between">
-              <span>F</span>
-              <span>Toggle Favorite</span>
-            </div>
-            <div className="flex justify-between">
-              <span>Esc</span>
-              <span>Close</span>
-            </div>
+          <div className="flex items-center gap-2">
+            <kbd className="px-1.5 py-0.5 bg-gray-800 rounded text-[10px]">A-E,M,X</kbd>
+            <span>Assign</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <kbd className="px-1.5 py-0.5 bg-gray-800 rounded text-[10px]">F</kbd>
+            <span>Favorite</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <kbd className="px-1.5 py-0.5 bg-gray-800 rounded text-[10px]">Esc</kbd>
+            <span>Exit</span>
           </div>
         </div>
       </div>
+
+      {/* Photo Strip */}
+      <PhotoStrip
+        photos={filteredPhotos}
+        currentPhotoId={currentPhoto.id}
+        onSelectPhoto={handleSelectPhoto}
+      />
     </div>
   );
 };
