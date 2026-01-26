@@ -16,6 +16,17 @@ export interface FolderMapping {
     start: string;
     end: string;
   };
+  detectedBuckets?: BucketInfo[];
+  isOrganizedStructure?: boolean;
+  bucketConfidence?: 'high' | 'medium' | 'low' | 'none';
+}
+
+export interface BucketInfo {
+  bucketLetter: string;
+  folderName: string;
+  photoCount: number;
+  confidence: 'high' | 'medium' | 'low';
+  patternMatched: string;
 }
 
 /**
@@ -38,6 +49,36 @@ const NUMERIC_PREFIX_PATTERN = /^(\d{1,2})[\s_-]/;
 // Pattern 4: Timestamp aggregation (lowest confidence)
 // Matches: Unix timestamps, ISO dates without dashes
 const TIMESTAMP_PATTERN = /(\d{10,13})|(\d{4}(?:\d{2}){2})/;
+
+/**
+ * Bucket pattern matchers (in priority order)
+ */
+
+// Pattern 1: Standard bucket naming (highest confidence)
+// Matches: "A_Establishing", "B_People", "C_Culture-Detail", etc.
+const BUCKET_STANDARD_PATTERN =
+  /^([A-M])(?:[\s_-]+)(Establishing|People|Culture(?:[-_\s]?Detail)?|Detail|Action|Moment|Transition|Mood|Food)$/i;
+
+// Pattern 2: Simple bucket letter (high confidence)
+// Matches: "A", "B", "C", etc.
+const BUCKET_LETTER_PATTERN = /^([A-M])$/i;
+
+// Pattern 3: Bucket with custom suffix (medium confidence)
+// Matches: "A_Custom", "B_Whatever", etc.
+const BUCKET_CUSTOM_PATTERN = /^([A-M])(?:[\s_-]+)(.+)$/i;
+
+// Pattern 4: Numeric bucket folders (low confidence)
+// Matches: "01", "02", "03", etc. (could be days or buckets)
+const BUCKET_NUMERIC_PATTERN = /^(0[1-6])$/;
+
+const NUMERIC_TO_BUCKET_MAP: Record<string, string> = {
+  '01': 'A',
+  '02': 'B',
+  '03': 'C',
+  '04': 'D',
+  '05': 'E',
+  '06': 'M',
+};
 
 /**
  * Calculate the day number from a date relative to trip start date
@@ -121,6 +162,182 @@ export function detectDayNumberFromFolderName(
   tripStart?: string,
 ): number | null {
   return extractDayFromFolderName(folderName, tripStart)?.day ?? null;
+}
+
+export function detectBucketFromFolderName(
+  folderName: string,
+): { bucket: string; confidence: 'high' | 'medium' | 'low'; pattern: string } | null {
+  const standardMatch = folderName.match(BUCKET_STANDARD_PATTERN);
+  if (standardMatch) {
+    return {
+      bucket: standardMatch[1].toUpperCase(),
+      confidence: 'high',
+      pattern: 'standard',
+    };
+  }
+
+  const letterMatch = folderName.match(BUCKET_LETTER_PATTERN);
+  if (letterMatch) {
+    return {
+      bucket: letterMatch[1].toUpperCase(),
+      confidence: 'high',
+      pattern: 'letter',
+    };
+  }
+
+  const customMatch = folderName.match(BUCKET_CUSTOM_PATTERN);
+  if (customMatch) {
+    return {
+      bucket: customMatch[1].toUpperCase(),
+      confidence: 'medium',
+      pattern: 'custom',
+    };
+  }
+
+  const numericMatch = folderName.match(BUCKET_NUMERIC_PATTERN);
+  if (numericMatch && NUMERIC_TO_BUCKET_MAP[numericMatch[1]]) {
+    return {
+      bucket: NUMERIC_TO_BUCKET_MAP[numericMatch[1]],
+      confidence: 'low',
+      pattern: 'numeric',
+    };
+  }
+
+  return null;
+}
+
+export function analyzePathStructure(
+  filePath: string,
+  options?: {
+    daysFolder?: string;
+  },
+): {
+  detectedDay: number | null;
+  detectedBucket: string | null;
+  isPreOrganized: boolean;
+  confidence: 'high' | 'medium' | 'low' | 'none';
+  pathSegments: string[];
+} {
+  const daysFolder = options?.daysFolder || '01_DAYS';
+  const rawSegments = filePath.split(/[\\/]/).filter(Boolean);
+  const pathSegments = rawSegments.length > 0 ? rawSegments.slice(0, -1) : [];
+
+  let detectedDay: number | null = null;
+  let detectedBucket: string | null = null;
+  let dayConfidence: 'high' | 'medium' | 'low' | 'none' = 'none';
+  let bucketConfidence: 'high' | 'medium' | 'low' | 'none' = 'none';
+
+  const daysIndex = pathSegments.findIndex(segment => {
+    const lower = segment.toLowerCase();
+    return (
+      lower === daysFolder.toLowerCase() ||
+      lower === '01_days' ||
+      lower === 'days'
+    );
+  });
+
+  if (daysIndex !== -1 && daysIndex < pathSegments.length - 1) {
+    const dayFolder = pathSegments[daysIndex + 1];
+    const dayDetection = extractDayFromFolderName(dayFolder);
+
+    if (dayDetection) {
+      detectedDay = dayDetection.day;
+      dayConfidence = dayDetection.confidence;
+
+      if (daysIndex + 2 < pathSegments.length) {
+        const bucketFolder = pathSegments[daysIndex + 2];
+        const bucketDetection = detectBucketFromFolderName(bucketFolder);
+
+        if (bucketDetection) {
+          detectedBucket = bucketDetection.bucket;
+          bucketConfidence = bucketDetection.confidence;
+        }
+      }
+    }
+  } else {
+    for (let i = 0; i < pathSegments.length; i++) {
+      const segment = pathSegments[i];
+      const dayDetection = extractDayFromFolderName(segment);
+
+      if (dayDetection) {
+        detectedDay = dayDetection.day;
+        dayConfidence = dayDetection.confidence === 'high' ? 'medium' : 'low';
+
+        if (i + 1 < pathSegments.length) {
+          const bucketFolder = pathSegments[i + 1];
+          const bucketDetection = detectBucketFromFolderName(bucketFolder);
+
+          if (bucketDetection) {
+            detectedBucket = bucketDetection.bucket;
+            bucketConfidence = bucketDetection.confidence;
+          }
+        }
+        break;
+      }
+    }
+  }
+
+  const isPreOrganized = detectedDay !== null && detectedBucket !== null;
+  let overallConfidence: 'high' | 'medium' | 'low' | 'none' = 'none';
+
+  if (isPreOrganized) {
+    if (dayConfidence === 'high' && bucketConfidence === 'high') {
+      overallConfidence = 'high';
+    } else if (dayConfidence !== 'none' && bucketConfidence !== 'none') {
+      overallConfidence = 'medium';
+    } else {
+      overallConfidence = 'low';
+    }
+  } else if (detectedDay !== null) {
+    overallConfidence = dayConfidence;
+  }
+
+  return {
+    detectedDay,
+    detectedBucket,
+    isPreOrganized,
+    confidence: overallConfidence,
+    pathSegments,
+  };
+}
+
+export async function detectBucketsInFolder(
+  dirHandle: FileSystemDirectoryHandle,
+): Promise<BucketInfo[]> {
+  const buckets: BucketInfo[] = [];
+  const supportedExt = ['jpg', 'jpeg', 'png', 'heic', 'webp', 'mp4', 'mov', 'webm', 'avi', 'mkv'];
+
+  try {
+    // @ts-ignore - entries() is supported in modern browsers
+    for await (const [name, handle] of dirHandle.entries()) {
+      if (handle.kind !== 'directory') continue;
+
+      const bucketDetection = detectBucketFromFolderName(name);
+      if (!bucketDetection) continue;
+
+      let photoCount = 0;
+      // @ts-ignore
+      for await (const [fileName, fileHandle] of handle.entries()) {
+        if (fileHandle.kind !== 'file') continue;
+        const ext = fileName.split('.').pop()?.toLowerCase() || '';
+        if (supportedExt.includes(ext)) {
+          photoCount += 1;
+        }
+      }
+
+      buckets.push({
+        bucketLetter: bucketDetection.bucket,
+        folderName: name,
+        photoCount,
+        confidence: bucketDetection.confidence,
+        patternMatched: bucketDetection.pattern,
+      });
+    }
+  } catch (error) {
+    console.warn('Failed to scan for buckets:', error);
+  }
+
+  return buckets.sort((a, b) => a.bucketLetter.localeCompare(b.bucketLetter));
 }
 
 /**

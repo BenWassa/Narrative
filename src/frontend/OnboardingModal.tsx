@@ -1,6 +1,10 @@
 import React, { useCallback, useState } from 'react';
 import { FolderOpen, X } from 'lucide-react';
-import { detectFolderStructure, FolderMapping } from '../services/folderDetectionService';
+import {
+  detectBucketsInFolder,
+  detectFolderStructure,
+  FolderMapping,
+} from '../services/folderDetectionService';
 
 export interface OnboardingState {
   projectName: string;
@@ -56,25 +60,141 @@ export default function OnboardingModal({
     setLoading(true);
 
     try {
+      const supportedExt = [
+        'jpg',
+        'jpeg',
+        'png',
+        'heic',
+        'webp',
+        'mp4',
+        'mov',
+        'webm',
+        'avi',
+        'mkv',
+      ];
+      const isDaysContainer = (name: string) => {
+        const normalized = name.toLowerCase().replace(/[^a-z0-9]+/g, '');
+        return normalized === '01days' || normalized === 'days';
+      };
+      const countFilesRecursive = async (
+        handle: FileSystemDirectoryHandle,
+      ): Promise<number> => {
+        let count = 0;
+        // @ts-ignore - entries() is supported in modern browsers
+        for await (const [, nested] of handle.entries()) {
+          if (nested.kind === 'directory') {
+            count += await countFilesRecursive(nested as FileSystemDirectoryHandle);
+          } else if (nested.kind === 'file') {
+            const ext = nested.name.split('.').pop()?.toLowerCase() || '';
+            if (supportedExt.includes(ext)) {
+              count += 1;
+            }
+          }
+        }
+        return count;
+      };
+
       const photoCountMap = new Map<string, number>();
       const folders: string[] = [];
+      const folderHandles = new Map<string, FileSystemDirectoryHandle>();
       // @ts-ignore - entries() is supported in modern browsers
       for await (const [name, handle] of dirHandle.entries()) {
         if (handle.kind !== 'directory') continue;
         folders.push(name);
+        folderHandles.set(name, handle as FileSystemDirectoryHandle);
         let count = 0;
         // @ts-ignore
         for await (const [, nested] of handle.entries()) {
           if (nested.kind !== 'file') continue;
           const ext = nested.name.split('.').pop()?.toLowerCase() || '';
-          if (['jpg', 'jpeg', 'png', 'heic', 'webp'].includes(ext)) {
+          if (supportedExt.includes(ext)) {
             count += 1;
           }
         }
         photoCountMap.set(name, count);
       }
+
+      const daysContainerName = folders.find(folder => isDaysContainer(folder)) || null;
+      if (daysContainerName) {
+        const daysHandle = folderHandles.get(daysContainerName);
+        if (daysHandle) {
+          const dayFolderNames: string[] = [];
+          const dayFolderHandles = new Map<string, FileSystemDirectoryHandle>();
+          const dayPhotoCountMap = new Map<string, number>();
+
+          // @ts-ignore
+          for await (const [name, handle] of daysHandle.entries()) {
+            if (handle.kind !== 'directory') continue;
+            dayFolderNames.push(name);
+            dayFolderHandles.set(name, handle as FileSystemDirectoryHandle);
+            const count = await countFilesRecursive(handle as FileSystemDirectoryHandle);
+            dayPhotoCountMap.set(name, count);
+          }
+
+          const detectedDays = detectFolderStructure(dayFolderNames, {
+            photoCountMap: dayPhotoCountMap,
+            projectName,
+          }).map(mapping => ({
+            ...mapping,
+            folderPath: `${daysContainerName}/${mapping.folder}`,
+          }));
+
+          const enhancedMappings = await Promise.all(
+            detectedDays.map(async mapping => {
+              const dayHandle = dayFolderHandles.get(mapping.folder);
+              if (!dayHandle || mapping.confidence === 'undetected') {
+                return mapping;
+              }
+
+              const buckets = await detectBucketsInFolder(dayHandle);
+              return {
+                ...mapping,
+                detectedBuckets: buckets,
+                isOrganizedStructure: buckets.length > 0,
+                bucketConfidence:
+                  buckets.length > 0
+                    ? buckets.every(b => b.confidence === 'high')
+                      ? 'high'
+                      : 'medium'
+                    : 'none',
+              };
+            }),
+          );
+
+          const withSkips = enhancedMappings.map(m => ({
+            ...m,
+            skip: m.confidence === 'undetected' ? true : m.skip ?? false,
+          }));
+          setMappings(withSkips);
+          setStep('preview');
+          return;
+        }
+      }
+
       const detected = detectFolderStructure(folders, { photoCountMap, projectName });
-      const withSkips = detected.map(m => ({
+      const enhancedMappings = await Promise.all(
+        detected.map(async mapping => {
+          const folderHandle = folderHandles.get(mapping.folder);
+          if (!folderHandle || mapping.confidence === 'undetected') {
+            return mapping;
+          }
+
+          const buckets = await detectBucketsInFolder(folderHandle);
+          return {
+            ...mapping,
+            detectedBuckets: buckets,
+            isOrganizedStructure: buckets.length > 0,
+            bucketConfidence:
+              buckets.length > 0
+                ? buckets.every(b => b.confidence === 'high')
+                  ? 'high'
+                  : 'medium'
+                : 'none',
+          };
+        }),
+      );
+
+      const withSkips = enhancedMappings.map(m => ({
         ...m,
         skip: m.confidence === 'undetected' ? true : m.skip ?? false,
       }));
@@ -274,6 +394,7 @@ export default function OnboardingModal({
                     <tr className="border-b border-gray-200 bg-gray-50">
                       <th className="text-left px-3 py-2 font-medium text-gray-700">Folder</th>
                       <th className="text-center px-3 py-2 font-medium text-gray-700">Day #</th>
+                      <th className="text-left px-3 py-2 font-medium text-gray-700">Buckets</th>
                       <th className="text-center px-3 py-2 font-medium text-gray-700">Photos</th>
                       <th className="text-center px-3 py-2 font-medium text-gray-700">Action</th>
                     </tr>
@@ -299,6 +420,24 @@ export default function OnboardingModal({
                             placeholder="—"
                           />
                         </td>
+                        <td className="px-3 py-3">
+                          {mapping.detectedBuckets && mapping.detectedBuckets.length > 0 ? (
+                            <div className="flex flex-wrap gap-1">
+                              {mapping.detectedBuckets.map(bucket => (
+                                <span
+                                  key={bucket.bucketLetter}
+                                  className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800"
+                                  title={`${bucket.folderName} (${bucket.photoCount} photos)`}
+                                >
+                                  {bucket.bucketLetter}
+                                  <span className="ml-1 text-green-600">({bucket.photoCount})</span>
+                                </span>
+                              ))}
+                            </div>
+                          ) : (
+                            <span className="text-xs text-gray-400 italic">None detected</span>
+                          )}
+                        </td>
                         <td className="px-3 py-3 text-center text-gray-600">
                           {mapping.photoCount}
                         </td>
@@ -318,7 +457,7 @@ export default function OnboardingModal({
                     ))}
                     {mappings.length === 0 && (
                       <tr>
-                        <td colSpan={4} className="px-3 py-4 text-sm text-gray-600 text-center">
+                        <td colSpan={5} className="px-3 py-4 text-sm text-gray-600 text-center">
                           No subfolders detected. You can still continue and sort manually.
                         </td>
                       </tr>

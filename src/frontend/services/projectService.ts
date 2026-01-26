@@ -1,4 +1,5 @@
 import safeLocalStorage from '../utils/safeLocalStorage';
+import { analyzePathStructure } from '../../services/folderDetectionService';
 
 export interface ProjectPhoto {
   id: string;
@@ -20,6 +21,12 @@ export interface ProjectPhoto {
     width?: number;
     height?: number;
   };
+  sourceFolder?: string;
+  folderHierarchy?: string[];
+  detectedDay?: number | null;
+  detectedBucket?: string | null;
+  isPreOrganized?: boolean;
+  organizationConfidence?: 'high' | 'medium' | 'low' | 'none';
 }
 
 export interface ProjectSettings {
@@ -434,13 +441,25 @@ export async function buildPhotosFromHandle(
       }
     }
 
+    const pathAnalysis = analyzePathStructure(entry.path);
+    const pathSegments = entry.path.split(/[\\/]/).filter(Boolean);
+    const folderSegments = pathSegments.length > 1 ? pathSegments.slice(0, -1) : [];
+    const sourceFolder = folderSegments[folderSegments.length - 1] || 'root';
+
+    let day: number | null = null;
+    let bucket: string | null = null;
+    if (pathAnalysis.isPreOrganized && pathAnalysis.confidence === 'high') {
+      day = pathAnalysis.detectedDay;
+      bucket = pathAnalysis.detectedBucket;
+    }
+
     photos.push({
       id,
       originalName,
       currentName: originalName,
       timestamp,
-      day: null,
-      bucket: null,
+      day,
+      bucket,
       sequence: null,
       favorite: false,
       rating: 0,
@@ -449,6 +468,12 @@ export async function buildPhotosFromHandle(
       mimeType: file.type || (isHeic ? 'image/heic' : ''),
       fileHandle: entry.handle,
       filePath: entry.path,
+      sourceFolder,
+      folderHierarchy: folderSegments,
+      detectedDay: pathAnalysis.detectedDay,
+      detectedBucket: pathAnalysis.detectedBucket,
+      isPreOrganized: pathAnalysis.isPreOrganized,
+      organizationConfidence: pathAnalysis.confidence,
     });
   }
 
@@ -492,6 +517,12 @@ function serializeState(state: ProjectState) {
     rating: photo.rating,
     archived: photo.archived,
     currentName: photo.currentName,
+    sourceFolder: photo.sourceFolder,
+    folderHierarchy: photo.folderHierarchy,
+    detectedDay: photo.detectedDay,
+    detectedBucket: photo.detectedBucket,
+    isPreOrganized: photo.isPreOrganized,
+    organizationConfidence: photo.organizationConfidence,
     // Note: thumbnails are not cached as blob URLs are session-specific
   }));
 

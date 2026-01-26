@@ -667,11 +667,13 @@ export default function PhotoOrganizer() {
     // Also detect day numbers from Dnn subfolders (e.g., 01_DAYS/D01/...)
     // Reset day to null for folders that are not mapped
     const folderByName = new Map<string, any>();
-    mappings.forEach(m => folderByName.set(m.folder, m));
+    mappings.forEach(m => folderByName.set(m.folderPath || m.folder, m));
 
     return sourcePhotos.map(p => {
       if (!p.filePath) return p;
-      const parts = p.filePath.split('/');
+      if (p.isPreOrganized && p.day != null && p.bucket != null) return p;
+      const parts = p.filePath.split(/[\\/]/);
+      const filePathNormalized = parts.join('/');
 
       // If it's in a Dnn subfolder, set day from that
       if (parts.length > 1) {
@@ -684,13 +686,19 @@ export default function PhotoOrganizer() {
       }
 
       // Otherwise check top-level mapping - ONLY if folder was not skipped
-      const top = parts[0];
-      const mapping = folderByName.get(top);
-      if (mapping && mapping.detectedDay != null && !mapping.skip) {
-        return { ...p, day: mapping.detectedDay };
+      for (const [key, mapping] of folderByName.entries()) {
+        if (!mapping || mapping.skip || mapping.detectedDay == null) continue;
+        const normalizedKey = key.split(/[\\/]/).join('/');
+        if (
+          filePathNormalized === normalizedKey ||
+          filePathNormalized.startsWith(`${normalizedKey}/`)
+        ) {
+          return { ...p, day: mapping.detectedDay };
+        }
       }
 
-      // Reset day to null for unmapped folders
+      // Reset day to null for unmapped folders unless already assigned
+      if (p.day != null) return p;
       return { ...p, day: null };
     });
   }, []);
@@ -708,13 +716,25 @@ export default function PhotoOrganizer() {
 
       return sourcePhotos.map(p => {
         if (!p.filePath) return p;
-        const parts = p.filePath.split('/');
+        if (p.isPreOrganized && p.day != null) return p;
+        const parts = p.filePath.split(/[\\/]/);
+        const filePathNormalized = parts.join('/');
         const top = parts[0];
 
         // Check if it's in a day container
         const assignedDay = containerDayMap.get(top);
         if (assignedDay != null) {
           return { ...p, day: assignedDay };
+        }
+
+        for (const [key, mappedDay] of containerDayMap.entries()) {
+          const normalizedKey = key.split(/[\\/]/).join('/');
+          if (
+            filePathNormalized === normalizedKey ||
+            filePathNormalized.startsWith(`${normalizedKey}/`)
+          ) {
+            return { ...p, day: mappedDay };
+          }
         }
 
         // Also check for Dnn subfolders
@@ -1071,12 +1091,19 @@ export default function PhotoOrganizer() {
     [categorizeFolder],
   );
 
+  const normalizePath = useCallback((value: string) => {
+    return value
+      .split(/[\\/]/)
+      .filter(Boolean)
+      .join('/');
+  }, []);
+
   // Root-level groups (top-level folders under the project root)
   const rootGroups = React.useMemo(() => {
     const map = new Map<string, ProjectPhoto[]>();
     for (const p of photos) {
       if (p.archived) continue;
-      const parts = (p.filePath || p.originalName || '').split('/');
+      const parts = (p.filePath || p.originalName || '').split(/[\\/]/);
       const folder = parts.length > 1 ? parts[0] : '(root)';
       if (!map.has(folder)) map.set(folder, []);
       map.get(folder)!.push(p);
@@ -1096,7 +1123,7 @@ export default function PhotoOrganizer() {
     // Detect day-like subfolders (e.g., 01_DAYS/D01) even when photos inside are unassigned.
     const detectedDaysContainers = new Set<string>();
     for (const p of photos) {
-      const parts = (p.filePath || p.originalName || '').split('/');
+      const parts = (p.filePath || p.originalName || '').split(/[\\/]/);
       if (parts.length > 1 && /^D\d{2}/i.test(parts[1])) {
         detectedDaysContainers.add(parts[0]);
       }
@@ -1105,13 +1132,14 @@ export default function PhotoOrganizer() {
     // Ensure any explicitly selected day containers are present (even if empty)
     const combined = new Map(rootGroups);
     (dayContainers || []).forEach(dc => {
-      if (!combined.has(dc)) combined.set(dc, []);
+      const top = normalizePath(dc).split('/')[0];
+      if (!combined.has(top)) combined.set(top, []);
     });
 
     // Return all top-level folders (plus any explicitly selected containers) — we'll decide which
     // ones are shown as 'selected day containers' vs 'other' when rendering the sidebar.
     return Array.from(combined.entries());
-  }, [rootGroups, days, dayLabels, projectSettings]);
+  }, [rootGroups, days, dayLabels, projectSettings, normalizePath]);
 
   // Debug: log the current folder groupings for troubleshooting
   React.useEffect(() => {
@@ -1195,9 +1223,13 @@ export default function PhotoOrganizer() {
         if (selectedRootFolder !== null) {
           return photos.filter(p => {
             if (p.archived) return false;
-            const parts = (p.filePath || p.originalName || '').split('/');
-            const folder = parts.length > 1 ? parts[0] : '(root)';
-            return folder === selectedRootFolder;
+            const filePath = normalizePath(p.filePath || p.originalName || '');
+            const selectedPath = normalizePath(selectedRootFolder);
+            const folder = filePath.split('/')[0] || '(root)';
+            if (selectedPath.includes('/')) {
+              return filePath === selectedPath || filePath.startsWith(`${selectedPath}/`);
+            }
+            return folder === selectedPath;
           });
         }
         if (selectedDay !== null) {
@@ -1209,7 +1241,8 @@ export default function PhotoOrganizer() {
           return photos.filter(
             p =>
               !p.archived &&
-              ((p.filePath || p.originalName).split('/')[0] || '(root)') === selectedRootFolder,
+              ((normalizePath(p.filePath || p.originalName || '').split('/')[0] || '(root)') ===
+                normalizePath(selectedRootFolder)),
           );
         }
         return [];
@@ -1222,7 +1255,15 @@ export default function PhotoOrganizer() {
       default:
         return photos;
     }
-  }, [photos, currentView, selectedDay, selectedRootFolder, dayContainers, projectSettings]);
+  }, [
+    photos,
+    currentView,
+    selectedDay,
+    selectedRootFolder,
+    dayContainers,
+    projectSettings,
+    normalizePath,
+  ]);
 
   // Auto-select first folder when project is newly loaded and no folder is selected
   useEffect(() => {
@@ -1510,7 +1551,7 @@ export default function PhotoOrganizer() {
 
         const selectedDayContainers = (state.mappings || [])
           .filter((m: any) => !m.skip)
-          .map((m: any) => m.folder);
+          .map((m: any) => m.folderPath || m.folder);
         const nextProjectName = state.projectName?.trim() || deriveProjectName(state.rootPath);
 
         let nextProjectId: string;
@@ -2293,26 +2334,72 @@ export default function PhotoOrganizer() {
                     number,
                     { dayNumber: number; photos: ProjectPhoto[]; folderName: string | null }
                   >();
-
-                  // First add explicitly labeled days
-                  visibleDays.forEach(([d, photos]) => {
-                    daysByNumber.set(d, { dayNumber: d, photos, folderName: null });
-                  });
-
-                  // Then add inferred days from selected day containers
                   const selectedContainers = dayContainers || [];
-                  selectedContainers.forEach(containerName => {
-                    const containerPhotos =
-                      rootGroups.find(([name]) => name === containerName)?.[1] || [];
-                    const cat = categorizeFolder(containerName, containerPhotos);
-                    if (cat.dayNumber !== null && !daysByNumber.has(cat.dayNumber)) {
-                      daysByNumber.set(cat.dayNumber, {
-                        dayNumber: cat.dayNumber,
-                        photos: containerPhotos,
-                        folderName: containerName,
-                      });
+                  const selectedTopLevelContainers: string[] = [];
+                  const selectedPathContainers: string[] = [];
+                  selectedContainers.forEach(container => {
+                    const normalized = normalizePath(container);
+                    if (normalized.includes('/')) {
+                      selectedPathContainers.push(normalized);
+                    } else {
+                      selectedTopLevelContainers.push(normalized);
                     }
                   });
+
+                  const getPhotosForPath = (path: string) => {
+                    const normalized = normalizePath(path);
+                    return photos.filter(p => {
+                      const filePath = normalizePath(p.filePath || p.originalName || '');
+                      return (
+                        filePath === normalized || filePath.startsWith(`${normalized}/`)
+                      );
+                    });
+                  };
+
+                  // First add explicitly labeled days (if any)
+                  days.forEach(([d, photosForDay]) => {
+                    if (!daysByNumber.has(d)) {
+                      daysByNumber.set(d, { dayNumber: d, photos: photosForDay, folderName: null });
+                    }
+                  });
+
+                  // Then add inferred days from selected day containers (full paths)
+                  selectedPathContainers.forEach(containerPath => {
+                    const lastSegment = containerPath.split('/').slice(-1)[0];
+                    const dayNumber = detectDayNumberFromFolderName(lastSegment);
+                    if (dayNumber == null || daysByNumber.has(dayNumber)) return;
+                    daysByNumber.set(dayNumber, {
+                      dayNumber,
+                      photos: getPhotosForPath(containerPath),
+                      folderName: containerPath,
+                    });
+                  });
+
+                  // If there's a days container, infer day folders beneath it
+                  const daysContainer = projectSettings?.folderStructure?.daysFolder;
+                  if (daysContainer) {
+                    const normalizedDaysContainer = normalizePath(daysContainer);
+                    const dayFolderMap = new Map<number, ProjectPhoto[]>();
+                    photos.forEach(p => {
+                      const filePath = normalizePath(p.filePath || p.originalName || '');
+                      const parts = filePath.split('/');
+                      if (parts.length < 2) return;
+                      if (parts[0] !== normalizedDaysContainer) return;
+                      const dayNumber = detectDayNumberFromFolderName(parts[1]);
+                      if (dayNumber == null) return;
+                      if (!dayFolderMap.has(dayNumber)) dayFolderMap.set(dayNumber, []);
+                      dayFolderMap.get(dayNumber)!.push(p);
+                    });
+                    dayFolderMap.forEach((dayPhotos, dayNumber) => {
+                      if (!daysByNumber.has(dayNumber)) {
+                        daysByNumber.set(dayNumber, {
+                          dayNumber,
+                          photos: dayPhotos,
+                          folderName: `${normalizedDaysContainer}/${dayLabels[dayNumber] || `Day ${String(dayNumber).padStart(2, '0')}`}`,
+                        });
+                      }
+                    });
+                  }
 
                   // Also auto-detect day-like folders and add them to the Days section
                   // Filter photos to only include those actually assigned to this day (or unassigned)
@@ -2323,8 +2410,6 @@ export default function PhotoOrganizer() {
                       cat.dayNumber !== null &&
                       !daysByNumber.has(cat.dayNumber)
                     ) {
-                      // Auto-detect: if folder looks like a day and has a day number, show in Days section
-                      // But only include photos assigned to this day (plus unassigned/loose photos)
                       const photosForDay = folderPhotos.filter(
                         p => p.day === cat.dayNumber || p.day === null,
                       );
@@ -2340,8 +2425,8 @@ export default function PhotoOrganizer() {
                     (a, b) => a.dayNumber - b.dayNumber,
                   );
 
-                  // Show selected containers that don't map to a day number
-                  const selectedWithoutDay = selectedContainers.filter(containerName => {
+                  // Show selected top-level containers that don't map to a day number
+                  const selectedWithoutDay = selectedTopLevelContainers.filter(containerName => {
                     const containerPhotos =
                       rootGroups.find(([name]) => name === containerName)?.[1] || [];
                     const cat = categorizeFolder(containerName, containerPhotos);
@@ -2680,6 +2765,18 @@ export default function PhotoOrganizer() {
                             <p className="text-xs font-mono truncate">{photo.currentName}</p>
                           </div>
                         </div>
+
+                        {/* Organized badge */}
+                        {photo.isPreOrganized && (
+                          <div className="absolute top-2 right-2 z-10">
+                            <span
+                              className="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-blue-600 text-white shadow"
+                              title={`Auto-assigned: Day ${photo.detectedDay ?? '—'}, Bucket ${photo.detectedBucket ?? '—'}`}
+                            >
+                              Organized
+                            </span>
+                          </div>
+                        )}
 
                         {/* Bucket badge */}
                         {photo.bucket && (
