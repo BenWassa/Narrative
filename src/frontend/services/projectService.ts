@@ -27,6 +27,7 @@ export interface ProjectPhoto {
   detectedBucket?: string | null;
   isPreOrganized?: boolean;
   organizationConfidence?: 'high' | 'medium' | 'low' | 'none';
+  subfolderOverride?: string | null;
 }
 
 export interface ProjectSettings {
@@ -523,6 +524,7 @@ function serializeState(state: ProjectState) {
     detectedBucket: photo.detectedBucket,
     isPreOrganized: photo.isPreOrganized,
     organizationConfidence: photo.organizationConfidence,
+    subfolderOverride: photo.subfolderOverride,
     // Note: thumbnails are not cached as blob URLs are session-specific
   }));
 
@@ -688,6 +690,7 @@ export async function getState(projectId: string): Promise<ProjectState> {
           rating: cached.rating,
           archived: cached.archived,
           currentName: cached.currentName,
+          subfolderOverride: cached.subfolderOverride,
         };
       }
       return photo;

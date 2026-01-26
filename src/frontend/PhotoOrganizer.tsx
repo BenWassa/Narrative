@@ -1104,6 +1104,32 @@ export default function PhotoOrganizer() {
     return ['mp4', 'mov', 'webm', 'avi', 'mkv'].includes(ext);
   }, []);
 
+  const getDerivedSubfolderGroup = useCallback(
+    (photo: ProjectPhoto, dayNumber: number | null) => {
+      if (dayNumber == null) return 'Day Root';
+      const filePath = normalizePath(photo.filePath || photo.originalName || '');
+      const folderSegments = filePath.split('/').slice(0, -1);
+      const dayIndex = folderSegments.findIndex(
+        segment => detectDayNumberFromFolderName(segment) === dayNumber,
+      );
+      if (dayIndex !== -1 && dayIndex + 1 < folderSegments.length) {
+        return folderSegments[dayIndex + 1];
+      }
+      return 'Day Root';
+    },
+    [normalizePath],
+  );
+
+  const getSubfolderGroup = useCallback(
+    (photo: ProjectPhoto, dayNumber: number | null) => {
+      if (photo.subfolderOverride !== undefined) {
+        return photo.subfolderOverride ?? 'Day Root';
+      }
+      return getDerivedSubfolderGroup(photo, dayNumber);
+    },
+    [getDerivedSubfolderGroup],
+  );
+
   // Root-level groups (top-level folders under the project root)
   const rootGroups = React.useMemo(() => {
     const map = new Map<string, ProjectPhoto[]>();
@@ -1321,6 +1347,7 @@ export default function PhotoOrganizer() {
         currentName: p.currentName,
         originalName: p.originalName,
         timestamp: p.timestamp,
+        subfolderOverride: p.subfolderOverride,
       }));
 
       const newHistory = history.slice(0, historyIndex + 1);
@@ -2860,15 +2887,7 @@ export default function PhotoOrganizer() {
                     { label: string; photos: ProjectPhoto[] }
                   >();
                   displayPhotos.forEach(photo => {
-                    const filePath = normalizePath(photo.filePath || photo.originalName || '');
-                    const folderSegments = filePath.split('/').slice(0, -1);
-                    const dayIndex = folderSegments.findIndex(
-                      segment => detectDayNumberFromFolderName(segment) === selectedDay,
-                    );
-                    let groupLabel = 'Day Root';
-                    if (dayIndex !== -1 && dayIndex + 1 < folderSegments.length) {
-                      groupLabel = folderSegments[dayIndex + 1];
-                    }
+                    const groupLabel = getSubfolderGroup(photo, selectedDay);
                     if (!groups.has(groupLabel)) {
                       groups.set(groupLabel, { label: groupLabel, photos: [] });
                     }
@@ -2907,8 +2926,40 @@ export default function PhotoOrganizer() {
                               <h3 className="text-sm font-semibold text-gray-200">
                                 {group.label}
                               </h3>
-                              <div className="text-xs text-gray-400">
-                                {group.photos.length} items
+                              <div className="flex items-center gap-3 text-xs text-gray-400">
+                                <span>{group.photos.length} items</span>
+                                {group.label !== 'Day Root' && (
+                                  <div className="flex items-center gap-2">
+                                    <button
+                                      className="text-xs text-blue-300 hover:text-blue-200"
+                                      onClick={() => {
+                                        const updated = photos.map(p => {
+                                          if (p.day !== selectedDay) return p;
+                                          const derived = getDerivedSubfolderGroup(p, selectedDay);
+                                          if (derived !== group.label) return p;
+                                          return { ...p, subfolderOverride: null };
+                                        });
+                                        saveToHistory(updated);
+                                      }}
+                                    >
+                                      Ingest to Day
+                                    </button>
+                                    <button
+                                      className="text-xs text-gray-300 hover:text-gray-100"
+                                      onClick={() => {
+                                        const updated = photos.map(p => {
+                                          if (p.day !== selectedDay) return p;
+                                          const derived = getDerivedSubfolderGroup(p, selectedDay);
+                                          if (derived !== group.label) return p;
+                                          return { ...p, subfolderOverride: derived };
+                                        });
+                                        saveToHistory(updated);
+                                      }}
+                                    >
+                                      Keep Subfolder
+                                    </button>
+                                  </div>
+                                )}
                               </div>
                             </div>
 
