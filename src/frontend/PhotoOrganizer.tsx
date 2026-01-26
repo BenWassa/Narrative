@@ -6,8 +6,6 @@ import {
   ChevronDown,
   Calendar,
   Heart,
-  Undo2,
-  Redo2,
   X,
   FolderOpen,
   Download,
@@ -2167,22 +2165,6 @@ export default function PhotoOrganizer() {
                 Export Script
               </button>
               <button
-                onClick={undo}
-                disabled={historyIndex <= 0}
-                className="p-2 hover:bg-gray-800 rounded disabled:opacity-30"
-                title="Undo (Cmd+Z)"
-              >
-                <Undo2 className="w-4 h-4" />
-              </button>
-              <button
-                onClick={redo}
-                disabled={historyIndex >= history.length - 1}
-                className="p-2 hover:bg-gray-800 rounded disabled:opacity-30"
-                title="Redo (Cmd+Shift+Z)"
-              >
-                <Redo2 className="w-4 h-4" />
-              </button>
-              <button
                 onClick={() => setShowHelp(true)}
                 className="p-2 hover:bg-gray-800 rounded"
                 title="Show shortcuts (?)"
@@ -2191,49 +2173,6 @@ export default function PhotoOrganizer() {
               </button>
             </div>
           </div>
-          {/* Process Stepper (Folders-first workflow) */}
-          <div className="flex items-center gap-3 px-6 py-2">
-            {(() => {
-              // Determine the current step for the header stepper
-              // map to an index so we can show completed/active/inactive states
-              const step = showExportScript
-                ? 'export'
-                : currentView === 'review'
-                ? 'review'
-                : 'organize';
-              const activeIndex = step === 'export' ? 3 : step === 'review' ? 2 : 1;
-              const steps = ['Import', 'Organize', 'Review', 'Export'];
-              return (
-                <nav aria-label="Progress" className="flex items-center w-full">
-                  {steps.map((label, i) => (
-                    <div key={label} className="flex items-center flex-1">
-                      <div className="flex flex-col items-center w-full">
-                        <div
-                          aria-hidden="true"
-                          className={`w-6 h-6 flex items-center justify-center rounded-full text-xs font-bold ${
-                            // Completed = green, ongoing (active) = blue, todo = empty with border
-                            i < activeIndex
-                              ? 'bg-green-600 text-white'
-                              : i === activeIndex
-                              ? 'bg-blue-700 text-white'
-                              : 'border border-gray-700 text-gray-400 bg-transparent'
-                          }`}
-                        >
-                          {i + 1}
-                        </div>
-                        <div className="text-xs text-gray-400 mt-1">{label}</div>
-                      </div>
-
-                      {i < steps.length - 1 && (
-                        <div aria-hidden="true" className="flex-1 h-px bg-gray-800 mx-3" />
-                      )}
-                    </div>
-                  ))}
-                </nav>
-              );
-            })()}
-          </div>
-
           {/* View Tabs */}
           <div className="flex gap-1 px-6 pb-2">
             {[
@@ -3426,11 +3365,11 @@ export default function PhotoOrganizer() {
                     </div>
                     <div className="flex items-center gap-3">
                       <kbd className="px-2 py-1 bg-gray-800 rounded">⌘Z</kbd>
-                      <span>Undo</span>
+                      <span>Undo (keyboard)</span>
                     </div>
                     <div className="flex items-center gap-3">
                       <kbd className="px-2 py-1 bg-gray-800 rounded">⌘⇧Z</kbd>
-                      <span>Redo</span>
+                      <span>Redo (keyboard)</span>
                     </div>
                     <div className="flex items-center gap-3">
                       <kbd className="px-2 py-1 bg-gray-800 rounded">?</kbd>
