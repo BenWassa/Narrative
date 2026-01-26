@@ -109,6 +109,7 @@ export default function PhotoOrganizer() {
     const saved = safeLocalStorage.get('narrative:viewMode');
     return (saved as 'gallery' | 'inspect') || 'gallery';
   });
+  const [hideAssigned, setHideAssigned] = useState(false);
   const toastTimerRef = useRef<number | null>(null);
   const foldersViewStateRef = useRef<{
     selectedRootFolder: string | null;
@@ -1109,15 +1110,35 @@ export default function PhotoOrganizer() {
       if (dayNumber == null) return 'Day Root';
       const filePath = normalizePath(photo.filePath || photo.originalName || '');
       const folderSegments = filePath.split('/').slice(0, -1);
-      const dayIndex = folderSegments.findIndex(
-        segment => detectDayNumberFromFolderName(segment) === dayNumber,
-      );
+      const daysFolder = projectSettings?.folderStructure?.daysFolder;
+      let dayIndex = -1;
+
+      if (daysFolder) {
+        const normalizedDaysFolder = normalizePath(daysFolder);
+        const daysIndex = folderSegments.findIndex(
+          segment => segment.toLowerCase() === normalizedDaysFolder.toLowerCase(),
+        );
+        if (daysIndex !== -1 && daysIndex + 1 < folderSegments.length) {
+          const dayFolder = folderSegments[daysIndex + 1];
+          if (detectDayNumberFromFolderName(dayFolder) === dayNumber) {
+            dayIndex = daysIndex + 1;
+          }
+        }
+      }
+
+      if (dayIndex === -1) {
+        dayIndex = folderSegments.findIndex(segment => {
+          if (daysFolder && segment.toLowerCase() === daysFolder.toLowerCase()) return false;
+          return detectDayNumberFromFolderName(segment) === dayNumber;
+        });
+      }
+
       if (dayIndex !== -1 && dayIndex + 1 < folderSegments.length) {
         return folderSegments[dayIndex + 1];
       }
       return 'Day Root';
     },
-    [normalizePath],
+    [normalizePath, projectSettings],
   );
 
   const getSubfolderGroup = useCallback(
@@ -1245,12 +1266,17 @@ export default function PhotoOrganizer() {
 
   // Filter photos based on current view
   const filteredPhotos = React.useMemo(() => {
+    const isAssigned = (photo: ProjectPhoto) =>
+      Boolean(photo.bucket) ||
+      (photo.isPreOrganized && Boolean(photo.detectedBucket));
+    const baseFilter = (photo: ProjectPhoto) =>
+      !hideAssigned || (!isAssigned(photo) && !photo.archived);
     switch (currentView) {
       case 'days':
         if (selectedDay !== null) {
-          return photos.filter(p => !p.archived && p.day === selectedDay);
+          return photos.filter(p => !p.archived && p.day === selectedDay).filter(baseFilter);
         }
-        return photos.filter(p => p.day !== null && !p.archived);
+        return photos.filter(p => p.day !== null && !p.archived).filter(baseFilter);
       case 'folders':
         if (selectedRootFolder !== null) {
           return photos.filter(p => {
@@ -1258,14 +1284,14 @@ export default function PhotoOrganizer() {
             const filePath = normalizePath(p.filePath || p.originalName || '');
             const selectedPath = normalizePath(selectedRootFolder);
             const folder = filePath.split('/')[0] || '(root)';
-            if (selectedPath.includes('/')) {
-              return filePath === selectedPath || filePath.startsWith(`${selectedPath}/`);
-            }
-            return folder === selectedPath;
+            const matches = selectedPath.includes('/')
+              ? filePath === selectedPath || filePath.startsWith(`${selectedPath}/`)
+              : folder === selectedPath;
+            return matches && baseFilter(p);
           });
         }
         if (selectedDay !== null) {
-          return photos.filter(p => !p.archived && p.day === selectedDay);
+          return photos.filter(p => !p.archived && p.day === selectedDay).filter(baseFilter);
         }
         return [];
       case 'root':
@@ -1274,18 +1300,19 @@ export default function PhotoOrganizer() {
             p =>
               !p.archived &&
               ((normalizePath(p.filePath || p.originalName || '').split('/')[0] || '(root)') ===
-                normalizePath(selectedRootFolder)),
+                normalizePath(selectedRootFolder)) &&
+              baseFilter(p),
           );
         }
         return [];
       case 'favorites':
-        return photos.filter(p => p.favorite && !p.archived);
+        return photos.filter(p => p.favorite && !p.archived).filter(baseFilter);
       case 'archive':
-        return photos.filter(p => p.archived);
+        return photos.filter(p => p.archived).filter(baseFilter);
       case 'review':
-        return photos.filter(p => p.bucket && !p.archived);
+        return photos.filter(p => p.bucket && !p.archived).filter(baseFilter);
       default:
-        return photos;
+        return photos.filter(baseFilter);
     }
   }, [
     photos,
@@ -1295,6 +1322,7 @@ export default function PhotoOrganizer() {
     dayContainers,
     projectSettings,
     normalizePath,
+    hideAssigned,
   ]);
 
   // Auto-select first folder when project is newly loaded and no folder is selected
@@ -1306,13 +1334,28 @@ export default function PhotoOrganizer() {
       selectedDay === null &&
       currentView === 'folders'
     ) {
-      // Select the first available root folder
+      // Prefer the first available day when present
+      const firstDay = days[0]?.[0] ?? null;
+      if (firstDay !== null) {
+        setSelectedDay(firstDay);
+        return;
+      }
+
+      // Fallback to the first available root folder
       const firstFolder = rootGroups[0]?.[0];
       if (firstFolder) {
         setSelectedRootFolder(firstFolder);
       }
     }
-  }, [projectRootPath, photos.length, selectedRootFolder, selectedDay, currentView, rootGroups]);
+  }, [
+    projectRootPath,
+    photos.length,
+    selectedRootFolder,
+    selectedDay,
+    currentView,
+    rootGroups,
+    days,
+  ]);
 
   // Save state to history
   const persistState = useCallback(
@@ -2205,7 +2248,7 @@ export default function PhotoOrganizer() {
           </div>
 
           {/* View Mode Toggle */}
-          <div className="flex gap-2 px-6 pb-3">
+          <div className="flex flex-wrap items-center gap-2 px-6 pb-3">
             <button
               onClick={() => setViewMode('gallery')}
               disabled={filteredPhotos.length === 0}
@@ -2244,6 +2287,16 @@ export default function PhotoOrganizer() {
               }`}
             >
               Inspect
+            </button>
+            <button
+              onClick={() => setHideAssigned(prev => !prev)}
+              className={`px-3 py-1.5 rounded text-sm font-medium transition-colors ${
+                hideAssigned
+                  ? 'bg-blue-600 text-white'
+                  : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
+              }`}
+            >
+              {hideAssigned ? 'Show All' : 'Hide Assigned'}
             </button>
           </div>
 
@@ -2919,6 +2972,13 @@ export default function PhotoOrganizer() {
                         const videos = group.photos.filter(isVideoPhoto);
                         const stills = group.photos.filter(p => !isVideoPhoto(p));
                         const hasSplit = videos.length > 0 && stills.length > 0;
+                        const derivedGroupPhotos = group.photos.filter(p => {
+                          if (p.day !== selectedDay) return false;
+                          return getDerivedSubfolderGroup(p, selectedDay) === group.label;
+                        });
+                        const hasExplicitOverride = derivedGroupPhotos.some(
+                          p => p.subfolderOverride !== undefined,
+                        );
 
                         return (
                           <div key={group.label}>
@@ -2958,6 +3018,23 @@ export default function PhotoOrganizer() {
                                     >
                                       Keep Subfolder
                                     </button>
+                                    {hasExplicitOverride && (
+                                      <button
+                                        className="text-xs text-red-300 hover:text-red-200"
+                                        onClick={() => {
+                                          const updated = photos.map(p => {
+                                            if (p.day !== selectedDay) return p;
+                                            if (derivedGroupPhotos.find(dp => dp.id === p.id)) {
+                                              return { ...p, subfolderOverride: undefined };
+                                            }
+                                            return p;
+                                          });
+                                          saveToHistory(updated);
+                                        }}
+                                      >
+                                        Undo Ingest
+                                      </button>
+                                    )}
                                   </div>
                                 )}
                               </div>
