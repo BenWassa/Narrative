@@ -52,11 +52,20 @@ export const PhotoViewer: React.FC<PhotoViewerProps> = ({
 
   // Load full resolution image/video
   useEffect(() => {
-    setIsLoading(true);
     setLoadError(null);
-    objectUrlRef.current = null;
 
     const loadFullRes = async () => {
+      // Check if we already have the correct image loaded
+      const hasCorrectImage =
+        fullResUrl &&
+        ((currentPhoto.fileHandle && objectUrlRef.current === fullResUrl) ||
+          (!currentPhoto.fileHandle && currentPhoto.thumbnail === fullResUrl));
+
+      if (!hasCorrectImage) {
+        setIsLoading(true);
+        objectUrlRef.current = null;
+      }
+
       try {
         if (currentPhoto.fileHandle) {
           const file = await currentPhoto.fileHandle.getFile();
@@ -107,6 +116,7 @@ export const PhotoViewer: React.FC<PhotoViewerProps> = ({
         const photoToPreload = filteredPhotos[index];
         if (photoToPreload?.fileHandle) {
           try {
+            // Preload the file to cache it
             await photoToPreload.fileHandle.getFile();
           } catch (e) {
             // preload failed, will load on demand
@@ -115,7 +125,9 @@ export const PhotoViewer: React.FC<PhotoViewerProps> = ({
       }
     };
 
-    preloadImages();
+    // Small delay to avoid interfering with current image loading
+    const timeoutId = setTimeout(preloadImages, 100);
+    return () => clearTimeout(timeoutId);
   }, [currentIndex, filteredPhotos]);
 
   const handleNavigate = useCallback(
