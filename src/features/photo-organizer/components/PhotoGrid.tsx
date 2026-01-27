@@ -40,6 +40,19 @@ interface PhotoGridProps {
   isMeceBucketLabel: (label: string) => boolean;
 }
 
+function stableSortPhotos(list: ProjectPhoto[]): ProjectPhoto[] {
+  return [...list].sort((a, b) => {
+    if (a.timestamp !== b.timestamp) return a.timestamp - b.timestamp;
+    const pathA = a.filePath || a.originalName || '';
+    const pathB = b.filePath || b.originalName || '';
+    const pathCmp = pathA.localeCompare(pathB);
+    if (pathCmp !== 0) return pathCmp;
+    const nameCmp = (a.originalName || '').localeCompare(b.originalName || '');
+    if (nameCmp !== 0) return nameCmp;
+    return a.id.localeCompare(b.id);
+  });
+}
+
 export default function PhotoGrid({
   loadingProject,
   currentView,
@@ -197,6 +210,44 @@ export default function PhotoGrid({
       ? (rootGroups.find(r => r[0] === selectedRootFolder)?.[1] || []).filter(p => !p.archived)
       : null;
   const displayPhotos = rootPhotos !== null ? rootPhotos : filteredPhotos;
+  const baseOrderedPhotos = stableSortPhotos(displayPhotos);
+
+  let sortedGroups: Array<{ label: string; photos: ProjectPhoto[] }> | null = null;
+  let orderedDisplayPhotos = baseOrderedPhotos;
+  let orderedIndex: Map<string, number> | undefined;
+
+  if (selectedDay !== null) {
+    const groups = new Map<string, { label: string; photos: ProjectPhoto[] }>();
+    baseOrderedPhotos.forEach(photo => {
+      const groupLabel = getSubfolderGroup(photo, selectedDay);
+      if (!groups.has(groupLabel)) {
+        groups.set(groupLabel, { label: groupLabel, photos: [] });
+      }
+      groups.get(groupLabel)!.photos.push(photo);
+    });
+
+    sortedGroups = Array.from(groups.values()).sort((a, b) => {
+      if (a.label === 'Day Root') return -1;
+      if (b.label === 'Day Root') return 1;
+      return a.label.localeCompare(b.label);
+    });
+
+    const orderedPhotos: ProjectPhoto[] = [];
+    sortedGroups.forEach(group => {
+      const groupSorted = stableSortPhotos(group.photos);
+      const videos = groupSorted.filter(isVideoPhoto);
+      const stills = groupSorted.filter(p => !isVideoPhoto(p));
+      if (videos.length > 0 && stills.length > 0) {
+        orderedPhotos.push(...stills, ...videos);
+      } else {
+        orderedPhotos.push(...groupSorted);
+      }
+    });
+
+    orderedDisplayPhotos = orderedPhotos;
+    orderedIndex = new Map<string, number>();
+    orderedDisplayPhotos.forEach((photo, idx) => orderedIndex!.set(photo.id, idx));
+  }
 
   if (displayPhotos.length === 0) {
     return (
@@ -210,24 +261,25 @@ export default function PhotoGrid({
   }
 
   if (galleryViewPhoto) {
-    const photoData = displayPhotos.find(p => p.id === galleryViewPhoto);
+    const photoData = orderedDisplayPhotos.find(p => p.id === galleryViewPhoto);
     if (photoData) {
       return (
         <PhotoViewer
           photo={photoData}
-          filteredPhotos={displayPhotos}
+          filteredPhotos={orderedDisplayPhotos}
           onClose={onCloseViewer}
           onNavigate={onNavigateViewer}
           onToggleFavorite={photoId => onToggleFavorite(photoId)}
           onAssignBucket={(photoId, bucket) => {
             onAssignBucket(photoId, bucket);
-            if (bucket === 'X') {
-              const currentIndex = displayPhotos.findIndex(p => p.id === photoId);
+            // Fast workflow: after assigning a bucket, advance to the next item
+            if (bucket) {
+              const currentIndex = orderedDisplayPhotos.findIndex(p => p.id === photoId);
               if (currentIndex !== -1) {
-                if (currentIndex < displayPhotos.length - 1) {
-                  onNavigateViewer(displayPhotos[currentIndex + 1].id);
+                if (currentIndex < orderedDisplayPhotos.length - 1) {
+                  onNavigateViewer(orderedDisplayPhotos[currentIndex + 1].id);
                 } else if (currentIndex > 0) {
-                  onNavigateViewer(displayPhotos[currentIndex - 1].id);
+                  onNavigateViewer(orderedDisplayPhotos[currentIndex - 1].id);
                 } else {
                   onCloseViewer();
                 }
@@ -244,40 +296,13 @@ export default function PhotoGrid({
     }
   }
 
-  if (selectedDay !== null) {
-    const groups = new Map<string, { label: string; photos: ProjectPhoto[] }>();
-    displayPhotos.forEach(photo => {
-      const groupLabel = getSubfolderGroup(photo, selectedDay);
-      if (!groups.has(groupLabel)) {
-        groups.set(groupLabel, { label: groupLabel, photos: [] });
-      }
-      groups.get(groupLabel)!.photos.push(photo);
-    });
-
-    const sortedGroups = Array.from(groups.values()).sort((a, b) => {
-      if (a.label === 'Day Root') return -1;
-      if (b.label === 'Day Root') return 1;
-      return a.label.localeCompare(b.label);
-    });
-
-    const orderedPhotos: ProjectPhoto[] = [];
-    sortedGroups.forEach(group => {
-      const videos = group.photos.filter(isVideoPhoto);
-      const stills = group.photos.filter(p => !isVideoPhoto(p));
-      if (videos.length > 0 && stills.length > 0) {
-        orderedPhotos.push(...stills, ...videos);
-      } else {
-        orderedPhotos.push(...group.photos);
-      }
-    });
-    const orderedIndex = new Map<string, number>();
-    orderedPhotos.forEach((photo, idx) => orderedIndex.set(photo.id, idx));
-
+  if (selectedDay !== null && sortedGroups) {
     return (
       <div className="space-y-8">
         {sortedGroups.map(group => {
-          const videos = group.photos.filter(isVideoPhoto);
-          const stills = group.photos.filter(p => !isVideoPhoto(p));
+          const groupSorted = stableSortPhotos(group.photos);
+          const videos = groupSorted.filter(isVideoPhoto);
+          const stills = groupSorted.filter(p => !isVideoPhoto(p));
           const hasSplit = videos.length > 0 && stills.length > 0;
           const derivedGroupPhotos = group.photos.filter(p => {
             if (p.day !== selectedDay) return false;
@@ -362,15 +387,15 @@ export default function PhotoGrid({
               {hasSplit && (
                 <>
                   <div className="mb-2 text-xs uppercase tracking-wider text-gray-500">Photos</div>
-                  {renderPhotoGrid(stills, orderedPhotos, orderedIndex)}
+                  {renderPhotoGrid(stills, orderedDisplayPhotos, orderedIndex)}
                   <div className="mt-6 mb-2 text-xs uppercase tracking-wider text-gray-500">
                     Videos
                   </div>
-                  {renderPhotoGrid(videos, orderedPhotos, orderedIndex)}
+                  {renderPhotoGrid(videos, orderedDisplayPhotos, orderedIndex)}
                 </>
               )}
 
-              {!hasSplit && renderPhotoGrid(group.photos, orderedPhotos, orderedIndex)}
+              {!hasSplit && renderPhotoGrid(groupSorted, orderedDisplayPhotos, orderedIndex)}
             </div>
           );
         })}
@@ -378,5 +403,5 @@ export default function PhotoGrid({
     );
   }
 
-  return renderPhotoGrid(displayPhotos, displayPhotos);
+  return renderPhotoGrid(orderedDisplayPhotos, orderedDisplayPhotos);
 }
