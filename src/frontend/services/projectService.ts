@@ -79,11 +79,23 @@ function generateId() {
   return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
+const OPEN_DB_TIMEOUT_MS = 10000;
+
 async function openHandleDb(): Promise<IDBDatabase> {
   if (!window.indexedDB) {
     throw new Error('IndexedDB is not available in this environment.');
   }
   return new Promise((resolve, reject) => {
+    let settled = false;
+    const finish = (cb: () => void) => {
+      if (settled) return;
+      settled = true;
+      cb();
+    };
+    const timer = window.setTimeout(() => {
+      finish(() => reject(new Error('IndexedDB open timed out.')));
+    }, OPEN_DB_TIMEOUT_MS);
+
     const req = indexedDB.open(HANDLE_DB, 1);
     req.onupgradeneeded = () => {
       const db = req.result;
@@ -91,8 +103,25 @@ async function openHandleDb(): Promise<IDBDatabase> {
         db.createObjectStore(HANDLE_STORE);
       }
     };
-    req.onsuccess = () => resolve(req.result);
-    req.onerror = () => reject(req.error);
+    req.onsuccess = () => {
+      window.clearTimeout(timer);
+      finish(() => resolve(req.result));
+    };
+    req.onerror = () => {
+      window.clearTimeout(timer);
+      finish(() => reject(req.error));
+    };
+    req.onblocked = () => {
+      window.clearTimeout(timer);
+      finish(
+        () =>
+          reject(
+            new Error(
+              'IndexedDB open was blocked. Please close other Narrative tabs and retry.',
+            ),
+          ),
+      );
+    };
   });
 }
 
