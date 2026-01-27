@@ -2,10 +2,12 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { X, Heart, Loader, ChevronUp, ChevronDown } from 'lucide-react';
 import { ProjectPhoto } from '../services/projectService';
 import { PhotoStrip } from './PhotoStrip';
+import { getPhotoIndex, navigatePhotos, type OrderingResult } from '../utils/photoOrdering';
 
 interface PhotoViewerProps {
   photo: ProjectPhoto;
   filteredPhotos: ProjectPhoto[];
+  orderingResult: OrderingResult;
   onClose: () => void;
   onNavigate: (photoId: string) => void;
   onToggleFavorite: (photoId: string) => void;
@@ -15,11 +17,17 @@ interface PhotoViewerProps {
   selectedDay?: number | null;
   buckets: Array<{ key: string; label: string; color: string; description: string }>;
   dayLabels?: Record<number, string>;
+  onShowToast?: (
+    message: string,
+    tone?: 'info' | 'error',
+    options?: { durationMs?: number },
+  ) => void;
 }
 
 export const PhotoViewer: React.FC<PhotoViewerProps> = ({
   photo,
   filteredPhotos,
+  orderingResult,
   onClose,
   onNavigate,
   onToggleFavorite,
@@ -29,9 +37,10 @@ export const PhotoViewer: React.FC<PhotoViewerProps> = ({
   selectedDay,
   buckets,
   dayLabels = {},
+  onShowToast,
 }) => {
   const [currentIndex, setCurrentIndex] = useState(
-    filteredPhotos.findIndex(p => p.id === photo.id),
+    getPhotoIndex(photo.id, orderingResult.indexMap),
   );
   const [fullResUrl, setFullResUrl] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -42,13 +51,19 @@ export const PhotoViewer: React.FC<PhotoViewerProps> = ({
 
   // Update currentIndex when filteredPhotos or photo changes
   useEffect(() => {
-    const newIndex = filteredPhotos.findIndex(p => p.id === photo.id);
+    const newIndex = getPhotoIndex(photo.id, orderingResult.indexMap);
     if (newIndex !== -1 && newIndex !== currentIndex) {
       setCurrentIndex(newIndex);
     }
-  }, [filteredPhotos, photo.id, currentIndex]);
+  }, [orderingResult.indexMap, photo.id, currentIndex]);
 
   const currentPhoto = filteredPhotos[currentIndex] || photo;
+  const unassignedFilter = useCallback(
+    (candidate: ProjectPhoto) => !candidate.bucket && !candidate.archived,
+    [],
+  );
+  const unassignedCount = filteredPhotos.filter(unassignedFilter).length;
+  const remainingUnassigned = unassignedCount;
 
   // Load full resolution image/video
   useEffect(() => {
@@ -132,30 +147,27 @@ export const PhotoViewer: React.FC<PhotoViewerProps> = ({
 
   const handleNavigate = useCallback(
     (direction: 'next' | 'prev') => {
-      let newIndex = currentIndex;
-      if (direction === 'next') {
-        newIndex = Math.min(currentIndex + 1, filteredPhotos.length - 1);
-      } else {
-        newIndex = Math.max(currentIndex - 1, 0);
-      }
+      const nextPhoto = navigatePhotos(currentPhoto.id, direction, orderingResult);
+      if (!nextPhoto) return;
 
-      if (newIndex !== currentIndex) {
-        setCurrentIndex(newIndex);
-        onNavigate(filteredPhotos[newIndex].id);
-      }
+      const nextIndex = getPhotoIndex(nextPhoto.id, orderingResult.indexMap);
+      if (nextIndex === -1) return;
+
+      setCurrentIndex(nextIndex);
+      onNavigate(nextPhoto.id);
     },
-    [currentIndex, filteredPhotos, onNavigate],
+    [currentPhoto.id, orderingResult, onNavigate],
   );
 
   const handleSelectPhoto = useCallback(
     (photoId: string) => {
-      const newIndex = filteredPhotos.findIndex(p => p.id === photoId);
+      const newIndex = getPhotoIndex(photoId, orderingResult.indexMap);
       if (newIndex !== -1 && newIndex !== currentIndex) {
         setCurrentIndex(newIndex);
         onNavigate(photoId);
       }
     },
-    [filteredPhotos, currentIndex, onNavigate],
+    [orderingResult.indexMap, currentIndex, onNavigate],
   );
 
   const handleKeyDown = useCallback(
@@ -169,6 +181,23 @@ export const PhotoViewer: React.FC<PhotoViewerProps> = ({
       } else if (e.key === 'ArrowLeft') {
         e.preventDefault();
         handleNavigate('prev');
+      } else if (e.key === ' ' || e.key.toLowerCase() === 'n') {
+        e.preventDefault();
+        const nextUnassigned = navigatePhotos(
+          currentPhoto.id,
+          'next',
+          orderingResult,
+          unassignedFilter,
+        );
+
+        if (nextUnassigned) {
+          onNavigate(nextUnassigned.id);
+          onShowToast?.(`${Math.max(remainingUnassigned - 1, 0)} unassigned remaining`, 'info', {
+            durationMs: 1000,
+          });
+        } else {
+          onShowToast?.('No more unassigned photos', 'info');
+        }
       } else if (e.key === 'f' || e.key === 'F') {
         e.preventDefault();
         onToggleFavorite(currentPhoto.id);
@@ -194,6 +223,11 @@ export const PhotoViewer: React.FC<PhotoViewerProps> = ({
       handleNavigate,
       onToggleFavorite,
       onAssignBucket,
+      orderingResult,
+      remainingUnassigned,
+      unassignedFilter,
+      onNavigate,
+      onShowToast,
     ],
   );
 
@@ -263,6 +297,16 @@ export const PhotoViewer: React.FC<PhotoViewerProps> = ({
             )}
           </div>
         )}
+
+        {/* Position & Unassigned Counter */}
+        <div className="absolute top-4 right-4 bg-black/70 px-3 py-1 rounded-lg shadow-lg">
+          <span className="text-sm text-gray-300">
+            {currentIndex + 1} / {filteredPhotos.length}
+          </span>
+          {unassignedCount > 0 && (
+            <span className="ml-2 text-xs text-blue-300">({unassignedCount} unassigned)</span>
+          )}
+        </div>
 
         {/* Metadata Overlay */}
         <div className="absolute bottom-4 right-4 flex flex-col items-end gap-2">
@@ -334,7 +378,7 @@ export const PhotoViewer: React.FC<PhotoViewerProps> = ({
         </div>
 
         {/* MECE Bucket Reference Panel */}
-        <div className="absolute top-4 right-4 bg-gray-900/80 backdrop-blur rounded-lg shadow-lg overflow-hidden flex flex-col max-w-xs">
+        <div className="absolute top-20 right-4 bg-gray-900/80 backdrop-blur rounded-lg shadow-lg overflow-hidden flex flex-col max-w-xs">
           <button
             onClick={() => setShowBuckets(!showBuckets)}
             className="flex items-center justify-between px-3 py-2 text-xs text-gray-300 hover:bg-gray-800 transition-colors border-b border-gray-700"

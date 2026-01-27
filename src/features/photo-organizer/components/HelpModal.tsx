@@ -54,12 +54,24 @@ export default function HelpModal({ isOpen, buckets, onClose }: HelpModalProps) 
                   <span>Previous / Next photo</span>
                 </div>
                 <div className="flex items-center gap-3">
+                  <kbd className="px-2 py-1 bg-gray-800 rounded">J / K</kbd>
+                  <span>Next / Previous (grid)</span>
+                </div>
+                <div className="flex items-center gap-3">
+                  <kbd className="px-2 py-1 bg-gray-800 rounded">Shift+J / Shift+K</kbd>
+                  <span>Next / Previous unassigned</span>
+                </div>
+                <div className="flex items-center gap-3">
                   <kbd className="px-2 py-1 bg-gray-800 rounded">Enter</kbd>
                   <span>Fullscreen view</span>
                 </div>
                 <div className="flex items-center gap-3">
                   <kbd className="px-2 py-1 bg-gray-800 rounded">Esc</kbd>
                   <span>Close / Deselect</span>
+                </div>
+                <div className="flex items-center gap-3">
+                  <kbd className="px-2 py-1 bg-gray-800 rounded">Space / N</kbd>
+                  <span>Next unassigned (viewer)</span>
                 </div>
               </div>
             </div>
@@ -72,12 +84,24 @@ export default function HelpModal({ isOpen, buckets, onClose }: HelpModalProps) 
                   <span>Toggle favorite</span>
                 </div>
                 <div className="flex items-center gap-3">
+                  <kbd className="px-2 py-1 bg-gray-800 rounded">Shift+H</kbd>
+                  <span>Toggle Skip Assigned</span>
+                </div>
+                <div className="flex items-center gap-3">
+                  <kbd className="px-2 py-1 bg-gray-800 rounded">A–E, M, X</kbd>
+                  <span>Assign bucket (multi-select supported)</span>
+                </div>
+                <div className="flex items-center gap-3">
                   <kbd className="px-2 py-1 bg-gray-800 rounded">⌘Z</kbd>
                   <span>Undo (keyboard)</span>
                 </div>
                 <div className="flex items-center gap-3">
                   <kbd className="px-2 py-1 bg-gray-800 rounded">⌘⇧Z</kbd>
                   <span>Redo (keyboard)</span>
+                </div>
+                <div className="flex items-center gap-3">
+                  <kbd className="px-2 py-1 bg-gray-800 rounded">Ctrl+Shift+D</kbd>
+                  <span>Toggle debug overlay</span>
                 </div>
                 <div className="flex items-center gap-3">
                   <kbd className="px-2 py-1 bg-gray-800 rounded">?</kbd>

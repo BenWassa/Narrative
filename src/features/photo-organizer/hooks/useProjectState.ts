@@ -254,6 +254,8 @@ export function useProjectState({
 
   const loadProject = useCallback(
     async (projectId: string, options?: { addRecent?: boolean }) => {
+      const startTime = typeof performance !== 'undefined' ? performance.now() : Date.now();
+      console.log('[Performance] Starting project load:', projectId);
       setLoadingProject(true);
       setLoadingProgress(0);
       setLoadingMessage('Loading project...');
@@ -301,6 +303,18 @@ export function useProjectState({
         }
         setLoadingProgress(100);
         setPermissionRetryProjectId(null);
+
+        const endTime = typeof performance !== 'undefined' ? performance.now() : Date.now();
+        const duration = endTime - startTime;
+        const photoCount = photosWithDays.length;
+        console.log('[Performance] Project loaded in:', duration.toFixed(2), 'ms');
+        console.log('[Performance] Photo count:', photoCount);
+        if (photoCount > 0) {
+          console.log('[Performance] Time per photo:', (duration / photoCount).toFixed(2), 'ms');
+        }
+        if (duration > 5000) {
+          showToast('Large project loaded. Performance may be slower.', 'info');
+        }
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Failed to load project';
         console.error('Failed to load project:', err);

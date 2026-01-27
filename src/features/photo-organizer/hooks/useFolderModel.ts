@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo } from 'react';
 
 import { detectDayNumberFromFolderName } from '../../../lib/folderDetectionService';
 import type { ProjectPhoto, ProjectSettings } from '../services/projectService';
+import { sortPhotos } from '../utils/photoOrdering';
 
 export interface FolderCategory {
   folder: string;
@@ -203,7 +204,10 @@ export function useFolderModel({
       console.group('[PhotoOrganizer] Folder & Day Diagnostics');
       console.debug(
         '[PhotoOrganizer] Days:',
-        days.map(([day]) => ({ day, label: dayLabels[day] || `Day ${String(day).padStart(2, '0')}` })),
+        days.map(([day]) => ({
+          day,
+          label: dayLabels[day] || `Day ${String(day).padStart(2, '0')}`,
+        })),
       );
 
       const daySources: Record<number, { count: number; sources: Set<string> }> = {};
@@ -255,7 +259,16 @@ export function useFolderModel({
     } catch (error) {
       console.debug('[PhotoOrganizer] debug logging failed', error);
     }
-  }, [debugEnabled, days, dayLabels, photos, dayContainers, projectSettings, rootGroups, categorizeFolder]);
+  }, [
+    debugEnabled,
+    days,
+    dayLabels,
+    photos,
+    dayContainers,
+    projectSettings,
+    rootGroups,
+    categorizeFolder,
+  ]);
 
   const filteredPhotos = useMemo(() => {
     const isAssigned = (photo: ProjectPhoto) =>
@@ -263,15 +276,23 @@ export function useFolderModel({
     const baseFilter = (photo: ProjectPhoto) =>
       !hideAssigned || (!isAssigned(photo) && !photo.archived);
 
+    let rawFiltered: ProjectPhoto[] = [];
+
     switch (currentView) {
       case 'days':
         if (selectedDay !== null) {
-          return photos.filter(photo => !photo.archived && photo.day === selectedDay).filter(baseFilter);
+          rawFiltered = photos
+            .filter(photo => !photo.archived && photo.day === selectedDay)
+            .filter(baseFilter);
+          break;
         }
-        return photos.filter(photo => photo.day !== null && !photo.archived).filter(baseFilter);
+        rawFiltered = photos
+          .filter(photo => photo.day !== null && !photo.archived)
+          .filter(baseFilter);
+        break;
       case 'folders':
         if (selectedRootFolder !== null) {
-          return photos.filter(photo => {
+          rawFiltered = photos.filter(photo => {
             if (photo.archived) return false;
             const filePath = normalizePath(photo.filePath || photo.originalName || '');
             const selectedPath = normalizePath(selectedRootFolder);
@@ -281,39 +302,46 @@ export function useFolderModel({
               : folder === selectedPath;
             return matches && baseFilter(photo);
           });
+          break;
         }
         if (selectedDay !== null) {
-          return photos.filter(photo => !photo.archived && photo.day === selectedDay).filter(baseFilter);
+          rawFiltered = photos
+            .filter(photo => !photo.archived && photo.day === selectedDay)
+            .filter(baseFilter);
+          break;
         }
-        return [];
+        rawFiltered = [];
+        break;
       case 'root':
         if (selectedRootFolder !== null) {
-          return photos.filter(
+          rawFiltered = photos.filter(
             photo =>
               !photo.archived &&
-              (normalizePath(photo.filePath || photo.originalName || '').split('/')[0] || '(root)') ===
-                normalizePath(selectedRootFolder) &&
+              (normalizePath(photo.filePath || photo.originalName || '').split('/')[0] ||
+                '(root)') === normalizePath(selectedRootFolder) &&
               baseFilter(photo),
           );
+          break;
         }
-        return [];
+        rawFiltered = [];
+        break;
       case 'favorites':
-        return photos.filter(photo => photo.favorite && !photo.archived).filter(baseFilter);
+        rawFiltered = photos.filter(photo => photo.favorite && !photo.archived).filter(baseFilter);
+        break;
       case 'archive':
-        return photos.filter(photo => photo.archived).filter(baseFilter);
+        rawFiltered = photos.filter(photo => photo.archived).filter(baseFilter);
+        break;
       case 'review':
-        return photos.filter(photo => photo.bucket && !photo.archived).filter(baseFilter);
+        rawFiltered = photos.filter(photo => photo.bucket && !photo.archived).filter(baseFilter);
+        break;
       default:
-        return photos.filter(baseFilter);
+        rawFiltered = photos.filter(baseFilter);
+        break;
     }
-  }, [
-    photos,
-    hideAssigned,
-    currentView,
-    selectedDay,
-    selectedRootFolder,
-    normalizePath,
-  ]);
+
+    // Centralized deterministic ordering for all views.
+    return sortPhotos(rawFiltered).photos;
+  }, [photos, hideAssigned, currentView, selectedDay, selectedRootFolder, normalizePath]);
 
   return {
     days,

@@ -1,6 +1,6 @@
 {
   "name": "narrative",
-  "version": "4.0.2",
+  "version": "4.1.0",
   "private": true,
   "engines": {
     "node": ">=20"
@@ -30,9 +30,11 @@
   },
   "dependencies": {
     "heic2any": "^0.0.4",
+    "idb": "^8.0.3",
     "lucide-react": "^0.259.0",
     "react": "^18.2.0",
-    "react-dom": "^18.2.0"
+    "react-dom": "^18.2.0",
+    "react-window": "^2.2.5"
   },
   "devDependencies": {
     "@testing-library/jest-dom": "^6.9.1",

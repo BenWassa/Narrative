@@ -8,7 +8,11 @@ interface UsePhotoMutationsOptions {
   selectedDay: number | null;
 }
 
-export function usePhotoMutations({ photos, saveToHistory, selectedDay }: UsePhotoMutationsOptions) {
+export function usePhotoMutations({
+  photos,
+  saveToHistory,
+  selectedDay,
+}: UsePhotoMutationsOptions) {
   const assignBucket = useCallback(
     (photoIds: string | string[], bucket: string, dayNum: number | null = null) => {
       const ids = Array.isArray(photoIds) ? photoIds : [photoIds];
@@ -17,6 +21,17 @@ export function usePhotoMutations({ photos, saveToHistory, selectedDay }: UsePho
       const newPhotos = photos.map(photo => {
         if (!ids.includes(photo.id)) {
           return photo;
+        }
+
+        // Un-assign bucket when an empty value is provided.
+        if (!bucket) {
+          return {
+            ...photo,
+            bucket: null,
+            sequence: null,
+            archived: false,
+            currentName: photo.originalName,
+          };
         }
 
         const day =

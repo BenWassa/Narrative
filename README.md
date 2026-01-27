@@ -79,18 +79,23 @@ If your project includes a `98_ARCHIVE/` folder, those files are treated as arch
 
 ## Keyboard Shortcuts
 
-| Key     | Action                |
-| ------- | --------------------- |
-| `A–E`   | Assign story category |
-| `M`     | Mood/Food             |
-| `X`     | Archive photo         |
-| `F`     | Toggle favorite       |
-| `←→`    | Navigate photos       |
-| `Enter` | Fullscreen view       |
-| `Esc`   | Close/Deselect        |
-| `⌘Z`    | Undo                  |
-| `⌘⇧Z`   | Redo                  |
-| `?`     | Show shortcuts        |
+| Key         | Action                     |
+| ----------- | -------------------------- |
+| `A–E`       | Assign story category      |
+| `M`         | Mood/Food                  |
+| `X`         | Archive photo              |
+| `F`         | Toggle favorite            |
+| `←→`        | Navigate photos            |
+| `J / K`     | Next / Previous            |
+| `⇧J / ⇧K`   | Next / Previous unassigned |
+| `Space / N` | Next unassigned (viewer)   |
+| `Enter`     | Fullscreen view            |
+| `Esc`       | Close/Deselect             |
+| `⇧H`        | Toggle Skip Assigned       |
+| `⌘Z`        | Undo                       |
+| `⌘⇧Z`       | Redo                       |
+| `Ctrl+⇧D`   | Toggle debug overlay       |
+| `?`         | Show shortcuts             |
 
 ---
 

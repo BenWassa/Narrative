@@ -33,6 +33,8 @@ import HelpModal from './components/HelpModal';
 import ExportScriptModal from './components/ExportScriptModal';
 import Toast from './components/Toast';
 import FullscreenOverlay from './components/FullscreenOverlay';
+import DebugOverlay from './components/DebugOverlay';
+import { sortPhotos } from './utils/photoOrdering';
 
 const MECE_BUCKETS = [
   { key: 'A', label: 'Establishing', color: 'bg-blue-500', description: 'Wide shots, landscapes' },
@@ -60,6 +62,7 @@ export default function PhotoOrganizer() {
   const [currentVersion, setCurrentVersion] = useState(versionManager.getDisplayVersion());
   const debugEnabled = import.meta.env.DEV && safeLocalStorage.get('narrative:debug') === '1';
   const [coverSelectionMode, setCoverSelectionMode] = useState(false);
+  const [debugOverlayEnabled, setDebugOverlayEnabled] = useState(false);
 
   // Hooks for state management
   const { toast, showToast, clearToast } = useToast();
@@ -192,6 +195,32 @@ export default function PhotoOrganizer() {
     return ['mp4', 'mov', 'webm', 'avi', 'mkv'].includes(ext);
   }, []);
 
+  const orderingResult = React.useMemo(() => {
+    const rootPhotosForOrdering =
+      currentView === 'folders' && selectedRootFolder
+        ? (rootGroups.find(group => group[0] === selectedRootFolder)?.[1] || []).filter(
+            photo => !photo.archived,
+          )
+        : null;
+    const displayPhotosForOrdering = rootPhotosForOrdering ?? filteredPhotos;
+
+    return sortPhotos(displayPhotosForOrdering, {
+      groupBy: selectedDay !== null ? 'subfolder' : null,
+      separateVideos: true,
+      selectedDay,
+      getSubfolderGroup,
+      isVideo: isVideoPhoto,
+    });
+  }, [
+    currentView,
+    selectedRootFolder,
+    rootGroups,
+    filteredPhotos,
+    selectedDay,
+    getSubfolderGroup,
+    isVideoPhoto,
+  ]);
+
   const {
     editingDay,
     editingDayName,
@@ -266,12 +295,14 @@ export default function PhotoOrganizer() {
     selectedPhotos,
     focusedPhoto,
     filteredPhotos,
+    orderingResult,
     fullscreenPhoto,
     showHelp,
     showExportScript,
     showWelcome,
     showOnboarding,
     coverSelectionMode,
+    hideAssigned,
     MECE_BUCKETS,
     onAssignBucket: assignBucket,
     onToggleFavorite: toggleFavorite,
@@ -283,6 +314,8 @@ export default function PhotoOrganizer() {
     onSetFullscreenPhoto: setFullscreenPhoto,
     onSetShowHelp: setShowHelp,
     onSetCoverSelectionMode: setCoverSelectionMode,
+    onSetHideAssigned: setHideAssigned,
+    onToggleDebugOverlay: () => setDebugOverlayEnabled(prev => !prev),
     onShowToast: showToast,
     lastSelectedIndexRef,
   });
@@ -506,6 +539,14 @@ export default function PhotoOrganizer() {
 
       {/* Toast Notification */}
       <Toast toast={toast} onDismiss={clearToast} />
+
+      <DebugOverlay
+        enabled={debugOverlayEnabled}
+        photos={photos.length}
+        filteredPhotos={orderingResult.photos.length}
+        selectedPhotos={selectedPhotos.size}
+        currentView={currentView}
+      />
 
       {/* StartScreen - only show when welcome screen is active */}
       {showWelcome && (

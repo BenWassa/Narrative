@@ -93,14 +93,7 @@ export function useCoverPhoto({
         showToast('Failed to set cover photo.', 'error');
       }
     },
-    [
-      photos,
-      projectRootPath,
-      projectName,
-      projectFolderLabel,
-      setRecentProjects,
-      showToast,
-    ],
+    [photos, projectRootPath, projectName, projectFolderLabel, setRecentProjects, showToast],
   );
 
   return {

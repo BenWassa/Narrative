@@ -47,6 +47,7 @@ src/
 ### 1. Feature-First Organization
 
 Large features (like `photo-organizer`) are self-contained modules with their own:
+
 - Components (UI building blocks specific to the feature)
 - Hooks (state management and side effects)
 - Services (business logic, data access)
@@ -54,6 +55,7 @@ Large features (like `photo-organizer`) are self-contained modules with their ow
 - Tests
 
 **Why?** This makes it easy to:
+
 - Find related code quickly
 - Understand feature scope
 - Potentially extract features into separate packages later
@@ -61,12 +63,14 @@ Large features (like `photo-organizer`) are self-contained modules with their ow
 ### 2. Clear Entry Point
 
 **`src/main.tsx`** is the application entry point:
+
 - Bootstraps React
 - Renders the root component
 - Loads global styles
 - (Future) Will contain global providers (router, theme, etc.)
 
 **`src/App.tsx`** is the top-level UI composition:
+
 - Composes screens/containers
 - (Future) Will contain routing logic
 
@@ -85,6 +89,7 @@ import { helper } from '@/lib/helper';
 ```
 
 **Available aliases:**
+
 - `@/*` → `src/*`
 - `@/features/*` → `src/features/*`
 - `@/components/*` → `src/components/*`
@@ -98,11 +103,13 @@ import { helper } from '@/lib/helper';
 ### 4. Shared vs. Feature-Specific Code
 
 **Shared code** (`src/lib/`, `src/hooks/`, `src/components/`):
+
 - Used by multiple features
 - Generic, reusable utilities
 - No feature-specific logic
 
 **Feature-specific code** (`src/features/photo-organizer/`):
+
 - Only used within one feature
 - Contains domain-specific logic
 - Can import from shared code, but not from other features
@@ -140,6 +147,7 @@ The `photo-organizer` feature is the core of the application:
 ### State Management
 
 Currently uses **React hooks** for state:
+
 - `useState` for local component state
 - Custom hooks for complex state logic (e.g., `useProjectState`, `useHistory`)
 - IndexedDB for persistent storage (via `projectService.ts`)
@@ -150,16 +158,20 @@ Currently uses **React hooks** for state:
 - **`projectService.ts`**: Core business logic for photo projects (CRUD, thumbnails, exports)
 - **`folderDetectionService.ts`**: Analyzes folder structures to detect days and buckets
 - **`coverStorageService.ts`**: Manages project cover images in IndexedDB
+- **`photoOrdering.ts`**: Centralized deterministic ordering + navigation helpers
+- **`thumbnailCache.ts`**: IndexedDB-backed thumbnail cache (HEIC previews)
 - **`safeLocalStorage.ts`**: Wrapper for localStorage with error handling
 
 ## Testing
 
 Tests are colocated with features in `__tests__/` directories:
+
 - **Unit tests**: For utilities and services
 - **Component tests**: For UI components (React Testing Library)
 - **Integration tests**: For feature workflows
 
 Run tests with:
+
 ```bash
 npm test              # Run tests in watch mode
 npm run test:ui       # Open Vitest UI
@@ -169,16 +181,19 @@ npm run coverage      # Generate coverage report
 ## Development Workflow
 
 ### Start Dev Server
+
 ```bash
 npm run dev
 ```
 
 ### Build for Production
+
 ```bash
 npm run build:site    # Builds to docs/ for GitHub Pages
 ```
 
 ### Run Tests
+
 ```bash
 npm test
 ```

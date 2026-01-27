@@ -1,6 +1,10 @@
 import { Calendar, FolderOpen, Heart, Loader } from 'lucide-react';
 import { PhotoViewer } from '../ui/PhotoViewer';
 import type { ProjectPhoto } from '../services/projectService';
+import { navigatePhotos, sortPhotos } from '../utils/photoOrdering';
+import VirtualPhotoGrid from './VirtualPhotoGrid';
+
+const VIRTUAL_GRID_THRESHOLD = 600;
 
 interface Bucket {
   key: string;
@@ -38,19 +42,6 @@ interface PhotoGridProps {
   getDerivedSubfolderGroup: (photo: ProjectPhoto, dayNumber: number | null) => string;
   isVideoPhoto: (photo: ProjectPhoto) => boolean;
   isMeceBucketLabel: (label: string) => boolean;
-}
-
-function stableSortPhotos(list: ProjectPhoto[]): ProjectPhoto[] {
-  return [...list].sort((a, b) => {
-    if (a.timestamp !== b.timestamp) return a.timestamp - b.timestamp;
-    const pathA = a.filePath || a.originalName || '';
-    const pathB = b.filePath || b.originalName || '';
-    const pathCmp = pathA.localeCompare(pathB);
-    if (pathCmp !== 0) return pathCmp;
-    const nameCmp = (a.originalName || '').localeCompare(b.originalName || '');
-    if (nameCmp !== 0) return nameCmp;
-    return a.id.localeCompare(b.id);
-  });
 }
 
 export default function PhotoGrid({
@@ -210,44 +201,16 @@ export default function PhotoGrid({
       ? (rootGroups.find(r => r[0] === selectedRootFolder)?.[1] || []).filter(p => !p.archived)
       : null;
   const displayPhotos = rootPhotos !== null ? rootPhotos : filteredPhotos;
-  const baseOrderedPhotos = stableSortPhotos(displayPhotos);
-
-  let sortedGroups: Array<{ label: string; photos: ProjectPhoto[] }> | null = null;
-  let orderedDisplayPhotos = baseOrderedPhotos;
-  let orderedIndex: Map<string, number> | undefined;
-
-  if (selectedDay !== null) {
-    const groups = new Map<string, { label: string; photos: ProjectPhoto[] }>();
-    baseOrderedPhotos.forEach(photo => {
-      const groupLabel = getSubfolderGroup(photo, selectedDay);
-      if (!groups.has(groupLabel)) {
-        groups.set(groupLabel, { label: groupLabel, photos: [] });
-      }
-      groups.get(groupLabel)!.photos.push(photo);
-    });
-
-    sortedGroups = Array.from(groups.values()).sort((a, b) => {
-      if (a.label === 'Day Root') return -1;
-      if (b.label === 'Day Root') return 1;
-      return a.label.localeCompare(b.label);
-    });
-
-    const orderedPhotos: ProjectPhoto[] = [];
-    sortedGroups.forEach(group => {
-      const groupSorted = stableSortPhotos(group.photos);
-      const videos = groupSorted.filter(isVideoPhoto);
-      const stills = groupSorted.filter(p => !isVideoPhoto(p));
-      if (videos.length > 0 && stills.length > 0) {
-        orderedPhotos.push(...stills, ...videos);
-      } else {
-        orderedPhotos.push(...groupSorted);
-      }
-    });
-
-    orderedDisplayPhotos = orderedPhotos;
-    orderedIndex = new Map<string, number>();
-    orderedDisplayPhotos.forEach((photo, idx) => orderedIndex!.set(photo.id, idx));
-  }
+  const orderingResult = sortPhotos(displayPhotos, {
+    groupBy: selectedDay !== null ? 'subfolder' : null,
+    separateVideos: true,
+    selectedDay,
+    getSubfolderGroup,
+    isVideo: isVideoPhoto,
+  });
+  const orderedDisplayPhotos = orderingResult.photos;
+  const orderedIndex = orderingResult.indexMap;
+  const sortedGroups = selectedDay !== null ? orderingResult.groups ?? null : null;
 
   if (displayPhotos.length === 0) {
     return (
@@ -267,6 +230,7 @@ export default function PhotoGrid({
         <PhotoViewer
           photo={photoData}
           filteredPhotos={orderedDisplayPhotos}
+          orderingResult={orderingResult}
           onClose={onCloseViewer}
           onNavigate={onNavigateViewer}
           onToggleFavorite={photoId => onToggleFavorite(photoId)}
@@ -274,16 +238,17 @@ export default function PhotoGrid({
             onAssignBucket(photoId, bucket);
             // Fast workflow: after assigning a bucket, advance to the next item
             if (bucket) {
-              const currentIndex = orderedDisplayPhotos.findIndex(p => p.id === photoId);
-              if (currentIndex !== -1) {
-                if (currentIndex < orderedDisplayPhotos.length - 1) {
-                  onNavigateViewer(orderedDisplayPhotos[currentIndex + 1].id);
-                } else if (currentIndex > 0) {
-                  onNavigateViewer(orderedDisplayPhotos[currentIndex - 1].id);
-                } else {
-                  onCloseViewer();
-                }
+              const next = navigatePhotos(photoId, 'next', orderingResult);
+              if (next) {
+                onNavigateViewer(next.id);
+                return;
               }
+              const prev = navigatePhotos(photoId, 'prev', orderingResult);
+              if (prev) {
+                onNavigateViewer(prev.id);
+                return;
+              }
+              onCloseViewer();
             }
           }}
           onAssignDay={(photoId, day) => onAssignDay(photoId, day)}
@@ -291,6 +256,7 @@ export default function PhotoGrid({
           selectedDay={photoData.day}
           buckets={buckets}
           dayLabels={dayLabels}
+          onShowToast={onShowToast}
         />
       );
     }
@@ -300,9 +266,9 @@ export default function PhotoGrid({
     return (
       <div className="space-y-8">
         {sortedGroups.map(group => {
-          const groupSorted = stableSortPhotos(group.photos);
+          const groupSorted = group.photos;
           const videos = groupSorted.filter(isVideoPhoto);
-          const stills = groupSorted.filter(p => !isVideoPhoto(p));
+          const stills = groupSorted.filter(photo => !isVideoPhoto(photo));
           const hasSplit = videos.length > 0 && stills.length > 0;
           const derivedGroupPhotos = group.photos.filter(p => {
             if (p.day !== selectedDay) return false;
@@ -400,6 +366,19 @@ export default function PhotoGrid({
           );
         })}
       </div>
+    );
+  }
+
+  const useVirtualGrid =
+    selectedDay === null && orderedDisplayPhotos.length >= VIRTUAL_GRID_THRESHOLD;
+  if (useVirtualGrid) {
+    return (
+      <VirtualPhotoGrid
+        photos={orderedDisplayPhotos}
+        selectedPhotos={selectedPhotos}
+        onSelectPhoto={onSelectPhoto}
+        onOpenViewer={onOpenViewer}
+      />
     );
   }
 

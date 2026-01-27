@@ -1,5 +1,6 @@
 import safeLocalStorage from '../utils/safeLocalStorage';
 import { analyzePathStructure } from '../../../lib/folderDetectionService';
+import { thumbnailCache } from '../utils/thumbnailCache';
 
 export interface ProjectPhoto {
   id: string;
@@ -453,9 +454,16 @@ export async function buildPhotosFromHandle(
     let thumbnail = '';
     if (isHeic) {
       try {
-        const blob = await heicToBlob(file);
-        if (blob) {
-          thumbnail = URL.createObjectURL(blob);
+        const cacheKey = entry.path;
+        const cachedThumbnail = await thumbnailCache.get(cacheKey);
+        if (cachedThumbnail) {
+          thumbnail = cachedThumbnail;
+        } else {
+          const blob = await heicToBlob(file);
+          if (blob) {
+            thumbnail = URL.createObjectURL(blob);
+            await thumbnailCache.set(cacheKey, blob);
+          }
         }
       } catch (e) {
         console.warn(`Failed to generate preview for ${originalName}:`, e);
@@ -553,7 +561,7 @@ function serializeState(state: ProjectState) {
     isPreOrganized: photo.isPreOrganized,
     organizationConfidence: photo.organizationConfidence,
     subfolderOverride: photo.subfolderOverride,
-    // Note: thumbnails are not cached as blob URLs are session-specific
+    // Thumbnails are not persisted in project state (blob URLs are session-specific).
   }));
 
   return {

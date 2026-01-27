@@ -5,6 +5,7 @@ This directory contains the **Photo Organizer** feature - the core workflow for 
 ## Overview
 
 The Photo Organizer allows users to:
+
 1. Select a folder containing travel photos
 2. Automatically detect day-based folder structure
 3. Assign photos to MECE story categories (A-E, M for Mood/Food)
@@ -89,12 +90,14 @@ Photos are organized into **Mutually Exclusive, Collectively Exhaustive** catego
 ### Day-Based Organization
 
 Photos are grouped by day, either:
+
 1. **Explicit folders**: `Day 1`, `D01`, `2024-03-15`
 2. **Inferred from timestamps**: If no day folders exist, photos are grouped by date taken
 
 ### Export Script
 
 The export workflow generates a bash script that:
+
 - Creates organized day folders (e.g., `Day 1 - Iceland/`)
 - Copies (not moves) photos into subfolders by bucket (e.g., `C_CLIMAX/`)
 - Renames files with sequence numbers (e.g., `Day1_C_001.jpg`)
@@ -139,7 +142,7 @@ Run tests: `npm test`
 
 ## Future Improvements
 
-- [ ] Add bulk operations (select multiple photos, batch assign)
+- [ ] Wire `VirtualPhotoGrid` into `PhotoGrid` for very large projects
 - [ ] Support more file formats (RAW, video)
 - [ ] Add cloud sync for projects
 - [ ] Export to other formats (zip, shared album, etc.)

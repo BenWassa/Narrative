@@ -259,6 +259,12 @@ export default function ProjectHeader({
       </div>
 
       <div className="flex flex-wrap items-center gap-2 px-6 pb-3">
+        {hideAssigned && (
+          <div className="flex items-center gap-2 px-3 py-1 bg-blue-600/20 border border-blue-500/30 rounded-lg">
+            <span className="text-xs text-blue-300">Skip Assigned: ON</span>
+            <kbd className="text-xs text-blue-200">Shift+H to toggle</kbd>
+          </div>
+        )}
         <button
           onClick={onToggleHideAssigned}
           className={`px-3 py-1.5 rounded text-sm font-medium transition-colors ${
