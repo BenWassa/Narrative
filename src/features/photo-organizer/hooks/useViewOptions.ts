@@ -5,7 +5,6 @@ export function useViewOptions() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [hideAssigned, setHideAssigned] = useState(false);
   const [showHelp, setShowHelp] = useState(false);
-  const [showExportScript, setShowExportScript] = useState(false);
   const [galleryViewPhoto, setGalleryViewPhoto] = useState<string | null>(null);
   const [fullscreenPhoto, setFullscreenPhoto] = useState<string | null>(null);
   const [selectedDay, setSelectedDay] = useState<number | null>(null);
@@ -25,8 +24,6 @@ export function useViewOptions() {
     setHideAssigned,
     showHelp,
     setShowHelp,
-    showExportScript,
-    setShowExportScript,
     galleryViewPhoto,
     setGalleryViewPhoto,
     fullscreenPhoto,

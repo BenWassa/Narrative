@@ -1,18 +1,18 @@
-import { useCallback } from 'react';
-import { ProjectPhoto } from '../services/projectService';
+import { useCallback, useState } from 'react';
 
-export interface ProjectSettings {
-  folderStructure: {
-    daysFolder: string;
-    archiveFolder: string;
-  };
-}
+import type { ProjectPhoto, ProjectSettings } from '../services/projectService';
+
+export type ExportCopyStatus = 'idle' | 'copied' | 'failed';
 
 export function useExportScript(
   photos: ProjectPhoto[],
   dayLabels: Record<number, string>,
   projectSettings: ProjectSettings,
 ) {
+  const [showExportScript, setShowExportScript] = useState(false);
+  const [exportScriptText, setExportScriptText] = useState('');
+  const [exportCopyStatus, setExportCopyStatus] = useState<ExportCopyStatus>('idle');
+
   const buildExportScript = useCallback(() => {
     const lines: string[] = [];
 
@@ -236,7 +236,45 @@ export function useExportScript(
     return lines.join('\n');
   }, [photos, dayLabels, projectSettings]);
 
+  const openExportScriptModal = useCallback(() => {
+    const scriptText = buildExportScript();
+    setExportScriptText(scriptText);
+    setExportCopyStatus('idle');
+    setShowExportScript(true);
+  }, [buildExportScript]);
+
+  const closeExportScriptModal = useCallback(() => {
+    setShowExportScript(false);
+  }, []);
+
+  const copyExportScript = useCallback(async () => {
+    const scriptText = exportScriptText || buildExportScript();
+    if (!exportScriptText) {
+      setExportScriptText(scriptText);
+    }
+    try {
+      if (!navigator?.clipboard?.writeText) {
+        throw new Error('Clipboard API unavailable');
+      }
+      await navigator.clipboard.writeText(scriptText);
+      setExportCopyStatus('copied');
+    } catch {
+      setExportCopyStatus('failed');
+    }
+  }, [exportScriptText, buildExportScript]);
+
+  const resetExportCopyStatus = useCallback(() => {
+    setExportCopyStatus('idle');
+  }, []);
+
   return {
+    showExportScript,
+    exportScriptText,
+    exportCopyStatus,
     buildExportScript,
+    openExportScriptModal,
+    closeExportScriptModal,
+    copyExportScript,
+    resetExportCopyStatus,
   };
 }
