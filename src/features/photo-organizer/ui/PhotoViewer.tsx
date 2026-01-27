@@ -123,12 +123,12 @@ export const PhotoViewer: React.FC<PhotoViewerProps> = ({
   // Preload next/prev images to prevent blinking on navigation
   useEffect(() => {
     const preloadImages = async () => {
-    const nextIndex = Math.min(currentIndex + 1, orderingResult.photos.length - 1);
-    const prevIndex = Math.max(currentIndex - 1, 0);
-    const indicesToPreload = [nextIndex, prevIndex].filter(index => index !== currentIndex);
+      const nextIndex = Math.min(currentIndex + 1, orderingResult.photos.length - 1);
+      const prevIndex = Math.max(currentIndex - 1, 0);
+      const indicesToPreload = [nextIndex, prevIndex].filter(index => index !== currentIndex);
 
-    for (const index of indicesToPreload) {
-      const photoToPreload = orderingResult.photos[index];
+      for (const index of indicesToPreload) {
+        const photoToPreload = orderingResult.photos[index];
         if (photoToPreload?.fileHandle) {
           try {
             // Preload the file to cache it
@@ -187,12 +187,7 @@ export const PhotoViewer: React.FC<PhotoViewerProps> = ({
         handleNavigate('prev');
       } else if (e.key === ' ' || e.key.toLowerCase() === 'n') {
         e.preventDefault();
-        const nextUnassigned = navigatePhotos(
-          current.id,
-          'next',
-          orderingResult,
-          unassignedFilter,
-        );
+        const nextUnassigned = navigatePhotos(current.id, 'next', orderingResult, unassignedFilter);
 
         if (nextUnassigned) {
           onNavigate(nextUnassigned.id);
@@ -217,7 +212,7 @@ export const PhotoViewer: React.FC<PhotoViewerProps> = ({
           // Toggle if already assigned, otherwise assign
           const newBucket = current.bucket === key ? '' : key;
           onAssignBucket(current.id, newBucket);
-          
+
           // Auto-advance to next unassigned photo after assignment
           if (newBucket) {
             const nextUnassigned = navigatePhotos(
@@ -226,7 +221,7 @@ export const PhotoViewer: React.FC<PhotoViewerProps> = ({
               orderingResult,
               unassignedFilter,
             );
-            
+
             if (nextUnassigned) {
               onNavigate(nextUnassigned.id);
             }
@@ -390,7 +385,7 @@ export const PhotoViewer: React.FC<PhotoViewerProps> = ({
         </div>
 
         {/* MECE Bucket Reference Panel - Collapsible from Right */}
-        <div 
+        <div
           className={`absolute top-4 bottom-4 right-0 bg-gray-900/90 backdrop-blur rounded-l-lg shadow-2xl overflow-hidden flex transition-all duration-300 ${
             showBuckets ? 'w-72' : 'w-10'
           }`}
@@ -414,7 +409,7 @@ export const PhotoViewer: React.FC<PhotoViewerProps> = ({
               )}
             </div>
           </button>
-          
+
           {/* Panel Content */}
           {showBuckets && (
             <div className="flex-1 flex flex-col overflow-hidden">
@@ -433,7 +428,9 @@ export const PhotoViewer: React.FC<PhotoViewerProps> = ({
                     }}
                   >
                     <div className="font-bold text-sm flex items-center justify-between">
-                      <span>{bucket.key} - {bucket.label}</span>
+                      <span>
+                        {bucket.key} - {bucket.label}
+                      </span>
                       {currentPhoto.bucket === bucket.key && (
                         <span className="text-xs bg-white/20 px-2 py-0.5 rounded">Active</span>
                       )}

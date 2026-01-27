@@ -76,7 +76,7 @@ export default function PhotoGrid({
 
   const handlePhotoClick = (photoId: string, e: React.MouseEvent) => {
     e.stopPropagation();
-    
+
     // If we already have a pending click timer, this is the double-click
     if (clickTimerRef.current[photoId]) {
       clearTimeout(clickTimerRef.current[photoId]);
@@ -253,13 +253,18 @@ export default function PhotoGrid({
             // Fast workflow: after assigning a bucket, advance to next unassigned
             if (bucket) {
               const unassignedFilter = (p: ProjectPhoto) => !p.bucket && !p.archived;
-              const nextUnassigned = navigatePhotos(photoId, 'next', orderingResult, unassignedFilter);
-              
+              const nextUnassigned = navigatePhotos(
+                photoId,
+                'next',
+                orderingResult,
+                unassignedFilter,
+              );
+
               if (nextUnassigned) {
                 onNavigateViewer(nextUnassigned.id);
                 return;
               }
-              
+
               // No more unassigned, try regular next/prev
               const next = navigatePhotos(photoId, 'next', orderingResult);
               if (next) {
