@@ -1,7 +1,35 @@
 import '@testing-library/jest-dom';
+import { afterEach, vi } from 'vitest';
 
 // Provide a fallback version for tests (Vite define runs only in build/dev).
 globalThis.__APP_VERSION__ = '0.0.0';
+
+// Global cleanup after each test
+afterEach(() => {
+  // Clear localStorage
+  localStorage.clear();
+  
+  // Clear sessionStorage
+  sessionStorage.clear();
+  
+  // Clear all timers
+  vi.clearAllTimers?.();
+  
+  // Revoke all blob URLs
+  try {
+    const urls = (global as any).__createdUrls || [];
+    urls.forEach((url: string) => {
+      try {
+        URL.revokeObjectURL(url);
+      } catch (e) {
+        // ignore
+      }
+    });
+    (global as any).__createdUrls = [];
+  } catch (e) {
+    // ignore
+  }
+});
 
 // Mock IndexedDB for tests
 class MockIDBStore {

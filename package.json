@@ -17,7 +17,7 @@
     "preview": "vite preview",
     "format": "prettier --write \"src/**/*.{ts,tsx,js,jsx,css,md,html}\" \"README.md\" \"docs/**/*.md\" \"docs/index.html\"",
     "lint": "prettier --check \"src/**/*.{ts,tsx,js,jsx,css,md,html}\" \"README.md\" \"docs/**/*.md\" \"docs/index.html\"",
-    "test": "vitest --run",
+    "test": "vitest --run --reporter=verbose --bail 1",
     "test:watch": "vitest --watch",
     "test:coverage": "vitest --coverage"
   },
