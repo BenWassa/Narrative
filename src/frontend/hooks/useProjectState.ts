@@ -1,4 +1,4 @@
-import { MutableRefObject, useCallback, useEffect, useState } from 'react';
+import { MutableRefObject, useCallback, useEffect, useState, useRef } from 'react';
 import safeLocalStorage from '../utils/safeLocalStorage';
 import { detectDayNumberFromFolderName } from '../../services/folderDetectionService';
 import {
@@ -53,6 +53,7 @@ export function useProjectState({
   const [loadingMessage, setLoadingMessage] = useState('Loading project...');
   const [dayLabels, setDayLabels] = useState<Record<number, string>>({});
   const [dayContainers, setDayContainers] = useState<string[]>([]);
+  const initializeRef = useRef(false); // Track if we've already initialized
 
   const deriveProjectName = useCallback((rootPath: string) => {
     const parts = rootPath.split(/[/\\]/).filter(Boolean);
@@ -578,6 +579,10 @@ export function useProjectState({
   );
 
   useEffect(() => {
+    // Only run initialization once
+    if (initializeRef.current) return;
+    initializeRef.current = true;
+
     try {
       const storedRecentsRaw = safeLocalStorage.get(RECENT_PROJECTS_KEY);
       if (storedRecentsRaw) {
@@ -623,7 +628,7 @@ export function useProjectState({
 
     if (activeProjectId && (isTest || 'showDirectoryPicker' in window)) {
       if (isTest) {
-        loadProject(activeProjectId, { addRecent: false });
+        // In test environment, don't auto-load - let the test control loading
         setShowWelcome(false);
       } else {
         (async () => {
@@ -647,7 +652,7 @@ export function useProjectState({
     } else {
       setShowWelcome(true);
     }
-  }, [loadProject]);
+  }, []); // Empty array - run only once on mount
 
   return {
     photos,
