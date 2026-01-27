@@ -1,5 +1,5 @@
 import safeLocalStorage from '../utils/safeLocalStorage';
-import { analyzePathStructure } from '../../services/folderDetectionService';
+import { analyzePathStructure } from '../../../lib/folderDetectionService';
 
 export interface ProjectPhoto {
   id: string;

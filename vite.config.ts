@@ -17,6 +17,17 @@ export default defineConfig({
       },
     },
   ],
+  resolve: {
+    alias: {
+      '@': resolve(__dirname, './src'),
+      '@/features': resolve(__dirname, './src/features'),
+      '@/components': resolve(__dirname, './src/components'),
+      '@/hooks': resolve(__dirname, './src/hooks'),
+      '@/lib': resolve(__dirname, './src/lib'),
+      '@/types': resolve(__dirname, './src/types'),
+      '@/styles': resolve(__dirname, './src/styles'),
+    },
+  },
   define: {
     __APP_VERSION__: JSON.stringify(pkg.version),
   },

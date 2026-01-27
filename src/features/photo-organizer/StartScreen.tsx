@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Plus } from 'lucide-react';
 import OnboardingModal, { OnboardingState, RecentProject } from './OnboardingModal';
 import ProjectTile from './ui/ProjectTile';
-import { versionManager } from '../utils/versionManager';
+import { versionManager } from '../../lib/versionManager';
 
 interface StartScreenProps {
   isOpen: boolean;

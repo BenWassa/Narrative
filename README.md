@@ -160,21 +160,31 @@ git push
 ```
 Narrative/
 ├── src/
-│   ├── frontend/        # React app
-│   ├── services/        # Shared services (folder detection)
-│   ├── shared/          # Shared types/utilities
-│   └── styles/          # Global styles
-├── archive/             # Deprecated experiments
-├── docs/                # GitHub Pages site and specs
+│   ├── main.tsx                   # Application entry point
+│   ├── App.tsx                    # Top-level UI composition
+│   ├── features/
+│   │   └── photo-organizer/       # Photo organization feature
+│   ├── components/                # Shared UI components
+│   ├── hooks/                     # Shared React hooks
+│   ├── lib/                       # Shared utilities & services
+│   ├── types/                     # Shared TypeScript types
+│   └── styles/                    # Global styles
+├── archive/                       # Deprecated experiments
+├── docs/                          # GitHub Pages site and documentation
 └── tests/
 ```
+
+For detailed frontend architecture, see [`docs/FRONTEND_ARCHITECTURE.md`](docs/FRONTEND_ARCHITECTURE.md).
 
 ---
 
 ## Documentation
 
-- `docs/TECH_STACK.md`
-- `docs/ARCHITECTURE.md`
-- `docs/DESIGN.md`
-- `docs/COMMISSION.md`
+- **[Frontend Architecture](docs/FRONTEND_ARCHITECTURE.md)** - How the frontend is organized
+- `docs/TECH_STACK.md` - Technology choices and rationale
+- `docs/ARCHITECTURE.md` - Overall system architecture
+- `docs/DESIGN.md` - Design decisions and UX patterns
+- `docs/COMMISSION.md` - Commission tracking
 - `docs/BACKEND_SPEC.md` (historical, not currently implemented)
+
+---

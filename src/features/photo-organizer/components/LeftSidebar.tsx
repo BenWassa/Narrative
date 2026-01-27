@@ -1,5 +1,5 @@
 import { ChevronLeft, Pencil, Save, X as XIcon } from 'lucide-react';
-import { detectDayNumberFromFolderName } from '../../services/folderDetectionService';
+import { detectDayNumberFromFolderName } from '../../../lib/folderDetectionService';
 import type { ProjectPhoto, ProjectSettings } from '../services/projectService';
 
 interface FolderCategory {

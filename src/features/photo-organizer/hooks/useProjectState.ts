@@ -1,6 +1,6 @@
 import { MutableRefObject, useCallback, useEffect, useState, useRef } from 'react';
 import safeLocalStorage from '../utils/safeLocalStorage';
-import { detectDayNumberFromFolderName } from '../../services/folderDetectionService';
+import { detectDayNumberFromFolderName } from '../../../lib/folderDetectionService';
 import {
   buildPhotosFromHandle,
   getHandle,

@@ -4,7 +4,7 @@ import {
   detectBucketsInFolder,
   detectFolderStructure,
   FolderMapping,
-} from '../services/folderDetectionService';
+} from '../../lib/folderDetectionService';
 
 export interface OnboardingState {
   projectName: string;

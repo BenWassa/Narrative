@@ -4,8 +4,8 @@ import * as coverStorage from './utils/coverStorageService';
 import OnboardingModal, { OnboardingState, RecentProject } from './OnboardingModal';
 import StartScreen from './StartScreen';
 import LoadingModal from './ui/LoadingModal';
-import { versionManager } from '../utils/versionManager';
-import { detectDayNumberFromFolderName } from '../services/folderDetectionService';
+import { versionManager } from '../../lib/versionManager';
+import { detectDayNumberFromFolderName } from '../../lib/folderDetectionService';
 import {
   deleteProject as deleteProjectService,
   ProjectPhoto,
