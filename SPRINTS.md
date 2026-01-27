@@ -524,6 +524,68 @@ This document outlines the phased improvements to Narrative's photo organization
 
 ---
 
+## Sprint 9: Frontend Architecture & Best Practices
+**Goal**: Improve `src/` folder structure, align with common Vite/React conventions (`main.tsx` + `App.tsx`), and make the codebase easier to learn and maintain.
+
+### S9-1: Adopt a Standard React Entry Pattern (`main.tsx` + `App.tsx`)
+**Status**: not-started  
+**Description**:
+- Confirm current entry file(s) and how the app bootstraps.
+- If not already present, introduce:
+  - `src/main.tsx` as the app entry point (React root + providers)
+  - `src/App.tsx` as the top-level UI composition component
+- Keep behavior identical; focus on structure and clarity.
+
+**Implementation Notes**:
+- `main.tsx` should be “wiring only” (createRoot, global styles, providers, render `<App />`).
+- `App.tsx` should compose screens/containers (e.g., `PhotoOrganizer`).
+- Update `vite.config.ts` and/or `index.html` only if needed.
+
+### S9-2: Define and Apply a Clear `src/` Folder Architecture
+**Status**: not-started  
+**Description**:
+- Propose a lightweight structure that matches the current project size and skill level:
+  - `src/app` (App shell, providers, routing if added later)
+  - `src/features/photo-organizer` (feature code grouped together)
+  - `src/components` (shared, feature-agnostic UI)
+  - `src/hooks`, `src/lib`, `src/types`, `src/styles`
+- Favor “feature-first” organization for large domains (like the photo workflow).
+
+**Implementation Notes**:
+- Start with the `photo-organizer` feature only; avoid a big-bang refactor.
+- Move files in small, testable steps and keep imports compiling throughout.
+- Document the chosen structure in `README.md` (short section + example paths).
+
+### S9-3: Establish Best-Practice Guardrails (Linting, Boundaries, Naming)
+**Status**: not-started  
+**Description**:
+- Tighten quality and consistency without over-complicating tooling:
+  - Ensure ESLint rules reflect current patterns
+  - Add a few architectural “guardrails” (e.g., no deep relative imports across features)
+  - Standardize file naming and component export style
+
+**Implementation Notes**:
+- Prefer incremental ESLint changes over a large ruleset expansion.
+- If useful, add path aliases (e.g., `@/features/...`) in `tsconfig.json` and Vite config.
+- Capture “rules of the road” in a short `docs/architecture.md` (or `docs/frontend-architecture.md`).
+
+### S9-4: Learning-Focused Cleanup Pass (Beginner-Friendly)
+**Status**: not-started  
+**Description**:
+- Make the structure easier to understand for a novice maintainer:
+  - Add a short “How the frontend is organized” section
+  - Add brief comments where intent is non-obvious
+  - Prefer explicit, readable patterns over clever abstractions
+
+**Acceptance Criteria**:
+- A newcomer can answer:
+  1. “Where does the app start?”
+  2. “Where does the photo organizer feature live?”
+  3. “Where do shared UI pieces go?”
+- App still builds and core workflows still function.
+
+---
+
 ## Dependency Notes
 
 
