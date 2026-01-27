@@ -400,7 +400,7 @@ export default function LeftSidebar({
                     tabIndex={0}
                     onClick={() => {
                       onSelectRootFolder(containerName);
-                      onSelectDay(null);
+                      onSelectDay(null as unknown as number);
                     }}
                     className={`w-full text-left px-3 py-2 rounded text-sm transition-colors ${
                       selectedRootFolder === containerName
@@ -476,7 +476,7 @@ export default function LeftSidebar({
                     tabIndex={0}
                     onClick={() => {
                       onSelectRootFolder(f.key);
-                      onSelectDay(null);
+                      onSelectDay(null as unknown as number);
                     }}
                     className={`w-full text-left px-3 py-2 rounded text-sm transition-colors ${
                       selectedRootFolder === f.key

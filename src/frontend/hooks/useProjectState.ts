@@ -338,7 +338,7 @@ export function useProjectState({
       if (handle) {
         setLoadingProgress(25);
         setLoadingMessage('Re-requesting permissions...');
-        const permission = await handle.requestPermission({ mode: 'read' });
+        const permission = await (handle as any).requestPermission({ mode: 'read' });
 
         if (permission === 'granted') {
           setLoadingProgress(50);

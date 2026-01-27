@@ -161,9 +161,9 @@ export default function OnboardingModal({
 
           const withSkips = enhancedMappings.map(m => ({
             ...m,
-            skip: m.confidence === 'undetected' ? true : m.skip ?? false,
+            skip: m.confidence === 'undetected' ? true : (m as any).skip ?? false,
           }));
-          setMappings(withSkips);
+          setMappings(withSkips as any);
           setStep('preview');
           return;
         }
@@ -194,9 +194,9 @@ export default function OnboardingModal({
 
       const withSkips = enhancedMappings.map(m => ({
         ...m,
-        skip: m.confidence === 'undetected' ? true : m.skip ?? false,
+        skip: m.confidence === 'undetected' ? true : (m as any).skip ?? false,
       }));
-      setMappings(withSkips);
+      setMappings(withSkips as any);
       setStep('preview');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to detect folder structure');
@@ -341,6 +341,8 @@ export default function OnboardingModal({
                     ref={fileInputRef}
                     type="file"
                     webkitdirectory="true"
+                    as
+                    any
                     directory="true"
                     mozdirectory="true"
                     className="hidden"

@@ -235,7 +235,7 @@ export default function PhotoGrid({
             }
           }}
           onAssignDay={(photoId, day) => onAssignDay(photoId, day)}
-          selectedBucket={photoData.bucket}
+          selectedBucket={photoData.bucket || undefined}
           selectedDay={photoData.day}
           buckets={buckets}
           dayLabels={dayLabels}

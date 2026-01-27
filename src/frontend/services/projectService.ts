@@ -280,7 +280,9 @@ export async function heicToBlob(file: File): Promise<Blob> {
                     } else {
                       throw new Error('No base64 decoder available');
                     }
-                    resolve(new Blob([u8arr], { type: (match && match[1]) || 'image/jpeg' }));
+                    resolve(
+                      new Blob([u8arr as BlobPart], { type: (match && match[1]) || 'image/jpeg' }),
+                    );
                   } catch (e) {
                     // If everything failed, resolve a tiny placeholder blob instead
                     resolve(new Blob([''], { type: 'image/jpeg' }));
@@ -308,7 +310,7 @@ export async function heicToBlob(file: File): Promise<Blob> {
                 // fall back to placeholder blob when no decoder available
                 return resolve(new Blob([''], { type: 'image/jpeg' }));
               }
-              resolve(new Blob([u8arr], { type: (match && match[1]) || 'image/jpeg' }));
+              resolve(new Blob([u8arr as BlobPart], { type: (match && match[1]) || 'image/jpeg' }));
             }
           } catch (e) {
             // On unexpected errors, resolve a placeholder blob to guarantee callers
@@ -363,7 +365,7 @@ export async function heicToBlob(file: File): Promise<Blob> {
                 resolve(new Blob([''], { type: 'image/jpeg' }));
                 return;
               }
-              resolve(new Blob([u8arr], { type: (match && match[1]) || 'image/jpeg' }));
+              resolve(new Blob([u8arr as BlobPart], { type: (match && match[1]) || 'image/jpeg' }));
             } catch (e) {
               // resolve placeholder blob instead of rejecting to keep behaviour stable
               resolve(new Blob([''], { type: 'image/jpeg' }));
@@ -614,7 +616,7 @@ export async function initProject(options: {
 
   let permission;
   try {
-    permission = await dirHandle.requestPermission({ mode: 'read' });
+    permission = await (dirHandle as any).requestPermission({ mode: 'read' });
   } catch (err) {
     console.warn('Permission request failed:', err);
     throw new Error('Unable to request folder access. Please try again.');
@@ -668,7 +670,7 @@ export async function getState(projectId: string): Promise<ProjectState> {
 
   let permission;
   try {
-    permission = await handle.requestPermission({ mode: 'read' });
+    permission = await (handle as any).requestPermission({ mode: 'read' });
   } catch (err) {
     // If requestPermission throws, the handle is likely stale/invalid
     // Remove the invalid handle so user can reselect

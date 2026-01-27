@@ -899,10 +899,10 @@ export default function PhotoOrganizer() {
 
   // Assign bucket to one or many photos (accepts id or array of ids)
   const assignBucket = useCallback(
-    (photoIds, bucket, dayNum = null) => {
+    (photoIds: string | string[], bucket: string, dayNum: number | null = null) => {
       const ids = Array.isArray(photoIds) ? photoIds : [photoIds];
       // Keep counters per day+bucket to create sequences for bulk operations
-      const counters = {};
+      const counters: Record<string, number> = {};
       const newPhotos = photos.map(photo => {
         if (ids.includes(photo.id)) {
           // Prefer an explicit dayNum, then the photo's existing day, then the currently selected day in the UI,
@@ -941,7 +941,7 @@ export default function PhotoOrganizer() {
 
   // Remove day assignment from selected photos
   const removeDayAssignment = useCallback(
-    photoIds => {
+    (photoIds: string | string[]) => {
       const ids = Array.isArray(photoIds) ? photoIds : [photoIds];
       const newPhotos = photos.map(photo =>
         ids.includes(photo.id) ? { ...photo, day: null } : photo,
@@ -953,7 +953,7 @@ export default function PhotoOrganizer() {
 
   // Toggle favorite for a single or multiple photos
   const toggleFavorite = useCallback(
-    photoIds => {
+    (photoIds: string | string[]) => {
       const ids = Array.isArray(photoIds) ? photoIds : [photoIds];
       const newPhotos = photos.map(photo =>
         ids.includes(photo.id) ? { ...photo, favorite: !photo.favorite } : photo,
@@ -965,7 +965,7 @@ export default function PhotoOrganizer() {
 
   // Keyboard shortcuts
   useEffect(() => {
-    const handleKeyPress = e => {
+    const handleKeyPress = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement | null;
       if (
         showWelcome ||
@@ -1514,7 +1514,7 @@ export default function PhotoOrganizer() {
             // Check if File System API is available before attempting to load (skip in test environment)
             const isTest =
               typeof globalThis !== 'undefined' &&
-              (globalThis.vitest || globalThis.__APP_VERSION__ === '0.0.0');
+              ((globalThis as any).vitest || (globalThis as any).__APP_VERSION__ === '0.0.0');
             if (!isTest && !('showDirectoryPicker' in window)) {
               setProjectError(
                 'This app requires the File System Access API, which is not available in this browser environment. Please use a compatible browser like Chrome or Edge.',
