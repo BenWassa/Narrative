@@ -423,7 +423,65 @@ This document outlines the phased improvements to Narrative's photo organization
 
 ---
 
+## Sprint 8: Modularize `PhotoOrganizer.tsx`
+**Goal**: Refactor the massive `PhotoOrganizer.tsx` component (currently ~3500 lines) into smaller, reusable components and custom hooks to improve maintainability, readability, and performance.
+
+### S8-1: Extract State Management into Custom Hooks
+**Status**: ✅ completed  
+**Description**:
+- Create custom hooks to encapsulate related state and logic, reducing the number of `useState` and `useCallback` calls in the main component.
+- **`useProjectState`**: Manage `photos`, `projectName`, `projectRootPath`, `projectSettings`, and related logic for loading/saving projects.
+- **`usePhotoSelection`**: Manage `selectedPhotos`, `focusedPhoto`, `lastSelectedIndex`, and selection-related actions.
+- **`useHistory`**: Encapsulate `history` and `historyIndex` for undo/redo functionality.
+- **`useViewOptions`**: Manage UI state like `currentView`, `sidebarCollapsed`, `hideAssigned`, etc.
+
+**Implementation Notes**:
+- Create a new `src/frontend/hooks` directory.
+- Each hook will return state variables and memoized callbacks.
+- This will be the foundation for simplifying the main component body.
+
+### S8-2: Break Down UI into Child Components
+**Status**: ✅ completed  
+**Description**:
+- Decompose the monolithic JSX into smaller, single-purpose React components.
+- **`ProjectHeader.tsx`**: The main header containing the project name, dropdown menu, view toggles (Folders/Days), and action buttons.
+- **`LeftSidebar.tsx`**: The entire left panel, responsible for rendering the "Days" and "Folders" lists.
+- **`PhotoGrid.tsx`**: The main content area that displays the grid of photo thumbnails.
+- **`RightSidebar.tsx`**: The right-side panel that shows MECE bucket controls and metadata for selected photos.
+
+**Implementation Notes**:
+- Create a new `src/frontend/components` directory for these new components.
+- Pass necessary state and callbacks from `PhotoOrganizer.tsx` as props.
+- This will make the main component's `return` statement much cleaner.
+
+### S8-3: Isolate Side Effects and Data Fetching
+**Status**: ✅ completed  
+**Description**:
+- Move side effects (like file system access, IndexedDB operations, and `localStorage` reads/writes) from `useEffect` blocks in `PhotoOrganizer.tsx` into the new custom hooks.
+- For example, project loading logic should live within the `useProjectState` hook.
+
+**Implementation Notes**:
+- This will centralize data fetching and persistence logic, making it easier to debug and manage.
+- The main component will become more declarative.
+
+### S8-4: Refactor PhotoOrganizer.tsx to be a Layout Container
+**Status**: ✅ completed  
+**Description**:
+- After creating hooks and child components, refactor `PhotoOrganizer.tsx` to be a top-level container.
+- Its primary responsibilities will be:
+  1. Calling the custom hooks to get state and functions.
+  2. Assembling the child components in the main layout.
+  3. Passing props down to the new components.
+
+**Acceptance Criteria**:
+- `PhotoOrganizer.tsx` should be significantly smaller (e.g., under 500 lines).
+- No regressions in functionality.
+- Clear separation of concerns between state management, UI components, and side effects.
+
+---
+
 ## Dependency Notes
+
 
 ```
 Sprint 1 → (prerequisite) → Sprint 2
