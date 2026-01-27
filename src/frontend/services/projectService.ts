@@ -113,13 +113,10 @@ async function openHandleDb(): Promise<IDBDatabase> {
     };
     req.onblocked = () => {
       window.clearTimeout(timer);
-      finish(
-        () =>
-          reject(
-            new Error(
-              'IndexedDB open was blocked. Please close other Narrative tabs and retry.',
-            ),
-          ),
+      finish(() =>
+        reject(
+          new Error('IndexedDB open was blocked. Please close other Narrative tabs and retry.'),
+        ),
       );
     };
   });
