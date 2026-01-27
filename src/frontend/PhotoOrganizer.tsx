@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import safeLocalStorage from './utils/safeLocalStorage';
 import * as coverStorage from './utils/coverStorageService';
-import { X } from 'lucide-react';
 import OnboardingModal, { OnboardingState, RecentProject } from './OnboardingModal';
 import StartScreen from './StartScreen';
 import LoadingModal from './ui/LoadingModal';
@@ -18,10 +17,17 @@ import { useHistory } from './hooks/useHistory';
 import { usePhotoSelection } from './hooks/usePhotoSelection';
 import { useProjectState } from './hooks/useProjectState';
 import { useViewOptions } from './hooks/useViewOptions';
+import { useToast } from './hooks/useToast';
+import { useExportScript } from './hooks/useExportScript';
+import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
 import ProjectHeader from './components/ProjectHeader';
 import LeftSidebar from './components/LeftSidebar';
 import PhotoGrid from './components/PhotoGrid';
 import RightSidebar from './components/RightSidebar';
+import HelpModal from './components/HelpModal';
+import ExportScriptModal from './components/ExportScriptModal';
+import Toast from './components/Toast';
+import FullscreenOverlay from './components/FullscreenOverlay';
 
 const MECE_BUCKETS = [
   { key: 'A', label: 'Establishing', color: 'bg-blue-500', description: 'Wide shots, landscapes' },
@@ -46,20 +52,16 @@ const isMeceBucketLabel = (label: string) => {
 
 export default function PhotoOrganizer() {
   const prevThumbnailsRef = useRef<string[]>([]);
-  const toastTimerRef = useRef<number | null>(null);
   const [currentVersion, setCurrentVersion] = useState(versionManager.getDisplayVersion());
   const debugEnabled = import.meta.env.DEV && safeLocalStorage.get('narrative:debug') === '1';
   const [editingDay, setEditingDay] = useState<number | null>(null);
   const [editingDayName, setEditingDayName] = useState('');
-  const [exportScriptText, setExportScriptText] = useState('');
   const [exportCopyStatus, setExportCopyStatus] = useState<'idle' | 'copied' | 'failed'>('idle');
-  const [toast, setToast] = useState<{
-    message: string;
-    tone: 'info' | 'error';
-    actionLabel?: string;
-    onAction?: () => void;
-  } | null>(null);
+  const [exportScriptText, setExportScriptText] = useState('');
   const [coverSelectionMode, setCoverSelectionMode] = useState(false);
+
+  // Hooks for state management
+  const { toast, showToast, clearToast } = useToast();
   const {
     currentView,
     setCurrentView,
@@ -81,33 +83,6 @@ export default function PhotoOrganizer() {
     setSelectedRootFolder,
     foldersViewStateRef,
   } = useViewOptions();
-
-  const clearToast = useCallback(() => {
-    setToast(null);
-    if (toastTimerRef.current) {
-      window.clearTimeout(toastTimerRef.current);
-      toastTimerRef.current = null;
-    }
-  }, []);
-
-  const showToast = useCallback(
-    (
-      message: string,
-      tone: 'info' | 'error' = 'info',
-      options?: { durationMs?: number; actionLabel?: string; onAction?: () => void },
-    ) => {
-      setToast({ message, tone, actionLabel: options?.actionLabel, onAction: options?.onAction });
-      if (toastTimerRef.current) {
-        window.clearTimeout(toastTimerRef.current);
-      }
-      const durationMs = options?.durationMs ?? 2500;
-      toastTimerRef.current = window.setTimeout(() => {
-        setToast(null);
-        toastTimerRef.current = null;
-      }, durationMs);
-    },
-    [],
-  );
 
   const {
     photos,
@@ -155,228 +130,8 @@ export default function PhotoOrganizer() {
     prevThumbnailsRef,
   });
 
-  const buildExportScript = useCallback(() => {
-    const lines: string[] = [];
-
-    // Bucket name mapping for folder naming
-    const bucketNames: Record<string, string> = {
-      A: 'Establishing',
-      B: 'People',
-      C: 'Culture-Detail',
-      D: 'Action-Moment',
-      E: 'Transition',
-      M: 'Mood-Food',
-    };
-
-    // Group photos by day and bucket
-    const photosByDay: Record<number, Record<string, ProjectPhoto[]>> = {};
-    const archivePhotos: ProjectPhoto[] = [];
-    const rootPhotos: ProjectPhoto[] = [];
-
-    photos.forEach(p => {
-      if (p.archived) {
-        archivePhotos.push(p);
-      } else if (p.bucket) {
-        const day = p.day as number;
-        if (!photosByDay[day]) {
-          photosByDay[day] = {};
-        }
-        if (!photosByDay[day][p.bucket]) {
-          photosByDay[day][p.bucket] = [];
-        }
-        photosByDay[day][p.bucket].push(p);
-      } else {
-        rootPhotos.push(p);
-      }
-    });
-
-    const daysFolder = projectSettings.folderStructure.daysFolder;
-    const archiveFolder = projectSettings.folderStructure.archiveFolder;
-
-    // Header: show a preview and require confirmation before executing
-    lines.push('#!/usr/bin/env bash');
-    lines.push('set -e');
-    lines.push('');
-    lines.push(
-      `# Export script with dry-run first, then safe execution with preview and confirmation.`,
-    );
-    lines.push(`# Usage: Paste this script into terminal (after cd\'ing to your project root)`);
-    lines.push(
-      `# It will show a preview first, then ask for confirmation before copying any files.`,
-    );
-    lines.push('');
-    lines.push(`DAYS_FOLDER="${daysFolder}"`);
-    lines.push(`ARCHIVE_FOLDER="${archiveFolder}"`);
-    lines.push('CURRENT_DIR="$(pwd)"');
-    lines.push('TARGET_DAYS_DIR="${CURRENT_DIR}/${DAYS_FOLDER}"');
-    lines.push('TARGET_ARCHIVE_DIR="${CURRENT_DIR}/${ARCHIVE_FOLDER}"');
-    lines.push('');
-    lines.push('# Color codes for output');
-    lines.push("RED='\\033[0;31m'");
-    lines.push("GREEN='\\033[0;32m'");
-    lines.push("YELLOW='\\033[1;33m'");
-    lines.push("BLUE='\\033[0;34m'");
-    lines.push("NC='\\033[0m' # No Color");
-    lines.push('');
-    lines.push(
-      'echo "\\${BLUE}═══════════════════════════════════════════════════════════\\${NC}"',
-    );
-    lines.push('echo "\\${BLUE}       EXPORT SCRIPT - DRY RUN PREVIEW\\${NC}"');
-    lines.push(
-      'echo "\\${BLUE}═══════════════════════════════════════════════════════════\\${NC}"',
-    );
-    lines.push('echo');
-    lines.push('echo "\\${YELLOW}Current directory:\\${NC} \\${CURRENT_DIR}"');
-    lines.push('echo "\\${YELLOW}Target days folder:\\${NC} \\${TARGET_DAYS_DIR}"');
-    lines.push('echo "\\${YELLOW}Target archive folder:\\${NC} \\${TARGET_ARCHIVE_DIR}"');
-    lines.push('echo');
-    lines.push('echo "\\${GREEN}This is a DRY RUN - no files will be copied yet.\\${NC}"');
-    lines.push('echo "\\${GREEN}You will be asked to confirm before any files are moved.\\${NC}"');
-    lines.push('echo');
-
-    // Preview: root files
-    if (rootPhotos.length > 0) {
-      lines.push('echo "\\${YELLOW}Root files (\\${NC}' + rootPhotos.length + '):\\${NC}"');
-      rootPhotos.forEach(p => {
-        if (p.filePath) {
-          lines.push(`echo "  cp \\"${p.filePath}\\" → \\"${p.currentName}\\""`);
-        }
-      });
-      lines.push('');
-    }
-
-    // Count total files for summary
-    let totalFiles = rootPhotos.length + archivePhotos.length;
-    Object.keys(photosByDay).forEach(day => {
-      Object.keys(photosByDay[parseInt(day)]).forEach(bucket => {
-        totalFiles += photosByDay[parseInt(day)][bucket].length;
-      });
-    });
-
-    lines.push('echo "\\${YELLOW}Days with organized photos:\\${NC}"');
-    // Preview: days with bucket subfolders
-    Object.keys(photosByDay)
-      .map(Number)
-      .sort((a, b) => a - b)
-      .forEach(day => {
-        const label = dayLabels[day] || `Day ${String(day).padStart(2, '0')}`;
-        const dayFolder = `${daysFolder}/${label}`;
-        const buckets = photosByDay[day];
-        const dayPhotosCount = Object.values(buckets).reduce(
-          (sum, bucket) => sum + bucket.length,
-          0,
-        );
-
-        lines.push(`echo "  ${label} (${dayPhotosCount} photos)"`);
-
-        Object.keys(buckets)
-          .sort()
-          .forEach(bucket => {
-            const bucketLabel = bucketNames[bucket] || bucket;
-            const bucketFolder = `${dayFolder}/${bucket}_${bucketLabel}`;
-            const bucketPhotos = buckets[bucket];
-
-            lines.push(`echo "    ├─ ${bucket}_${bucketLabel} (${bucketPhotos.length})"`);
-          });
-      });
-
-    // Preview: archive
-    if (archivePhotos.length > 0) {
-      lines.push('echo "  \\${YELLOW}Archive (' + archivePhotos.length + ')\\${NC}"');
-    }
-
-    lines.push('');
-    lines.push('echo "\\${YELLOW}Total files to copy:\\${NC} ' + totalFiles + '"');
-    lines.push('echo');
-    lines.push(
-      'echo "\\${YELLOW}═══════════════════════════════════════════════════════════\\${NC}"',
-    );
-    lines.push('echo "\\${YELLOW}Ready to proceed?\\${NC}"');
-    lines.push('echo "\\${RED}WARNING: This will copy files to your project directory.\\${NC}"');
-    lines.push(
-      'echo "\\${YELLOW}═══════════════════════════════════════════════════════════\\${NC}"',
-    );
-    lines.push('echo');
-    lines.push(
-      'read -r -p "\\${YELLOW}Type \\"yes\\" to confirm and copy files (or press Ctrl+C to abort):\\${NC} " confirm',
-    );
-    lines.push('if [ "$confirm" != "yes" ]; then');
-    lines.push('  echo "\\${RED}Aborted - no files were copied.\\${NC}"');
-    lines.push('  exit 0');
-    lines.push('fi');
-    lines.push('');
-    lines.push(
-      'echo "\\${GREEN}═══════════════════════════════════════════════════════════\\${NC}"',
-    );
-    lines.push('echo "\\${GREEN}Starting file copy operation...\\${NC}"');
-    lines.push(
-      'echo "\\${GREEN}═══════════════════════════════════════════════════════════\\${NC}"',
-    );
-    lines.push('echo');
-
-    if (rootPhotos.length > 0) {
-      rootPhotos.forEach(p => {
-        if (p.filePath) {
-          lines.push(
-            `if [ -e "${p.currentName}" ]; then echo "Skipping existing: ${p.currentName}"; else cp "${p.filePath}" "${p.currentName}"; fi`,
-          );
-        }
-      });
-      lines.push('');
-    }
-
-    // Execution: create day folders with bucket subfolders and copy files
-    lines.push('mkdir -p "${DAYS_FOLDER}"');
-    Object.keys(photosByDay)
-      .map(Number)
-      .sort((a, b) => a - b)
-      .forEach(day => {
-        const label = dayLabels[day] || `Day ${String(day).padStart(2, '0')}`;
-        const dayFolder = `${daysFolder}/${label}`;
-        const buckets = photosByDay[day];
-
-        Object.keys(buckets)
-          .sort()
-          .forEach(bucket => {
-            const bucketLabel = bucketNames[bucket] || bucket;
-            const bucketFolder = `${dayFolder}/${bucket}_${bucketLabel}`;
-            const photos = buckets[bucket];
-
-            lines.push(`mkdir -p "${bucketFolder}"`);
-
-            photos.forEach(p => {
-              if (p.filePath) {
-                lines.push(
-                  `if [ -e "${bucketFolder}/${p.currentName}" ]; then echo "Skipping existing: ${bucketFolder}/${p.currentName}"; else cp "${p.filePath}" "${bucketFolder}/${p.currentName}"; fi`,
-                );
-              }
-            });
-          });
-      });
-
-    // Execution: archive
-    if (archivePhotos.length > 0) {
-      lines.push('mkdir -p "${ARCHIVE_FOLDER}"');
-      archivePhotos.forEach(p => {
-        if (p.filePath) {
-          lines.push(
-            `if [ -e "${archiveFolder}/${p.currentName}" ]; then echo "Skipping existing: ${archiveFolder}/${p.currentName}"; else cp "${p.filePath}" "${archiveFolder}/${p.currentName}"; fi`,
-          );
-        }
-      });
-    }
-
-    lines.push('');
-    lines.push(
-      'echo "\\${GREEN}═══════════════════════════════════════════════════════════\\${NC}"',
-    );
-    lines.push('echo "\\${GREEN}✓ Copy operation complete!\\${NC}"');
-    lines.push(
-      'echo "\\${GREEN}═══════════════════════════════════════════════════════════\\${NC}"',
-    );
-
-    return lines.join('\n');
-  }, [photos, dayLabels, projectSettings]);
+  // Export script generation
+  const { buildExportScript } = useExportScript(photos, dayLabels, projectSettings);
 
   const setCoverForPhotoId = useCallback(
     async (photoId: string) => {
@@ -964,128 +719,31 @@ export default function PhotoOrganizer() {
   );
 
   // Keyboard shortcuts
-  useEffect(() => {
-    const handleKeyPress = (e: KeyboardEvent) => {
-      const target = e.target as HTMLElement | null;
-      if (
-        showWelcome ||
-        showOnboarding ||
-        showExportScript ||
-        (target &&
-          (target.tagName === 'INPUT' ||
-            target.tagName === 'TEXTAREA' ||
-            target.tagName === 'SELECT' ||
-            target.isContentEditable))
-      ) {
-        return;
-      }
-
-      if (showHelp) {
-        if (e.key === 'Escape' || e.key === '?') {
-          setShowHelp(false);
-        }
-        return;
-      }
-
-      if (coverSelectionMode && e.key === 'Escape') {
-        setCoverSelectionMode(false);
-        showToast('Cover selection cancelled.');
-        return;
-      }
-
-      if (e.key === '?') {
-        setShowHelp(true);
-        return;
-      }
-
-      // Determine primary target (focused photo or if a single selection exists)
-      const primaryId =
-        focusedPhoto || (selectedPhotos.size === 1 ? Array.from(selectedPhotos)[0] : null);
-      if (!primaryId) return;
-
-      if (e.key.toLowerCase() === 'f' && !e.shiftKey && !e.metaKey && !e.ctrlKey && !e.altKey) {
-        const targets = selectedPhotos.size > 0 ? Array.from(selectedPhotos) : [primaryId];
-        toggleFavorite(targets);
-        return;
-      }
-
-      // MECE bucket assignment
-      let bucketKey = e.key.toUpperCase();
-      const bucket = MECE_BUCKETS.find(b => b.key === bucketKey);
-      if (bucket && bucket.key !== 'F') {
-        const targets = selectedPhotos.size > 0 ? Array.from(selectedPhotos) : [primaryId];
-        assignBucket(targets, bucket.key);
-        // Move focus to next photo in filteredPhotos
-        const currentIndex = filteredPhotos.findIndex(p => p.id === primaryId);
-        if (currentIndex < filteredPhotos.length - 1) {
-          const nextId = filteredPhotos[currentIndex + 1].id;
-          setFocusedPhoto(nextId);
-          setSelectedPhotos(new Set([nextId]));
-          setLastSelectedIndex(currentIndex + 1);
-          lastSelectedIndexRef.current = currentIndex + 1;
-        }
-        return;
-      }
-
-      // (No special-case mapping needed for M — Mood uses key 'M' directly)
-
-      // Navigation
-      if (e.key === 'ArrowRight') {
-        const currentIndex = filteredPhotos.findIndex(p => p.id === primaryId);
-        if (currentIndex < filteredPhotos.length - 1) {
-          const nextId = filteredPhotos[currentIndex + 1].id;
-          setFocusedPhoto(nextId);
-          setSelectedPhotos(new Set([nextId]));
-          setLastSelectedIndex(currentIndex + 1);
-        }
-      } else if (e.key === 'ArrowLeft') {
-        const currentIndex = filteredPhotos.findIndex(p => p.id === primaryId);
-        if (currentIndex > 0) {
-          const prevId = filteredPhotos[currentIndex - 1].id;
-          setFocusedPhoto(prevId);
-          setSelectedPhotos(new Set([prevId]));
-          setLastSelectedIndex(currentIndex - 1);
-          lastSelectedIndexRef.current = currentIndex - 1;
-        }
-      } else if (e.key === 'Enter' || e.key === ' ') {
-        e.preventDefault();
-        setFullscreenPhoto(primaryId);
-      } else if (e.key === 'Escape') {
-        if (fullscreenPhoto) {
-          setFullscreenPhoto(null);
-        } else {
-          setSelectedPhotos(new Set());
-          setFocusedPhoto(null);
-          setLastSelectedIndex(null);
-          lastSelectedIndexRef.current = null;
-        }
-      } else if (e.key === 'z' && (e.metaKey || e.ctrlKey)) {
-        e.preventDefault();
-        if (e.shiftKey) {
-          redo();
-        } else {
-          undo();
-        }
-      }
-    };
-
-    window.addEventListener('keydown', handleKeyPress);
-    return () => window.removeEventListener('keydown', handleKeyPress);
-  }, [
+  // Keyboard shortcuts handler
+  useKeyboardShortcuts({
     selectedPhotos,
     focusedPhoto,
     filteredPhotos,
-    assignBucket,
-    toggleFavorite,
-    undo,
-    redo,
-    showHelp,
     fullscreenPhoto,
+    showHelp,
+    showExportScript,
     showWelcome,
     showOnboarding,
-    showExportScript,
     coverSelectionMode,
-  ]);
+    MECE_BUCKETS,
+    onAssignBucket: assignBucket,
+    onToggleFavorite: toggleFavorite,
+    onUndo: undo,
+    onRedo: redo,
+    onSetFocusedPhoto: setFocusedPhoto,
+    onSetSelectedPhotos: setSelectedPhotos,
+    onSetLastSelectedIndex: setLastSelectedIndex,
+    onSetFullscreenPhoto: setFullscreenPhoto,
+    onSetShowHelp: setShowHelp,
+    onSetCoverSelectionMode: setCoverSelectionMode,
+    onShowToast: showToast,
+    lastSelectedIndexRef,
+  });
 
   // Stats
   const stats = React.useMemo(
@@ -1297,207 +955,33 @@ export default function PhotoOrganizer() {
       </div>
 
       {/* Fullscreen View */}
-      {fullscreenPhoto && (
-        <div className="fixed inset-0 bg-black z-50 flex items-center justify-center">
-          <button
-            onClick={() => setFullscreenPhoto(null)}
-            className="absolute top-4 right-4 p-2 bg-black/50 hover:bg-black/70 rounded-full transition-colors"
-          >
-            <X className="w-6 h-6" />
-          </button>
+      <FullscreenOverlay
+        photoId={fullscreenPhoto}
+        photos={photos}
+        onClose={() => setFullscreenPhoto(null)}
+      />
 
-          {(() => {
-            const photo = photos.find(p => p.id === fullscreenPhoto);
-            if (!photo) return null;
-
-            return photo.mimeType?.startsWith('video/') ? (
-              <video
-                src={photo.thumbnail}
-                controls
-                className="max-w-full max-h-full object-contain"
-                autoPlay={false}
-              />
-            ) : (
-              <img
-                src={photo.thumbnail}
-                alt="Fullscreen"
-                className="max-w-full max-h-full object-contain"
-              />
-            );
-          })()}
-
-          <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/90 to-transparent p-6">
-            <p className="text-center text-sm font-mono">
-              {photos.find(p => p.id === fullscreenPhoto)?.currentName}
-            </p>
-            <p className="text-center text-xs text-gray-400 mt-2">
-              Press ESC to close · Arrow keys to navigate
-            </p>
-          </div>
-        </div>
-      )}
-
-      {showExportScript && (
-        <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-6">
-          <div className="bg-gray-900 rounded-lg max-w-2xl w-full overflow-hidden border border-gray-800">
-            <div className="px-5 py-4 border-b border-gray-800 flex items-center justify-between">
-              <h2 className="text-lg font-semibold text-gray-100">Export Script</h2>
-              <button
-                onClick={() => setShowExportScript(false)}
-                className="p-2 hover:bg-gray-800 rounded"
-                aria-label="Close export script dialog"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-            <div className="px-5 py-4 space-y-3">
-              <p className="text-sm text-gray-400">
-                Copy these commands and run them in your terminal from the project root directory.
-                They create organized day folders and copy your photos with the current bucket
-                naming. Originals are preserved.
-              </p>
-              <div className="flex items-center gap-3">
-                <button
-                  onClick={async () => {
-                    try {
-                      await navigator.clipboard.writeText(exportScriptText);
-                      setExportCopyStatus('copied');
-                    } catch {
-                      setExportCopyStatus('failed');
-                    }
-                  }}
-                  className="px-3 py-2 rounded-lg bg-gray-800 text-gray-100 hover:bg-gray-700 text-sm"
-                >
-                  Copy Script
-                </button>
-                {exportCopyStatus === 'copied' && (
-                  <span className="text-xs text-green-400">Copied.</span>
-                )}
-                {exportCopyStatus === 'failed' && (
-                  <span className="text-xs text-red-400">Copy failed. Select and copy below.</span>
-                )}
-              </div>
-              <textarea
-                readOnly
-                value={exportScriptText}
-                className="w-full h-64 rounded-lg border border-gray-800 bg-gray-950 px-3 py-2 text-xs text-gray-100 font-mono"
-              />
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Export Script Modal */}
+      <ExportScriptModal
+        isOpen={showExportScript}
+        scriptText={exportScriptText}
+        copyStatus={exportCopyStatus}
+        onClose={() => setShowExportScript(false)}
+        onCopyScript={async () => {
+          try {
+            await navigator.clipboard.writeText(exportScriptText);
+            setExportCopyStatus('copied');
+          } catch {
+            setExportCopyStatus('failed');
+          }
+        }}
+      />
 
       {/* Help Modal */}
-      {showHelp && (
-        <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-6">
-          <div className="bg-gray-900 rounded-lg max-w-2xl w-full max-h-[80vh] overflow-y-auto">
-            <div className="p-6">
-              <div className="flex items-center justify-between mb-6">
-                <h2 className="text-xl font-bold">Keyboard Shortcuts</h2>
-                <button
-                  onClick={() => setShowHelp(false)}
-                  className="p-2 hover:bg-gray-800 rounded"
-                >
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
+      <HelpModal isOpen={showHelp} buckets={MECE_BUCKETS} onClose={() => setShowHelp(false)} />
 
-              <div className="space-y-6">
-                <div>
-                  <h3 className="font-semibold text-blue-400 mb-3">MECE Categories</h3>
-                  <div className="grid grid-cols-2 gap-2">
-                    {MECE_BUCKETS.map(bucket => (
-                      <div key={bucket.key} className="flex items-center gap-3 text-sm">
-                        <kbd className={`px-2 py-1 rounded ${bucket.color} text-white font-bold`}>
-                          {bucket.key === 'F' ? 'M' : bucket.key}
-                        </kbd>
-                        <span>{bucket.label}</span>
-                      </div>
-                    ))}
-                  </div>
-                  <p className="text-xs text-gray-400 mt-3">
-                    Keyboard shortcuts: A–E, X, M (Mood/Food). F is reserved for Favorite.
-                  </p>
-                </div>
-
-                <div>
-                  <h3 className="font-semibold text-blue-400 mb-3">Navigation</h3>
-                  <div className="space-y-2 text-sm">
-                    <div className="flex items-center gap-3">
-                      <kbd className="px-2 py-1 bg-gray-800 rounded">←→</kbd>
-                      <span>Previous / Next photo</span>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <kbd className="px-2 py-1 bg-gray-800 rounded">Enter</kbd>
-                      <span>Fullscreen view</span>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <kbd className="px-2 py-1 bg-gray-800 rounded">Esc</kbd>
-                      <span>Close / Deselect</span>
-                    </div>
-                  </div>
-                </div>
-
-                <div>
-                  <h3 className="font-semibold text-blue-400 mb-3">Actions</h3>
-                  <div className="space-y-2 text-sm">
-                    <div className="flex items-center gap-3">
-                      <kbd className="px-2 py-1 bg-gray-800 rounded">F</kbd>
-                      <span>Toggle favorite</span>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <kbd className="px-2 py-1 bg-gray-800 rounded">⌘Z</kbd>
-                      <span>Undo (keyboard)</span>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <kbd className="px-2 py-1 bg-gray-800 rounded">⌘⇧Z</kbd>
-                      <span>Redo (keyboard)</span>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <kbd className="px-2 py-1 bg-gray-800 rounded">?</kbd>
-                      <span>Show this help</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {toast && (
-        <div className="fixed bottom-6 right-6 z-50">
-          <div
-            className={`flex items-center gap-3 px-4 py-2 rounded-lg text-sm shadow-lg ${
-              toast.tone === 'error' ? 'bg-red-600 text-white' : 'bg-gray-800 text-gray-100'
-            }`}
-            role="status"
-            aria-live="polite"
-          >
-            <span>{toast.message}</span>
-            <div className="flex items-center gap-2">
-              {toast.actionLabel && (
-                <button
-                  onClick={() => {
-                    toast.onAction?.();
-                    clearToast();
-                  }}
-                  className="px-2 py-0.5 rounded bg-white/10 text-xs text-white hover:bg-white/20"
-                >
-                  {toast.actionLabel}
-                </button>
-              )}
-              <button
-                onClick={clearToast}
-                className="p-1 rounded hover:bg-white/10"
-                aria-label="Dismiss toast"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Toast Notification */}
+      <Toast toast={toast} onDismiss={clearToast} />
 
       {/* StartScreen - only show when welcome screen is active */}
       {showWelcome && (

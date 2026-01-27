@@ -480,6 +480,50 @@ This document outlines the phased improvements to Narrative's photo organization
 
 ---
 
+## Sprint 8.5: Finish Modularization of `PhotoOrganizer.tsx`
+**Goal**: Reduce `PhotoOrganizer.tsx` to a thin layout container by extracting remaining modals, overlays, and orchestration logic.
+
+### S8.5-1: Extract Modals and Overlays into Components
+**Status**: not-started  
+**Description**:
+- Move remaining UI blocks into dedicated components:
+  - `HelpModal.tsx`
+  - `ExportScriptModal.tsx`
+  - `FullscreenOverlay.tsx`
+  - `Toast.tsx`
+
+**Implementation Notes**:
+- Place new components in `src/frontend/components`.
+- Keep props narrow and behavior unchanged.
+
+### S8.5-2: Extract Remaining Orchestration into Hooks
+**Status**: not-started  
+**Description**:
+- Move non-trivial controller logic into hooks:
+  - `useToast`
+  - `useExportScript`
+  - `useKeyboardShortcuts`
+  - (optional) `useDayEditing`
+
+**Implementation Notes**:
+- Prefer colocating hooks in `src/frontend/hooks`.
+- Hooks should return state plus memoized actions.
+
+### S8.5-3: Refactor `PhotoOrganizer.tsx` to Wiring Only
+**Status**: not-started  
+**Description**:
+- Keep `PhotoOrganizer.tsx` focused on:
+  1. Calling hooks
+  2. Composing layout components
+  3. Passing props
+
+**Acceptance Criteria**:
+- `PhotoOrganizer.tsx` is under ~600 lines.
+- No behavior regressions.
+- `npm run build:site` succeeds.
+
+---
+
 ## Dependency Notes
 
 
