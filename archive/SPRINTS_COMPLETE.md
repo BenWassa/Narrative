@@ -1,522 +1,391 @@
 # Narrative - Completed Sprints
 
-## Overview
-This document contains the completed sprints from Narrative's photo organization workflow improvements.
+## Sprint 8.5: Finish Modularization of `PhotoOrganizer.tsx`
+**Status**: completed (2026-01-27)  
+**Goal**: Reduce `PhotoOrganizer.tsx` to a thin layout container by extracting remaining modals, overlays, and orchestration logic.
+
+### S8.5-1: Extract Modals and Overlays into Components
+**Status**: completed  
+**Completed Work**:
+- Extracted UI blocks into dedicated components in `src/features/photo-organizer/components`: `HelpModal.tsx`, `ExportScriptModal.tsx`, `FullscreenOverlay.tsx`, `Toast.tsx`.
+
+### S8.5-2: Extract Remaining Orchestration into Hooks
+**Status**: completed  
+**Completed Work**:
+- Extracted orchestration logic into hooks in `src/features/photo-organizer/hooks`: `useToast.ts`, `useExportScript.ts`, `useKeyboardShortcuts.ts`, `useDayEditing.ts`.
+
+### S8.5-3: Refactor `PhotoOrganizer.tsx` to Wiring Only
+**Status**: completed  
+**Completed Work**:
+- `PhotoOrganizer.tsx` now composes hooks and components rather than embedding modal/overlay logic inline.
 
 ---
 
-## Sprint 1: Bug Fixes & Workflow Clarification
-**Goal**: Fix ingest issues and improve user feedback
-
-### S1-1: Fix "Ingest to Day" Button Issue
-**Status**: completed  
-**Description**: 
-- The "Ingest to Day" button currently has no visual feedback when clicked
-- When pressed, it should execute the action but needs:
-  1. Clear indication that the action succeeded (button highlight, toast notification, or visual state change)
-  2. Only apply to photos in the current MECE bucket group being ingested
-  3. Only show the button for folders that are NOT day-root level (folders that have derived subfolder groupings)
-  
-**Implementation Notes**:
-- Implemented in `src/frontend/PhotoOrganizer.tsx` (Ingest action button handler)
-- Action updates `subfolderOverride: null` to move photos to day root
-- Added toast confirmation with undo action and manual dismiss
-- Ingest action now gated by non-day-root group visibility rules
-
-### S1-2: Implement Undo Toast for "Ingest to Day"
-**Status**: completed  
-**Description**:
-- When user clicks "Ingest to Day", show an undo toast/notification
-- Toast should have:
-  - Clear message: "Photos moved to Day X"
-  - Undo button that reverses the action
-  - Auto-dismiss after 5 seconds (or manual dismiss)
-  
-**Implementation Notes**:
-- Reused history system (`saveToHistory`) to restore prior photo state
-- Toast now supports action buttons and dismiss controls
-- Auto-dismiss set to 5 seconds for ingest actions
+## Sprint 9: Workflow Optimization & Deterministic Ordering (Substantial)
+**Goal**: Systematically improve review speed and eliminate ordering edge cases across all views
+**Status**: completed
 
 ---
 
-## Sprint 2: UI Cleanup & Space Optimization
-**Goal**: Remove unused UI elements to improve clarity and save screen space
+### WORKFLOW ANALYSIS
 
-### S2-1: Remove Step Indicator Component
-**Status**: completed  
-**Description**:
-- Remove the progress stepper (Import → Organize → Review → Export) from the header
-- This takes up valuable space and isn't essential to the workflow
-- Lines 2167-2200 in PhotoOrganizer.tsx contain the stepper HTML
-  
-**Implementation Notes**:
-- Header stepper removed from `src/frontend/PhotoOrganizer.tsx`
-- Vertical space reclaimed in the header
+#### Current Workflow Flow
+1. **Project Creation/Loading** (`OnboardingModal` → `projectService.buildPhotosFromHandle`)
+   - User selects folder → scans files → detects day structure → loads thumbnails
+   - Creates `ProjectPhoto[]` with metadata (timestamp, path, detected day/bucket)
+   
+2. **Photo Organization** (`PhotoOrganizer` → `LeftSidebar` + `PhotoGrid`)
+   - **View Options**: Days, Folders, Root, Favorites, Archive, Review
+   - **Selection Model**: Click/Cmd+Click/Shift+Click in grid → updates `selectedPhotos` Set
+   - **Filtering**: `useFolderModel.filteredPhotos` filters by view + `hideAssigned` flag
+   - **Assignment**: Keyboard shortcuts (A-E, M, X) call `usePhotoMutations.assignBucket(photoIds[], bucket)`
+   
+3. **Gallery/Viewer Navigation** (`PhotoViewer` + `PhotoStrip`)
+   - Double-click opens `PhotoViewer` with full-res photo
+   - Navigation uses `filteredPhotos` array for prev/next
+   - **Auto-advance**: After bucket assignment, advances to next photo
+   
+4. **Export** (`useExportScript`)
+   - Generates bash script grouping photos by day/bucket
+   - Creates folder structure: `01_DAYS/Day 01 - Label/A_Establishing/`
 
-### S2-2: Remove Undo/Redo Buttons from Main Toolbar
-**Status**: completed  
-**Description**:
-- Remove the top toolbar undo/redo buttons (lines 2147-2165 in PhotoOrganizer.tsx)
-- These are redundant since keyboard shortcuts (Cmd+Z / Cmd+Shift+Z) are the primary method
-- Undo/redo help text in the help modal can remain
-  
-**Implementation Notes**:
-- Toolbar buttons removed; keyboard shortcuts remain active
-- Removed unused Undo/Redo icon imports from `lucide-react`
+#### Key Pain Points Identified
 
-### S2-3: Update Help Modal to Reflect Changes
-**Status**: completed  
-**Description**:
-- Update the keyboard shortcuts help modal to remove undo/redo references if removing toolbar buttons
-- Ensure any removed UI elements are not referenced in documentation
-- Keep keyboard shortcuts documented if they're still available
-  
-**Implementation Notes**:
-- Help modal updated to clarify undo/redo as keyboard-only
+**Ordering Inconsistencies**:
+- `stableSortPhotos()` in `PhotoGrid.tsx` (timestamp → filePath → originalName → id)
+- **NOT centralized** - sorting logic duplicated in multiple places
+- Gallery viewer uses `filteredPhotos.findIndex()` which depends on filtering order
+- Subfolder grouping can disrupt chronological flow within a day
+- Video/photo split within subfolders changes ordering
 
----
+**Workflow Friction**:
+- No "skip assigned" mode - must manually filter with hideAssigned toggle
+- No bulk actions beyond keyboard shortcuts on selection
+- Keyboard nav in grid requires finding photo index in `filteredPhotos` each time
+- No fast "review unassigned only" workflow
+- Gallery auto-advance only works when assigning buckets, not when skipping
 
-## Sprint 3: Day Assignment Management
-**Goal**: Replace undo/redo with per-day assignment removal
-
-### S3-1: Add "Remove Assignment" for Individual Days
-**Status**: completed  
-**Description**:
-- Add ability to remove assignment for individual days (set `selectedDay` to null)
-- This replaces the need for global undo/redo in the folders view
-- When a day is selected, show a button to unassign/clear that day's assignment
-  
-**Implementation Notes**:
-- Added "Clear" button next to the selected day in the Days sidebar (both Days and Folders views)
-- Action clears `selectedDay`, `selectedRootFolder`, and exits edit state
-- Toast confirms the day selection was cleared
-
-### S3-2: Clarify "Ingest to Day" for Non-MECE Folders
-**Status**: completed  
-**Description**:
-- "Ingest to Day" button should ONLY appear for non-MECE-bucket folders
-- Do not show for folders that represent MECE bucket assignments
-- Clarify in code/comments that this action is for organizing non-categorized imports
-  
-**Implementation Notes**:
-- Added MECE bucket label detection and gated ingest actions accordingly
-- Ingest action includes a tooltip explaining it moves photos to the day root
+**Performance Bottlenecks**:
+- Grid renders ALL filtered photos (no virtualization)
+- Thumbnail loading is synchronous during initial scan
+- `filteredPhotos` recalculated on every render via useMemo
+- PhotoStrip in viewer loads all thumbnails
 
 ---
 
-## Sprint 4: Gallery View Transformation (Major UX Overhaul)
-**Goal**: Redesign gallery view to use enlarged photo + strip layout instead of side popup
-**Status**: ✅ COMPLETED
-
-### S4-1: Design Gallery Layout System
-**Status**: ✅ completed  
+### S9-1: End-to-End Workflow Audit and Speed Pass
+**Status**: completed  
+**Priority**: HIGH
 **Description**:
-- New layout: Main enlarged photo (center/top) + photo strip/reel below
-- Remove the side popup inspection panel entirely
-- Photo strip shows:
-  - Thumbnails of recent photos (7 visible by default)
-  - Current photo highlighted/focused in the strip
-  - Clickable to jump to that photo
-  
-**Acceptance Criteria**:
-- ✅ Responsive layout planned
- - ✅ Desktop layout planned (Large photo top, strip below with horizontal scroll)
-- ✅ Space for metadata (day, bucket, favorites indicator)
-- ✅ Keyboard navigation in strip
+Optimize the review workflow for speed and efficiency, focusing on high-leverage improvements.
 
-**Implementation Notes**:
-- Layout redesigned in PhotoViewer.tsx with CSS Grid/Flexbox
-- Strip has smooth scroll/keyboard navigation
-- Metadata overlays on enlarged photo (bottom-right corner)
+**Tasks**:
+1. **Add "Skip Assigned" Quick Mode**
+   - Add keyboard shortcut (e.g., `Shift+H`) to toggle `hideAssigned` from anywhere
+   - Show persistent indicator when skip mode is active
+   - Make this the default mode in gallery viewer
 
-### S4-2: Implement Enlarged Photo Display
-**Status**: ✅ completed  
-**Description**:
-- Created main photo container that displays clicked photo at large size
-- Full-screen display on desktop with proper centering
-- Similar to Inspect view but more prominent and integrated
-- Support for:
-  - Image and video content (with autoplay for videos)
-  - Loading states with spinner
-  - Error handling with fallback
-  
-**Implementation Notes**:
-- Uses existing full-res loading logic from PhotoViewer.tsx
-- File handle management preserved for memory efficiency
-- Maintains aspect ratio with object-contain
-- Added rounded corners and shadow for polish
+2. **Implement Smart Auto-Advance in Gallery**
+   - Current: Auto-advance only after bucket assignment
+   - New: Add keyboard shortcut (e.g., `Space` or `N`) to skip to next unassigned photo
+   - Respect `hideAssigned` filter when advancing
+   - Add visual indicator showing "X of Y unassigned remaining"
 
-### S4-3: Build Photo Reel/Strip Component
-**Status**: ✅ completed  
-**Description**:
-- New component: PhotoStrip.tsx (187 lines)
-- Shows 7 thumbnail previews in horizontal scrollable container (configurable)
-- Features:
-  - Current photo highlighted with blue ring + scale effect
-  - Scroll buttons (chevrons) on left/right edges
-  - Smooth auto-scroll to keep current photo centered
-  - Click to select new photo
-  - Touch interactions considered for future (desktop-first)
-  
-**Implementation Notes**:
-- Standalone component in src/frontend/ui/PhotoStrip.tsx
-- Uses existing thumbnail data (ProjectPhoto.thumbnail)
-- Auto-scrolls current photo into view with smooth behavior
-- Custom scrollbar styling in tailwind.css
-- Badge overlays for bucket, favorite, video indicators
+3. **Add Bulk Assignment Shortcuts**
+   - In grid view: Select multiple → press bucket key → assigns all selected
+   - Add "Assign + Advance" keyboard combo (e.g., `Ctrl+A` assigns 'A' and moves to next)
+   - Add "Archive Selected" bulk action (X key on multi-select)
 
-### S4-4: Integrate Metadata into New Layout
-**Status**: ✅ completed  
-**Description**:
-- Display photo metadata in the main enlarged view
-- Shows:
-  - Current bucket assignment (color-coded badge with description)
-  - Day assignment (with custom labels if available)
-  - Favorite heart icon
-  - All positioned in bottom-right corner as overlay
-  
-**Implementation Notes**:
-- Non-intrusive overlay positioning
-- Color-coded bucket badges using MECE bucket colors
-- Conditional rendering (only shows when assigned)
-- Backdrop blur for readability over photos
+4. **Optimize Keyboard Navigation Flow**
+   - Add `J`/`K` keys for next/previous in grid (vim-style)
+   - Add `Shift+J`/`Shift+K` for next/previous unassigned
+   - Improve focus visibility in grid when using keyboard
+   - Add breadcrumb indicator showing current position in filtered list
 
-### S4-5: Implement New Gallery View Navigation
-**Status**: ✅ completed  
-**Description**:
-- Full keyboard navigation in new gallery view:
-  - Left/Right arrows: navigate through strip (and main photo)
-  - A, B, C, D, E, M, X: quick assign bucket (toggle if already assigned)
-  - F: toggle favorite
-  - Esc: exit to gallery thumbnails view
-  
-**Implementation Notes**:
-- Enhanced keyboard handler in PhotoViewer (handleKeyDown)
-- Supports all MECE bucket shortcuts
-- Quick action hints overlay (top-left) shows available shortcuts
-- Auto-advance on Shift+Click removed (simplified UX)
+5. **Add Performance Instrumentation**
+   - Track time-to-first-photo after project load
+   - Measure avg photos organized per minute
+   - Log performance metrics for large projects (>1000 photos) to console
+   - Add debug overlay showing filter/sort/render times
 
-### Changes Summary
-
-**New Files Created:**
-- ✅ `src/frontend/ui/PhotoStrip.tsx` (187 lines) - Photo reel component
-
-**Modified Files:**
-- ✅ `src/frontend/ui/PhotoViewer.tsx` - Completely refactored from side-panel to enlarged + strip layout
-- ✅ `src/styles/tailwind.css` - Added custom scrollbar styles
-
-**Key Features Delivered:**
-1. ✅ Enlarged photo display replaces side panel
-2. ✅ Interactive photo strip with 7 visible thumbnails
-3. ✅ Auto-scroll to keep current photo centered
-4. ✅ Metadata overlays (bucket, day, favorite)
-5. ✅ Full keyboard navigation (arrows + bucket shortcuts)
-6. ✅ Visual polish (shadows, rounded corners, transitions)
-7. ✅ Video support with autoplay
-8. ✅ Loading states and error handling
-9. ✅ Quick action hints overlay
-10. ✅ Badge indicators in strip (bucket, favorite, video)
-
-**Testing Status:**
-- ✅ Server compiles without errors
-- ⚠️  Manual testing required for full UX validation
-- ⚠️  Responsive design needs browser testing
-
----
-
-## Sprint 5: Gallery View List Refinement
-**Goal**: Improve gallery grid view when not in enlarged photo mode
-**Status**: ✅ COMPLETED (S5-3 deferred)
-
-### S5-1: Optimize Gallery Grid Layout
-**Status**: ✅ completed  
-**Description**:
-- Improve thumbnail grid in base gallery view
-- Better spacing and sizing
-- Clear visual feedback on hover
-- Ensure all photos fit properly without awkward gaps
-  
-**Implementation Notes**:
-- Changed grid from 4 columns to 5 columns for more compact layout
-- Changed aspect ratio from 4:3 to square for uniform appearance
-- Reduced gap from 4px to 3px for tighter spacing
-- Added shadow effects and hover scale transform
-- Improved hover overlay with better gradient and text visibility
-
-### S5-2: Add Photo Count Indicators
-**Status**: ✅ completed  
-**Description**:
-- Show video indicator or item count on thumbnails if needed
-- Visual distinction between photos and videos
-- Play icon overlay for videos
-  
-**Implementation Notes**:
-- Added play button icon in top-left corner for videos
-- Semi-transparent black background with backdrop blur
-- Clear visual indicator that distinguishes videos from photos
-- Added favorite-only badge for photos without bucket assignments
-
-### S5-3: Gallery View Filtering/Sorting Options
-**Status**: ⚠️  deferred  
-**Description**:
-- Add filtering options in gallery view:
-  - By day
-  - By bucket assignment
-  - By favorite status
-  - By media type (photo/video)
-  
-**Implementation Notes**:
-- Deferred to future sprint
-- "Hide Assigned" filter already exists
-- Additional filters can be added based on user feedback
-
----
-
-## Sprint 6: Inspect View Deprecation & Replacement
-**Goal**: Confirm new gallery view replaces inspect view completely
-**Status**: ✅ COMPLETED
-
-### S6-1: Test Gallery View Feature Parity with Inspect
-**Status**: ✅ completed  
-**Description**:
-- Verify that new gallery view provides all functionality of current Inspect view:
-  - Photo viewing ✅
-  - Bucket assignment ✅
-  - Favorite toggle ✅
-  - Day selection ✅
-  - Navigation through photos ✅
-  - Full-res image loading ✅
-  
-**Acceptance Criteria**:
-- ✅ All Inspect view features work in new gallery view
-- ✅ New layout is more intuitive than side panel
-- ✅ No functionality regression
-
-### S6-2: Remove Inspect View Mode
-**Status**: ✅ completed  
-**Description**:
-- Once S6-1 is verified, completely remove Inspect view option
-- Remove toggle between Inspect/Gallery
-- Remove InspectView component if it exists separately
-- Update help documentation
-  
-**Implementation Notes**:
-- ✅ Removed `viewMode` state entirely from PhotoOrganizer
-- ✅ Removed Gallery/Inspect toggle buttons from UI
-- ✅ Clicking a photo now directly opens PhotoViewer
-- ✅ Single, unified workflow: grid → click → PhotoViewer
-- No separate Inspect component needed - PhotoViewer handles everything
-
-### S6-3: Update Tests for Gallery-Only Workflow
-**Status**: ✅ completed  
-**Description**:
-- Update PhotoViewingModes tests to reflect gallery-only workflow
-- Remove Inspect-specific tests
-- Add tests for new gallery features (photo strip, etc.)
-  
-**Implementation Notes**:
-- ✅ Updated PhotoViewingModes tests: 6/6 passing
-- ✅ Changed from button clicks ("A Establishing", "X Archive") to keyboard shortcuts (key 'a', key 'x')
-- ✅ Changed from "clicking Inspect button" to "double-clicking photo"
-- ✅ Removed obsolete tests: view mode toggle, Shift+click auto-advance
-- ✅ Tests verify: double-click opens PhotoViewer, Esc closes, arrow navigation, bucket assignment, archiving auto-advance
-
-### Changes Summary
-
-**Modified Files:**
-- ✅ `src/frontend/PhotoOrganizer.tsx`:
-  - Removed `viewMode` state and Gallery/Inspect toggle
-  - Added `galleryViewPhoto` state for opening PhotoViewer on click
-  - Improved grid: 5 columns (was 4), square aspect ratio (was 4:3)
-  - Added video play icon indicator
-  - Added favorite-only badge for non-bucketed photos
-  - Enhanced hover effects and visual feedback
-  - Simplified photo click behavior - no more multi-select confusion
-
-**Key UX Improvements:**
-1. ✅ Eliminated confusing Gallery/Inspect mode toggle
-2. ✅ Single click opens photo in viewer - intuitive and consistent
-3. ✅ Better grid layout - more compact, uniform appearance
-4. ✅ Clear video indicators
-5. ✅ Improved visual hierarchy with shadows and hover effects
-6. ✅ Favorite badges now visible without bucket assignment
-
----
-
-## Sprint 8: Modularize `PhotoOrganizer.tsx`
-**Goal**: Refactor the massive `PhotoOrganizer.tsx` component (currently ~3500 lines) into smaller, reusable components and custom hooks to improve maintainability, readability, and performance.
-
-### S8-1: Extract State Management into Custom Hooks
-**Status**: ✅ completed  
-**Description**:
-- Create custom hooks to encapsulate related state and logic, reducing the number of `useState` and `useCallback` calls in the main component.
-- **`useProjectState`**: Manage `photos`, `projectName`, `projectRootPath`, `projectSettings`, and related logic for loading/saving projects.
-- **`usePhotoSelection`**: Manage `selectedPhotos`, `focusedPhoto`, `lastSelectedIndex`, and selection-related actions.
-- **`useHistory`**: Encapsulate `history` and `historyIndex` for undo/redo functionality.
-- **`useViewOptions`**: Manage UI state like `currentView`, `sidebarCollapsed`, `hideAssigned`, etc.
-
-**Implementation Notes**:
-- Create a new `src/frontend/hooks` directory.
-- Each hook will return state variables and memoized callbacks.
-- This will be the foundation for simplifying the main component body.
-
-### S8-2: Break Down UI into Child Components
-**Status**: ✅ completed  
-**Description**:
-- Decompose the monolithic JSX into smaller, single-purpose React components.
-- **`ProjectHeader.tsx`**: The main header containing the project name, dropdown menu, view toggles (Folders/Days), and action buttons.
-- **`LeftSidebar.tsx`**: The entire left panel, responsible for rendering the "Days" and "Folders" lists.
-- **`PhotoGrid.tsx`**: The main content area that displays the grid of photo thumbnails.
-- **`RightSidebar.tsx`**: The right-side panel that shows MECE bucket controls and metadata for selected photos.
-
-**Implementation Notes**:
-- Create a new `src/frontend/components` directory for these new components.
-- Pass necessary state and callbacks from `PhotoOrganizer.tsx` as props.
-- This will make the main component's `return` statement much cleaner.
-
-### S8-3: Isolate Side Effects and Data Fetching
-**Status**: ✅ completed  
-**Description**:
-- Move side effects (like file system access, IndexedDB operations, and `localStorage` reads/writes) from `useEffect` blocks in `PhotoOrganizer.tsx` into the new custom hooks.
-- For example, project loading logic should live within the `useProjectState` hook.
-
-**Implementation Notes**:
-- This will centralize data fetching and persistence logic, making it easier to debug and manage.
-- The main component will become more declarative.
-
-### S8-4: Refactor PhotoOrganizer.tsx to be a Layout Container
-**Status**: ✅ completed  
-**Description**:
-- After creating hooks and child components, refactor `PhotoOrganizer.tsx` to be a top-level container.
-- Its primary responsibilities will be:
-  1. Calling the custom hooks to get state and functions.
-  2. Assembling the child components in the main layout.
-  3. Passing props down to the new components.
+**Implementation Files**:
+- `hooks/useKeyboardShortcuts.ts` - Add new shortcuts
+- `hooks/useViewOptions.ts` - Add skip mode state/toggle
+- `components/PhotoGrid.tsx` - Bulk actions, keyboard nav
+- `ui/PhotoViewer.tsx` - Smart auto-advance logic
+- `components/ProjectHeader.tsx` - Status indicators
 
 **Acceptance Criteria**:
-- `PhotoOrganizer.tsx` should be significantly smaller (e.g., under 500 lines).
-- No regressions in functionality.
-- Clear separation of concerns between state management, UI components, and side effects.
+- Can review 100 photos with <50 keystrokes (assign + advance)
+- Skip assigned mode works in all views
+- Performance metrics show <2s load time for 1000 photos
+- All new shortcuts documented in HelpModal
 
 ---
 
-## Sprint 9: Frontend Architecture & Best Practices
-**Goal**: Improve `src/` folder structure, align with common Vite/React conventions (`main.tsx` + `App.tsx`), and make the codebase easier to learn and maintain.
-
-### S9-1: Adopt a Standard React Entry Pattern (`main.tsx` + `App.tsx`)
-**Status**: ✅ completed  
+### S9-2: Define and Centralize Photo Ordering Rules
+**Status**: completed  
+**Priority**: CRITICAL
 **Description**:
-- Confirm current entry file(s) and how the app bootstraps.
-- If not already present, introduce:
-  - `src/main.tsx` as the app entry point (React root + providers)
-  - `src/App.tsx` as the top-level UI composition component
-- Keep behavior identical; focus on structure and clarity.
+Establish single source of truth for photo ordering to eliminate inconsistencies across views.
 
-**Implementation Notes**:
-- ✅ Created `src/main.tsx` as the new application entry point
-- ✅ Created `src/App.tsx` as the top-level UI composition component
-- ✅ Updated `index.html` to point to `/src/main.tsx` instead of `/src/frontend/index.tsx`
-- ✅ Removed old `src/frontend/index.tsx` file
-- ✅ Added comprehensive JSDoc comments explaining purpose and future enhancements
-- ✅ Build succeeds with no regressions
+**Current State**:
+- `PhotoGrid.tsx` has `stableSortPhotos()`
+- `projectService.ts` has simple timestamp sort
+- Each view independently handles grouping/sorting
+- No guaranteed ordering for photos with identical timestamps
 
-### S9-2: Define and Apply a Clear `src/` Folder Architecture
-**Status**: ✅ completed  
-**Description**:
-- Propose a lightweight structure that matches the current project size and skill level:
-  - `src/app` (App shell, providers, routing if added later)
-  - `src/features/photo-organizer` (feature code grouped together)
-  - `src/components` (shared, feature-agnostic UI)
-  - `src/hooks`, `src/lib`, `src/types`, `src/styles`
-- Favor "feature-first" organization for large domains (like the photo workflow).
+**Proposed Ordering Spec**:
+```typescript
+// Primary sort: timestamp (chronological)
+// Tie-breaker 1: filePath (folder structure)
+// Tie-breaker 2: originalName (alphabetical)
+// Tie-breaker 3: id (stable unique identifier)
+// View-specific: grouping by subfolder, bucket, or day (preserves above order within groups)
+```
 
-**Implementation Notes**:
-- ✅ Created new folder structure:
-  - `src/app/` (empty, ready for future providers/routing)
-  - `src/features/photo-organizer/` (all photo organizer code)
-  - `src/features/photo-organizer/` (all photo organizer code)
-  - `src/components/` (shared UI components)
-  - `src/hooks/` (shared hooks)
-  - `src/lib/` (shared utilities and services)
-  - `src/types/` (shared TypeScript types)
-- ✅ Moved all `src/frontend/` content to `src/features/photo-organizer/`
-- ✅ Moved `src/services/` to `src/lib/` (e.g., `folderDetectionService.ts`)
-- ✅ Moved `src/utils/` to `src/lib/` (e.g., `versionManager.ts`)
-- ✅ Updated all import paths throughout the codebase
-- ✅ Removed old empty directories (`src/frontend/`, `src/services/`, `src/utils/`)
-- ✅ Created comprehensive `src/features/photo-organizer/README.md` explaining feature structure
-- ✅ All tests pass (18 passed, 28 skipped)
-- ✅ Build succeeds with no errors
+**Tasks**:
+1. **Create Central Ordering Utility**
+   - New file: `utils/photoOrdering.ts`
+   - Export `sortPhotos(photos: ProjectPhoto[], options?: SortOptions): ProjectPhoto[]`
+   - Support options: `groupBy: 'subfolder' | 'bucket' | 'day' | null`, `separateVideos: boolean`
+   - Return stable-sorted array + index map for O(1) lookups
 
-### S9-3: Establish Best-Practice Guardrails (Linting, Boundaries, Naming)
-**Status**: ✅ completed  
-**Description**:
-- Tighten quality and consistency without over-complicating tooling:
-  - Ensure ESLint rules reflect current patterns
-  - Add a few architectural "guardrails" (e.g., no deep relative imports across features)
-  - Standardize file naming and component export style
+2. **Refactor All Ordering Call Sites**
+   - Replace `stableSortPhotos` in `PhotoGrid.tsx`
+   - Update `useFolderModel.filteredPhotos` to use central utility
+   - Ensure `PhotoViewer` navigation uses same ordering
+   - Update `PhotoStrip` to respect ordering
 
-**Implementation Notes**:
-- ✅ Added path aliases to `tsconfig.json`:
-  - `@/*` → `src/*`
-  - `@/features/*` → `src/features/*`
-  - `@/components/*` → `src/components/*`
-  - `@/hooks/*` → `src/hooks/*`
-  - `@/lib/*` → `src/lib/*`
-  - `@/types/*` → `src/types/*`
-  - `@/styles/*` → `src/styles/*`
-- ✅ Added matching path aliases to `vite.config.ts` using `resolve.alias`
-- ✅ Created comprehensive `docs/FRONTEND_ARCHITECTURE.md` documenting:
-  - Folder structure and organization principles
-  - Feature-first architecture pattern
-  - Path alias usage and benefits
-  - File naming conventions
-  - Best practices (DOs and DON'Ts)
-  - Testing approach
-  - Development workflow
-  - Learning resources for newcomers
-- ✅ Build succeeds with path aliases configured
+3. **Add Ordering Tests**
+   - Test tie-breaking behavior (same timestamp)
+   - Test video/photo splitting preserves chronological order
+   - Test subfolder grouping maintains timestamp order within groups
+   - Test that grid, viewer, and strip use identical ordering
 
-### S9-4: Learning-Focused Cleanup Pass (Beginner-Friendly)
-**Status**: ✅ completed  
-**Description**:
-- Make the structure easier to understand for a novice maintainer:
-  - Add a short "How the frontend is organized" section
-  - Add brief comments where intent is non-obvious
-  - Prefer explicit, readable patterns over clever abstractions
+4. **Document Ordering Rules**
+   - Add section to `docs/ARCHITECTURE.md` explaining ordering logic
+   - Add JSDoc comments to ordering utility
+   - Update help modal to explain ordering behavior
+
+**Implementation Files**:
+- `utils/photoOrdering.ts` (NEW) - Central ordering logic
+- `hooks/useFolderModel.ts` - Use new utility for filteredPhotos
+- `components/PhotoGrid.tsx` - Replace stableSortPhotos
+- `ui/PhotoViewer.tsx` - Ensure nav uses central ordering
+- `__tests__/photoOrdering.test.ts` (NEW) - Comprehensive tests
 
 **Acceptance Criteria**:
-- A newcomer can answer:
-  1. "Where does the app start?"
-  2. "Where does the photo organizer feature live?"
-  3. "Where do shared UI pieces go?"
-- App still builds and core workflows still function.
-
-**Implementation Notes**:
-- ✅ Updated `README.md` with new project structure section
-- ✅ Added link to `docs/FRONTEND_ARCHITECTURE.md` in README documentation section
-- ✅ Enhanced JSDoc comments in `src/main.tsx` explaining:
-  - Application bootstrap process
-  - React StrictMode purpose and benefits
-  - Link to React documentation
-- ✅ Enhanced JSDoc comments in `src/App.tsx` explaining:
-  - Top-level composition purpose
-  - Future enhancement possibilities (routing, providers)
-  - Architecture documentation reference
-- ✅ Created `src/features/photo-organizer/README.md` with:
-  - Feature overview and structure
-  - MECE story categories explanation
-  - Day-based organization logic
-  - Export script workflow
-  - State management approach
-  - Data flow diagram
-  - Testing information
-  - FAQ for common questions
-- ✅ All acceptance criteria met:
-  1. "Where does the app start?" → Clearly documented in `src/main.tsx`
-  2. "Where does the photo organizer feature live?" → `src/features/photo-organizer/`
-  3. "Where do shared UI pieces go?" → `src/components/` (currently empty, ready for future use)
-- ✅ Build succeeds (1259 modules transformed)
-- ✅ All tests pass (18 passed, 28 skipped)
+- All views show identical ordering for same photo set
+- Navigation in viewer never skips photos
+- Ordering deterministic and stable across page refreshes
+- Tests cover all tie-breaking scenarios
+- Zero ordering regressions in existing functionality
 
 ---
+
+### S9-3: Scale-Oriented UI Performance Improvements
+**Status**: completed  
+**Priority**: MEDIUM
+**Description**:
+Improve performance for large projects (1k-10k photos) through virtualization and lazy loading.
+
+**Current Performance Issues**:
+- PhotoGrid renders all photos (e.g., 5000 DOM nodes for 1000 photos)
+- Thumbnail generation blocks UI during initial load
+- No progressive loading/rendering
+- Re-renders entire grid on any state change
+
+**Tasks**:
+1. **Implement Virtual Scrolling for PhotoGrid**
+   - Use `react-window` or `react-virtualized` for grid
+   - Render only visible photos + buffer
+   - Maintain scroll position during updates
+   - Ensure selection/keyboard nav works with virtualization
+
+2. **Optimize Thumbnail Loading Strategy**
+   - Make thumbnail generation non-blocking (already uses workers)
+   - Add progressive loading: load thumbnails in viewport first
+   - Implement thumbnail caching in IndexedDB
+   - Show placeholder/skeleton while loading
+
+3. **Memoize Expensive Computations**
+   - Audit all `useMemo` dependencies in hooks
+   - Ensure `filteredPhotos` only recalculates when necessary
+   - Cache ordering index maps
+   - Prevent unnecessary re-sorts
+
+4. **Add Performance Guardrails**
+   - Debounce rapid keyboard navigation (prevent jank)
+   - Throttle scroll events
+   - Batch state updates where possible
+   - Add loading states for expensive operations
+
+5. **Measure and Monitor**
+   - Add React DevTools profiler checkpoints
+   - Track render count per component
+   - Measure time to interactive
+   - Log warnings for large photo sets (>5000)
+
+**Implementation Files**:
+- `components/PhotoGrid.tsx` - Virtual scrolling
+- `workers/imageResizer.worker.ts` - Progressive loading
+- `hooks/useFolderModel.ts` - Memoization improvements
+- `hooks/useKeyboardShortcuts.ts` - Debouncing
+
+**Acceptance Criteria**:
+- Smooth 60fps scrolling with 5000+ photos
+- Initial load <3s for 1000 photos
+- No jank during rapid keyboard navigation
+- Memory usage stays reasonable (no leaks)
+- Virtual scrolling maintains selection state
+
+---
+
+### S9-4: Enhanced Filtering and View Options (BONUS)
+**Status**: proposed  
+**Priority**: LOW
+**Description**:
+Add advanced filtering options for power users.
+
+**Potential Features**:
+- Filter by bucket (show only bucket A photos)
+- Filter by date range
+- Filter by file type (photos only, videos only)
+- Combined filters (day + bucket + unassigned)
+- Save filter presets
+
+**Implementation**: TBD after S9-1, S9-2, S9-3 complete
+
+---
+
+## Sprint 9: Recommended Execution Order
+
+### Phase 1: Foundation (S9-2 - Ordering)
+**Why First**: All other work depends on consistent ordering. Fix this before adding features.
+
+1. Create `utils/photoOrdering.ts` with comprehensive ordering logic
+2. Write tests for ordering edge cases
+3. Refactor existing components to use centralized ordering
+4. Verify no regressions in existing workflows
+
+**Estimated Effort**: 4-6 hours  
+**Files**: 3 new, 5 modified  
+**Risk**: Medium (touching core rendering logic)
+
+### Phase 2: Workflow Speed (S9-1 - Quick Wins)
+**Why Second**: Build on stable ordering to add productivity features.
+
+**Quick Wins (2-3 hours)**:
+1. Add skip assigned toggle keyboard shortcut
+2. Add bulk assignment for multi-select
+3. Add J/K navigation in grid
+
+**Medium Complexity (3-4 hours)**:
+1. Implement smart auto-advance in viewer
+2. Add "skip to next unassigned" navigation
+3. Add visual indicators for workflow state
+
+**Instrumentation (1-2 hours)**:
+1. Add performance logging
+2. Create debug overlay
+
+**Estimated Effort**: 6-9 hours  
+**Files**: 6 modified  
+**Risk**: Low (mostly additive features)
+
+### Phase 3: Performance (S9-3 - Optimization)
+**Why Last**: Optimize after features are stable. Measure before/after.
+
+**Assessment (1 hour)**:
+1. Profile current performance with 1000+ photo project
+2. Identify actual bottlenecks (don't guess)
+
+**Virtual Scrolling (4-6 hours)**:
+1. Integrate react-window/virtualized
+2. Test with large datasets
+3. Handle edge cases (selection, keyboard nav)
+
+**Loading Optimization (2-3 hours)**:
+1. Progressive thumbnail loading
+2. IndexedDB caching
+3. Lazy rendering
+
+**Estimated Effort**: 7-10 hours  
+**Files**: 4 modified, 1 new  
+**Risk**: Medium-High (virtual scrolling can be tricky)
+
+### Total Estimated Effort: 17-25 hours
+
+---
+
+## Implementation Checklist
+
+### Before Starting
+- [ ] Review current workflow end-to-end with test project
+- [ ] Create branch: `feature/sprint-9-workflow-optimization`
+- [ ] Set up test project with 500+ photos
+- [ ] Document current performance baseline
+
+### During Development
+- [ ] Run tests after each sub-task
+- [ ] Test with real project data (not just test fixtures)
+- [ ] Document any breaking changes
+- [ ] Update HelpModal for new keyboard shortcuts
+- [ ] Keep PhotoOrganizer.tsx under 700 lines
+
+### Before Merging
+- [ ] All tests pass (unit + integration)
+- [ ] Manual testing on 1000+ photo project
+- [ ] No console errors or warnings
+- [ ] Performance improved (measurable)
+- [ ] Documentation updated (README, ARCHITECTURE)
+- [ ] Keyboard shortcuts documented
+- [ ] No regressions in existing features
+
+---
+
+## Dependency Notes
+
+Sprint 7 → (prerequisite) → Sprint 9 (Workflow Optimization)
+
+---
+
+## Success Metrics
+
+- [ ] "Ingest to Day" provides clear user feedback
+- [ ] UI footprint reduced by ~120px+ (stepper + undo/redo removed)
+- [ ] New gallery view launches with photo strip + enlarged display
+- [ ] Zero functionality loss vs. old Inspect view
+- [ ] All keyboard shortcuts work intuitively
+- [ ] Tests pass with 80%+ coverage on new components
+- [ ] Accessibility audit passes (WCAG AA)
+- [ ] Documentation fully updated
+
+---
+
+## Open Questions
+
+1. Should photo strip be customizable (number of visible thumbnails)?
+2. Should we retain keyboard shortcuts for Inspect mode or deprecate entirely?
+3. Should "Remove assignment" for days have a confirmation dialog?
+4. What should happen if user clicks a photo in the strip while main photo is loading?
+5. Should gallery support multi-select or remain single-photo-focused?
+
+---
+
+## Notes for Developers
+
+- Main file: `src/frontend/PhotoOrganizer.tsx` (3519 lines)
+- Key components:
+  - `PhotoViewer.tsx` - Current inspect component (320 lines)
+  - `StepIndicator.tsx` - Progress stepper (can be removed entirely)
+  - Test file: `src/frontend/__tests__/PhotoViewingModes.test.tsx`
+  
+- Current state: Folders-first view → Inspect mode for individual photo review
+- Future state: Folders-first view → Gallery view with integrated enlarged photo + strip
+
+---
+
+Last Updated: 2025-01-26  
+Target Release: TBD
