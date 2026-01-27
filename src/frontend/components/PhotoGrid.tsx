@@ -283,7 +283,9 @@ export default function PhotoGrid({
             if (p.day !== selectedDay) return false;
             return getDerivedSubfolderGroup(p, selectedDay) === group.label;
           });
-          const hasExplicitOverride = derivedGroupPhotos.some(p => p.subfolderOverride !== undefined);
+          const hasExplicitOverride = derivedGroupPhotos.some(
+            p => p.subfolderOverride !== undefined,
+          );
           const isDayRootGroup = group.label === 'Day Root';
           const isMeceGroup = isMeceBucketLabel(group.label);
           const showIngestActions = !isDayRootGroup && !isMeceGroup;

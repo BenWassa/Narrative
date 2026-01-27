@@ -44,7 +44,6 @@ const isMeceBucketLabel = (label: string) => {
   return MECE_BUCKET_KEYS.has(firstToken.toUpperCase());
 };
 
-
 export default function PhotoOrganizer() {
   const prevThumbnailsRef = useRef<string[]>([]);
   const toastTimerRef = useRef<number | null>(null);
@@ -145,14 +144,7 @@ export default function PhotoOrganizer() {
     prevThumbnailsRef,
   });
 
-  const {
-    setHistory,
-    setHistoryIndex,
-    persistState,
-    saveToHistory,
-    undo,
-    redo,
-  } = useHistory({
+  const { setHistory, setHistoryIndex, persistState, saveToHistory, undo, redo } = useHistory({
     photos,
     setPhotos,
     projectRootPath,
@@ -1266,7 +1258,9 @@ export default function PhotoOrganizer() {
                 setPhotos(prev =>
                   prev.map(p => (p.id === photoId ? { ...p, favorite: !p.favorite } : p)),
                 );
-                persistState(photos.map(p => (p.id === photoId ? { ...p, favorite: !p.favorite } : p)));
+                persistState(
+                  photos.map(p => (p.id === photoId ? { ...p, favorite: !p.favorite } : p)),
+                );
               }}
               onAssignBucket={(photoId, bucket) => assignBucket(photoId, bucket)}
               onAssignDay={(photoId, day) => {

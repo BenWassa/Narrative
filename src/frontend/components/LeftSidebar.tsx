@@ -117,9 +117,7 @@ export default function LeftSidebar({
                   }
                 }}
                 className={`w-full text-left px-3 py-2 rounded text-sm transition-colors ${
-                  selectedDay === day
-                    ? 'bg-blue-600 text-white'
-                    : 'hover:bg-gray-800 text-gray-300'
+                  selectedDay === day ? 'bg-blue-600 text-white' : 'hover:bg-gray-800 text-gray-300'
                 }`}
               >
                 <div className="flex items-center justify-between">
@@ -288,8 +286,15 @@ export default function LeftSidebar({
 
             rootGroups.forEach(([folderName, folderPhotos]) => {
               const cat = categorizedList.find(f => f.folder === folderName);
-              if (cat && cat.isDayLike && cat.dayNumber !== null && !daysByNumber.has(cat.dayNumber)) {
-                const photosForDay = folderPhotos.filter(p => p.day === cat.dayNumber || p.day === null);
+              if (
+                cat &&
+                cat.isDayLike &&
+                cat.dayNumber !== null &&
+                !daysByNumber.has(cat.dayNumber)
+              ) {
+                const photosForDay = folderPhotos.filter(
+                  p => p.day === cat.dayNumber || p.day === null,
+                );
                 daysByNumber.set(cat.dayNumber, {
                   dayNumber: cat.dayNumber,
                   photos: photosForDay,
@@ -424,7 +429,8 @@ export default function LeftSidebar({
           {(() => {
             const { selected, nonDay } = sortFolders(displayRootGroups);
             const daysContainer = projectSettings?.folderStructure?.daysFolder;
-            const nestedOtherFolders: Array<{ key: string; label: string; items: ProjectPhoto[] }> = [];
+            const nestedOtherFolders: Array<{ key: string; label: string; items: ProjectPhoto[] }> =
+              [];
 
             if (daysContainer) {
               const normalizedDaysContainer = normalizePath(daysContainer);
@@ -483,7 +489,8 @@ export default function LeftSidebar({
                       <div className="flex gap-2" />
                     </div>
                     <div className="text-xs opacity-70">
-                      {f.items.length} photos ({f.items.filter(p => p.day === null).length} unsorted)
+                      {f.items.length} photos ({f.items.filter(p => p.day === null).length}{' '}
+                      unsorted)
                     </div>
                   </div>
                 ))}

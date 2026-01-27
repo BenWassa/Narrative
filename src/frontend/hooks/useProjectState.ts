@@ -194,7 +194,10 @@ export function useProjectState({
       for (const [key, mapping] of folderByName.entries()) {
         if (!mapping || mapping.skip || mapping.detectedDay == null) continue;
         const normalizedKey = key.split(/[\\/]/).join('/');
-        if (filePathNormalized === normalizedKey || filePathNormalized.startsWith(`${normalizedKey}/`)) {
+        if (
+          filePathNormalized === normalizedKey ||
+          filePathNormalized.startsWith(`${normalizedKey}/`)
+        ) {
           return { ...p, day: mapping.detectedDay };
         }
       }
@@ -227,7 +230,10 @@ export function useProjectState({
 
       for (const [key, mappedDay] of containerDayMap.entries()) {
         const normalizedKey = key.split(/[\\/]/).join('/');
-        if (filePathNormalized === normalizedKey || filePathNormalized.startsWith(`${normalizedKey}/`)) {
+        if (
+          filePathNormalized === normalizedKey ||
+          filePathNormalized.startsWith(`${normalizedKey}/`)
+        ) {
           return { ...p, day: mappedDay };
         }
       }

@@ -64,13 +64,7 @@ export function usePhotoSelection({
         setCoverSelectionMode(false);
       }
     },
-    [
-      coverSelectionMode,
-      filteredPhotos,
-      selectedPhotos,
-      setCoverForPhotoId,
-      setCoverSelectionMode,
-    ],
+    [coverSelectionMode, filteredPhotos, selectedPhotos, setCoverForPhotoId, setCoverSelectionMode],
   );
 
   return {
