@@ -1,10 +1,12 @@
 import { Calendar, FolderOpen, Heart, Loader } from 'lucide-react';
+import { useRef } from 'react';
 import { PhotoViewer } from '../ui/PhotoViewer';
 import type { ProjectPhoto } from '../services/projectService';
 import { navigatePhotos, sortPhotos } from '../utils/photoOrdering';
 import VirtualPhotoGrid from './VirtualPhotoGrid';
 
 const VIRTUAL_GRID_THRESHOLD = 600;
+const DOUBLE_CLICK_DELAY = 300; // milliseconds to wait for double-click detection
 
 interface Bucket {
   key: string;
@@ -70,6 +72,25 @@ export default function PhotoGrid({
   isVideoPhoto,
   isMeceBucketLabel,
 }: PhotoGridProps) {
+  const clickTimerRef = useRef<Record<string, NodeJS.Timeout>>({});
+
+  const handlePhotoClick = (photoId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    
+    // If we already have a pending click timer, this is the double-click
+    if (clickTimerRef.current[photoId]) {
+      clearTimeout(clickTimerRef.current[photoId]);
+      delete clickTimerRef.current[photoId];
+      onOpenViewer(photoId);
+    } else {
+      // Single click - set timer to select after delay
+      clickTimerRef.current[photoId] = setTimeout(() => {
+        delete clickTimerRef.current[photoId];
+        onSelectPhoto(photoId);
+      }, DOUBLE_CLICK_DELAY);
+    }
+  };
+
   const renderPhotoGrid = (
     photosList: ProjectPhoto[],
     orderedList: ProjectPhoto[],
@@ -79,14 +100,7 @@ export default function PhotoGrid({
       {photosList.map(photo => (
         <div
           key={photo.id}
-          onClick={e => {
-            e.stopPropagation();
-            onSelectPhoto(photo.id);
-          }}
-          onDoubleClick={e => {
-            e.stopPropagation();
-            onOpenViewer(photo.id);
-          }}
+          onClick={e => handlePhotoClick(photo.id, e)}
           data-testid={`photo-${photo.id}`}
           className={`relative group cursor-pointer rounded-lg overflow-hidden transition-all shadow-lg hover:shadow-xl ${
             photo.bucket || photo.archived ? 'opacity-70 saturate-75' : 'hover:scale-105'
@@ -236,8 +250,17 @@ export default function PhotoGrid({
           onToggleFavorite={photoId => onToggleFavorite(photoId)}
           onAssignBucket={(photoId, bucket) => {
             onAssignBucket(photoId, bucket);
-            // Fast workflow: after assigning a bucket, advance to the next item
+            // Fast workflow: after assigning a bucket, advance to next unassigned
             if (bucket) {
+              const unassignedFilter = (p: ProjectPhoto) => !p.bucket && !p.archived;
+              const nextUnassigned = navigatePhotos(photoId, 'next', orderingResult, unassignedFilter);
+              
+              if (nextUnassigned) {
+                onNavigateViewer(nextUnassigned.id);
+                return;
+              }
+              
+              // No more unassigned, try regular next/prev
               const next = navigatePhotos(photoId, 'next', orderingResult);
               if (next) {
                 onNavigateViewer(next.id);

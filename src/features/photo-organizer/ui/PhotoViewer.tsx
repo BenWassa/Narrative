@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { X, Heart, Loader, ChevronUp, ChevronDown } from 'lucide-react';
+import { X, Heart, Loader, ChevronUp, ChevronDown, ChevronLeft, ChevronRight } from 'lucide-react';
 import { ProjectPhoto } from '../services/projectService';
 import { PhotoStrip } from './PhotoStrip';
 import { getPhotoIndex, navigatePhotos, type OrderingResult } from '../utils/photoOrdering';
@@ -57,12 +57,12 @@ export const PhotoViewer: React.FC<PhotoViewerProps> = ({
     }
   }, [orderingResult.indexMap, photo.id, currentIndex]);
 
-  const currentPhoto = filteredPhotos[currentIndex] || photo;
+  const currentPhoto = orderingResult.photos[currentIndex] || photo;
   const unassignedFilter = useCallback(
     (candidate: ProjectPhoto) => !candidate.bucket && !candidate.archived,
     [],
   );
-  const unassignedCount = filteredPhotos.filter(unassignedFilter).length;
+  const unassignedCount = orderingResult.photos.filter(unassignedFilter).length;
   const remainingUnassigned = unassignedCount;
 
   // Load full resolution image/video
@@ -123,12 +123,12 @@ export const PhotoViewer: React.FC<PhotoViewerProps> = ({
   // Preload next/prev images to prevent blinking on navigation
   useEffect(() => {
     const preloadImages = async () => {
-      const nextIndex = Math.min(currentIndex + 1, filteredPhotos.length - 1);
-      const prevIndex = Math.max(currentIndex - 1, 0);
-      const indicesToPreload = [nextIndex, prevIndex].filter(i => i !== currentIndex);
+    const nextIndex = Math.min(currentIndex + 1, orderingResult.photos.length - 1);
+    const prevIndex = Math.max(currentIndex - 1, 0);
+    const indicesToPreload = [nextIndex, prevIndex].filter(index => index !== currentIndex);
 
-      for (const index of indicesToPreload) {
-        const photoToPreload = filteredPhotos[index];
+    for (const index of indicesToPreload) {
+      const photoToPreload = orderingResult.photos[index];
         if (photoToPreload?.fileHandle) {
           try {
             // Preload the file to cache it
@@ -172,6 +172,10 @@ export const PhotoViewer: React.FC<PhotoViewerProps> = ({
 
   const handleKeyDown = useCallback(
     (e: KeyboardEvent) => {
+      // Always get the current photo fresh to avoid stale closures
+      const current = orderingResult.photos[currentIndex];
+      if (!current) return;
+
       if (e.key === 'Escape') {
         e.preventDefault();
         onClose();
@@ -184,7 +188,7 @@ export const PhotoViewer: React.FC<PhotoViewerProps> = ({
       } else if (e.key === ' ' || e.key.toLowerCase() === 'n') {
         e.preventDefault();
         const nextUnassigned = navigatePhotos(
-          currentPhoto.id,
+          current.id,
           'next',
           orderingResult,
           unassignedFilter,
@@ -200,10 +204,10 @@ export const PhotoViewer: React.FC<PhotoViewerProps> = ({
         }
       } else if (e.key === 'f' || e.key === 'F') {
         e.preventDefault();
-        onToggleFavorite(currentPhoto.id);
+        onToggleFavorite(current.id);
       } else if (e.key.toLowerCase() === 'x') {
         e.preventDefault();
-        onAssignBucket(currentPhoto.id, 'X');
+        onAssignBucket(current.id, 'X');
       } else {
         // Check for bucket assignment shortcuts (A, B, C, D, E, M)
         const key = e.key.toUpperCase();
@@ -211,19 +215,32 @@ export const PhotoViewer: React.FC<PhotoViewerProps> = ({
         if (validBuckets.includes(key)) {
           e.preventDefault();
           // Toggle if already assigned, otherwise assign
-          const newBucket = currentPhoto.bucket === key ? '' : key;
-          onAssignBucket(currentPhoto.id, newBucket);
+          const newBucket = current.bucket === key ? '' : key;
+          onAssignBucket(current.id, newBucket);
+          
+          // Auto-advance to next unassigned photo after assignment
+          if (newBucket) {
+            const nextUnassigned = navigatePhotos(
+              current.id,
+              'next',
+              orderingResult,
+              unassignedFilter,
+            );
+            
+            if (nextUnassigned) {
+              onNavigate(nextUnassigned.id);
+            }
+          }
         }
       }
     },
     [
-      currentPhoto.id,
-      currentPhoto.bucket,
+      currentIndex,
+      orderingResult,
       onClose,
       handleNavigate,
       onToggleFavorite,
       onAssignBucket,
-      orderingResult,
       remainingUnassigned,
       unassignedFilter,
       onNavigate,
@@ -243,19 +260,24 @@ export const PhotoViewer: React.FC<PhotoViewerProps> = ({
     <div className="fixed inset-0 bg-black z-40 flex flex-col">
       {/* Header */}
       <div className="flex items-center justify-between px-6 py-3 border-b border-gray-800 bg-gray-900/95 backdrop-blur">
+        <h2 className="text-lg font-semibold text-gray-100">Gallery View</h2>
         <div className="flex items-center gap-4">
-          <h2 className="text-lg font-semibold text-gray-100">Gallery View</h2>
-          <div className="text-sm text-gray-400">
-            {currentIndex + 1} of {filteredPhotos.length}
+          <div className="text-sm text-gray-400 text-right">
+            <div>
+              {currentIndex + 1} / {orderingResult.photos.length}
+            </div>
+            {unassignedCount > 0 && (
+              <div className="text-xs text-blue-300">({unassignedCount} unassigned)</div>
+            )}
           </div>
+          <button
+            onClick={onClose}
+            className="p-2 hover:bg-gray-800 rounded-lg transition-colors"
+            aria-label="Close gallery view"
+          >
+            <X className="w-5 h-5" />
+          </button>
         </div>
-        <button
-          onClick={onClose}
-          className="p-2 hover:bg-gray-800 rounded-lg transition-colors"
-          aria-label="Close gallery view"
-        >
-          <X className="w-5 h-5" />
-        </button>
       </div>
 
       {/* Main Content - Enlarged Photo */}
@@ -297,16 +319,6 @@ export const PhotoViewer: React.FC<PhotoViewerProps> = ({
             )}
           </div>
         )}
-
-        {/* Position & Unassigned Counter */}
-        <div className="absolute top-4 right-4 bg-black/70 px-3 py-1 rounded-lg shadow-lg">
-          <span className="text-sm text-gray-300">
-            {currentIndex + 1} / {filteredPhotos.length}
-          </span>
-          {unassignedCount > 0 && (
-            <span className="ml-2 text-xs text-blue-300">({unassignedCount} unassigned)</span>
-          )}
-        </div>
 
         {/* Metadata Overlay */}
         <div className="absolute bottom-4 right-4 flex flex-col items-end gap-2">
@@ -377,28 +389,59 @@ export const PhotoViewer: React.FC<PhotoViewerProps> = ({
           )}
         </div>
 
-        {/* MECE Bucket Reference Panel */}
-        <div className="absolute top-20 right-4 bg-gray-900/80 backdrop-blur rounded-lg shadow-lg overflow-hidden flex flex-col max-w-xs">
+        {/* MECE Bucket Reference Panel - Collapsible from Right */}
+        <div 
+          className={`absolute top-4 bottom-4 right-0 bg-gray-900/90 backdrop-blur rounded-l-lg shadow-2xl overflow-hidden flex transition-all duration-300 ${
+            showBuckets ? 'w-72' : 'w-10'
+          }`}
+        >
+          {/* Toggle Button */}
           <button
             onClick={() => setShowBuckets(!showBuckets)}
-            className="flex items-center justify-between px-3 py-2 text-xs text-gray-300 hover:bg-gray-800 transition-colors border-b border-gray-700"
+            className="flex-shrink-0 w-10 flex items-center justify-center text-gray-300 hover:bg-gray-800 transition-colors border-r border-gray-700"
+            title={showBuckets ? 'Hide categories' : 'Show categories'}
           >
-            <span className="font-semibold">MECE Categories</span>
-            {showBuckets ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-          </button>
-          {showBuckets && (
-            <div className="px-3 py-3 space-y-2 max-h-80 overflow-y-auto">
-              {buckets.map(bucket => (
-                <div
-                  key={bucket.key}
-                  className={`${bucket.color} text-white px-3 py-2 rounded text-xs`}
-                >
-                  <div className="font-bold text-sm">
-                    {bucket.key} - {bucket.label}
-                  </div>
-                  <div className="opacity-90 text-[11px] mt-0.5">{bucket.description}</div>
+            <div className="flex flex-col items-center gap-1">
+              {showBuckets ? (
+                <ChevronRight className="w-5 h-5" />
+              ) : (
+                <ChevronLeft className="w-5 h-5" />
+              )}
+              {!showBuckets && (
+                <div className="transform -rotate-90 text-[10px] font-semibold whitespace-nowrap mt-2">
+                  MECE
                 </div>
-              ))}
+              )}
+            </div>
+          </button>
+          
+          {/* Panel Content */}
+          {showBuckets && (
+            <div className="flex-1 flex flex-col overflow-hidden">
+              <div className="px-4 py-3 border-b border-gray-700">
+                <h3 className="text-sm font-semibold text-gray-200">MECE Categories</h3>
+                <p className="text-[10px] text-gray-400 mt-0.5">Press key to assign bucket</p>
+              </div>
+              <div className="flex-1 px-3 py-3 space-y-2.5 overflow-y-auto">
+                {buckets.map(bucket => (
+                  <div
+                    key={bucket.key}
+                    className={`${bucket.color} text-white px-3 py-2.5 rounded-lg text-xs shadow-md hover:shadow-lg transition-shadow cursor-pointer`}
+                    onClick={() => {
+                      const newBucket = currentPhoto.bucket === bucket.key ? '' : bucket.key;
+                      onAssignBucket(currentPhoto.id, newBucket);
+                    }}
+                  >
+                    <div className="font-bold text-sm flex items-center justify-between">
+                      <span>{bucket.key} - {bucket.label}</span>
+                      {currentPhoto.bucket === bucket.key && (
+                        <span className="text-xs bg-white/20 px-2 py-0.5 rounded">Active</span>
+                      )}
+                    </div>
+                    <div className="opacity-90 text-[11px] mt-1">{bucket.description}</div>
+                  </div>
+                ))}
+              </div>
             </div>
           )}
         </div>
@@ -406,7 +449,7 @@ export const PhotoViewer: React.FC<PhotoViewerProps> = ({
 
       {/* Photo Strip */}
       <PhotoStrip
-        photos={filteredPhotos}
+        photos={orderingResult.photos}
         currentPhotoId={currentPhoto.id}
         onSelectPhoto={handleSelectPhoto}
       />

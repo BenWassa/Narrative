@@ -172,8 +172,13 @@ export function useKeyboardShortcuts(options: KeyboardHandlerOptions) {
           return;
         }
 
-        const currentPhoto = filteredPhotos.find(photo => photo.id === primaryId);
-        const newBucket = currentPhoto?.bucket === bucket ? '' : bucket;
+        // Look up current photo fresh using the indexMap to avoid stale closures
+        const currentIndex = getPhotoIndex(primaryId, orderingResult.indexMap);
+        if (currentIndex === -1) return;
+        const currentPhoto = orderingResult.photos[currentIndex];
+        if (!currentPhoto) return;
+
+        const newBucket = currentPhoto.bucket === bucket ? '' : bucket;
         onAssignBucket([primaryId], newBucket);
 
         // Auto-advance when assigning (not un-assigning) unless shift is held
@@ -233,7 +238,6 @@ export function useKeyboardShortcuts(options: KeyboardHandlerOptions) {
   }, [
     selectedPhotos,
     focusedPhoto,
-    filteredPhotos,
     orderingResult,
     onAssignBucket,
     onToggleFavorite,
