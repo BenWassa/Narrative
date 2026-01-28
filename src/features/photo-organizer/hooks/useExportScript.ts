@@ -287,23 +287,59 @@ export function useExportScript(
             );
           }
 
-          const bucketEntries = Object.keys(buckets).sort();
-          bucketEntries.forEach((bucket, idx) => {
-            const bucketLabel = bucketNames[bucket] || bucket;
-            const bucketPhotos = buckets[bucket];
-            const isLastBucket = idx === bucketEntries.length - 1;
-            const prefix = isLastBucket ? '    └─' : '    ├─';
-            const bucketFolderName = bucket + '_' + bucketLabel;
+          // Group buckets by subfolder if present
+          const photosBySubfolder: Record<string, Record<string, ProjectPhoto[]>> = {};
+          Object.entries(buckets).forEach(([bucket, photos]) => {
+            photos.forEach(p => {
+              const subfolder = p.subfolderOverride || 'root';
+              if (!photosBySubfolder[subfolder]) {
+                photosBySubfolder[subfolder] = {};
+              }
+              if (!photosBySubfolder[subfolder][bucket]) {
+                photosBySubfolder[subfolder][bucket] = [];
+              }
+              photosBySubfolder[subfolder][bucket].push(p);
+            });
+          });
 
-            lines.push(
-              'echo -e "  ' +
-                prefix +
-                ' ${CYAN}' +
-                bucketFolderName +
-                '${NC} (${BOLD}' +
-                bucketPhotos.length +
-                '${NC})"',
-            );
+          // Display subfolders and their buckets
+          const subfolderEntries = Object.keys(photosBySubfolder).sort();
+          subfolderEntries.forEach((subfolder, subfolderIdx) => {
+            const isLastSubfolder = subfolderIdx === subfolderEntries.length - 1;
+            const subfolderPrefix = isLastSubfolder ? '    └─' : '    ├─';
+
+            // Only show subfolder name if it's not root
+            if (subfolder !== 'root') {
+              lines.push('echo -e "  ' + subfolderPrefix + ' ${CYAN}' + subfolder + '${NC}"');
+            }
+
+            const subfolderBuckets = photosBySubfolder[subfolder];
+            const bucketEntries = Object.keys(subfolderBuckets).sort();
+            bucketEntries.forEach((bucket, bucketIdx) => {
+              const bucketLabel = bucketNames[bucket] || bucket;
+              const bucketPhotos = subfolderBuckets[bucket];
+              const isLastBucket = bucketIdx === bucketEntries.length - 1;
+
+              // Adjust prefix based on subfolder level
+              let bucketPrefix: string;
+              if (subfolder !== 'root') {
+                bucketPrefix = isLastBucket ? '      └─' : '      ├─';
+              } else {
+                bucketPrefix = isLastBucket ? '    └─' : '    ├─';
+              }
+
+              const bucketFolderName = bucket + '_' + bucketLabel;
+
+              lines.push(
+                'echo -e "  ' +
+                  bucketPrefix +
+                  ' ${CYAN}' +
+                  bucketFolderName +
+                  '${NC} (${BOLD}' +
+                  bucketPhotos.length +
+                  '${NC})"',
+              );
+            });
           });
           lines.push('echo ""');
         });
