@@ -216,31 +216,33 @@ export function useExportScript(
       lines.push(
         '  local line="${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"',
       );
-      lines.push('  echo ""; echo "$line"; echo "$title"; echo "$line"');
+      lines.push('  echo -e ""; echo -e "$line"; echo -e "$title"; echo -e "$line"');
       lines.push('}');
       lines.push('');
       lines.push('print_section "${CYAN}${BOLD}📋 EXPORT PREVIEW${NC}"');
       lines.push('');
-      lines.push('echo "${YELLOW}Project root:${NC}"');
-      lines.push('echo "  ${CYAN}${PROJECT_ROOT}${NC}"');
+      lines.push('echo -e "${YELLOW}Project root:${NC}"');
+      lines.push('echo -e "  ${CYAN}${PROJECT_ROOT}${NC}"');
       lines.push('echo ""');
-      lines.push('echo "${YELLOW}Destination folders:${NC}"');
-      lines.push('echo "  Days folder:  ${CYAN}${TARGET_DAYS_DIR}${NC}"');
+      lines.push('echo -e "${YELLOW}Destination folders:${NC}"');
+      lines.push('echo -e "  Days folder:  ${CYAN}${TARGET_DAYS_DIR}${NC}"');
       if (archivePhotos.length > 0) {
-        lines.push('echo "  Archive:      ${CYAN}${TARGET_ARCHIVE_DIR}${NC}"');
+        lines.push('echo -e "  Archive:      ${CYAN}${TARGET_ARCHIVE_DIR}${NC}"');
       }
       lines.push('echo ""');
-      lines.push('echo "${GREEN}${BOLD}ℹ️  This is a DRY RUN${NC} - no files will be copied yet."');
-      lines.push('echo "${GREEN}You will be asked to confirm before any files are moved.${NC}"');
+      lines.push(
+        'echo -e "${GREEN}${BOLD}ℹ️  This is a DRY RUN${NC} - no files will be copied yet."',
+      );
+      lines.push('echo -e "${GREEN}You will be asked to confirm before any files are moved.${NC}"');
       lines.push('');
 
       // Preview: root files
       if (rootPhotos.length > 0) {
-        lines.push('echo "${YELLOW}${BOLD}📁 Root Files${NC} (' + rootPhotos.length + ')"');
+        lines.push('echo -e "${YELLOW}${BOLD}📁 Root Files${NC} (' + rootPhotos.length + ')"');
         lines.push('echo ""');
         rootPhotos.forEach(p => {
           if (p.filePath) {
-            lines.push('echo "  ${CYAN}→${NC} ' + p.currentName + '"');
+            lines.push('echo -e "  ${CYAN}→${NC} ' + p.currentName + '"');
           }
         });
         lines.push('echo ""');
@@ -254,7 +256,7 @@ export function useExportScript(
         });
       });
 
-      lines.push('echo "${YELLOW}${BOLD}📅 Organized Photos by Day${NC}"');
+      lines.push('echo -e "${YELLOW}${BOLD}📅 Organized Photos by Day${NC}"');
       lines.push('echo ""');
       // Preview: days with bucket subfolders
       Object.keys(photosByDay)
@@ -269,7 +271,7 @@ export function useExportScript(
           );
 
           lines.push(
-            'echo "  ${CYAN}' + label + '${NC} — ${BOLD}' + dayPhotosCount + '${NC} photos"',
+            'echo -e "  ${CYAN}' + label + '${NC} — ${BOLD}' + dayPhotosCount + '${NC} photos"',
           );
 
           Object.keys(buckets)
@@ -297,33 +299,33 @@ export function useExportScript(
 
       // Preview: archive
       if (archivePhotos.length > 0) {
-        lines.push('echo "${YELLOW}${BOLD}🗑️  Archive${NC} (' + archivePhotos.length + ')"');
+        lines.push('echo -e "${YELLOW}${BOLD}🗑️  Archive${NC} (' + archivePhotos.length + ')"');
         lines.push('echo ""');
       }
 
       lines.push('');
-      lines.push('echo "${YELLOW}${BOLD}📊 Summary${NC}"');
-      lines.push('echo "  Total files to copy: ${CYAN}${BOLD}' + totalFiles + '${NC}"');
+      lines.push('echo -e "${YELLOW}${BOLD}📊 Summary${NC}"');
+      lines.push('echo -e "  Total files to copy: ${CYAN}${BOLD}' + totalFiles + '${NC}"');
       lines.push('echo ""');
-      lines.push('echo "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"');
+      lines.push('echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"');
       lines.push('echo ""');
       lines.push(
-        'echo "${RED}${BOLD}⚠️  WARNING:${NC} This will copy files to your project directory."',
+        'echo -e "${RED}${BOLD}⚠️  WARNING:${NC} This will copy files to your project directory."',
       );
       lines.push('echo ""');
       lines.push(
-        'read -r -p "${YELLOW}${BOLD}Type ${NC}\\"${GREEN}yes${NC}\\"${YELLOW} to confirm (or press Ctrl+C to abort): ${NC}" confirm',
+        'read -r -p "$(echo -e \\"${YELLOW}${BOLD}Type ${NC}\\\\\\"${GREEN}yes${NC}\\\\\\"${YELLOW} to confirm (or press Ctrl+C to abort): ${NC}\\")" confirm',
       );
       lines.push('if [ "$confirm" != "yes" ]; then');
       lines.push('  echo ""');
-      lines.push('  echo "${YELLOW}✗ Aborted${NC} - no files were copied."');
+      lines.push('  echo -e "${YELLOW}✗ Aborted${NC} - no files were copied."');
       lines.push('  echo ""');
       lines.push('  exit 0');
       lines.push('fi');
       lines.push('');
-      lines.push('echo "${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"');
-      lines.push('echo "${GREEN}${BOLD}✓ Copying files...${NC}"');
-      lines.push('echo "${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"');
+      lines.push('echo -e "${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"');
+      lines.push('echo -e "${GREEN}${BOLD}✓ Copying files...${NC}"');
+      lines.push('echo -e "${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"');
       lines.push('echo ""');
 
       if (rootPhotos.length > 0) {
@@ -392,9 +394,9 @@ export function useExportScript(
 
       lines.push('');
       lines.push('echo ""');
-      lines.push('echo "${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"');
-      lines.push('echo "${GREEN}${BOLD}✨ Copy operation complete!${NC}"');
-      lines.push('echo "${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"');
+      lines.push('echo -e "${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"');
+      lines.push('echo -e "${GREEN}${BOLD}✨ Copy operation complete!${NC}"');
+      lines.push('echo -e "${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"');
       lines.push('echo ""');
 
       return lines.join('\n');
