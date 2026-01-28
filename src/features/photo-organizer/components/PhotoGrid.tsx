@@ -320,6 +320,7 @@ export default function PhotoGrid({
           const hasExplicitOverride = derivedGroupPhotos.some(
             p => p.subfolderOverride !== undefined,
           );
+          const isIngested = derivedGroupPhotos.some(p => p.subfolderOverride === null);
           const isDayRootGroup = group.label === 'Day Root';
           const isMeceGroup = isMeceBucketLabel(group.label);
           const showIngestActions = !isDayRootGroup && !isMeceGroup;
@@ -334,28 +335,62 @@ export default function PhotoGrid({
                     <div className="flex items-center gap-2">
                       <button
                         className="text-xs text-blue-300 hover:text-blue-200"
-                        title="Move photos in this subfolder to the day root"
+                        title={
+                          isIngested
+                            ? 'Revert photos back to subfolder'
+                            : 'Move photos in this subfolder to the day root'
+                        }
                         onClick={() => {
-                          const previousPhotos = photos;
-                          const updated = photos.map(p => {
-                            if (p.day !== selectedDay) return p;
-                            const derived = getDerivedSubfolderGroup(p, selectedDay);
-                            if (derived !== group.label) return p;
-                            return { ...p, subfolderOverride: null };
-                          });
-                          onSaveToHistory(updated);
-                          const dayLabel =
-                            dayLabels[selectedDay] || `Day ${String(selectedDay).padStart(2, '0')}`;
-                          onShowToast(`Photos moved to ${dayLabel}.`, 'info', {
-                            durationMs: 5000,
-                            actionLabel: 'Undo',
-                            onAction: () => {
-                              onSaveToHistory(previousPhotos);
-                            },
-                          });
+                          if (isIngested) {
+                            // Undo ingest - revert to subfolder
+                            const updated = photos.map(p => {
+                              if (p.day !== selectedDay) return p;
+                              if (derivedGroupPhotos.find(dp => dp.id === p.id)) {
+                                return { ...p, subfolderOverride: undefined };
+                              }
+                              return p;
+                            });
+                            onSaveToHistory(updated);
+                            const dayLabel =
+                              dayLabels[selectedDay] ||
+                              `Day ${String(selectedDay).padStart(2, '0')}`;
+                            onShowToast(`Photos reverted to subfolder.`, 'info', {
+                              durationMs: 5000,
+                              actionLabel: 'Undo',
+                              onAction: () => {
+                                const reingested = photos.map(p => {
+                                  if (p.day !== selectedDay) return p;
+                                  const derived = getDerivedSubfolderGroup(p, selectedDay);
+                                  if (derived !== group.label) return p;
+                                  return { ...p, subfolderOverride: null };
+                                });
+                                onSaveToHistory(reingested);
+                              },
+                            });
+                          } else {
+                            // Ingest to day
+                            const previousPhotos = photos;
+                            const updated = photos.map(p => {
+                              if (p.day !== selectedDay) return p;
+                              const derived = getDerivedSubfolderGroup(p, selectedDay);
+                              if (derived !== group.label) return p;
+                              return { ...p, subfolderOverride: null };
+                            });
+                            onSaveToHistory(updated);
+                            const dayLabel =
+                              dayLabels[selectedDay] ||
+                              `Day ${String(selectedDay).padStart(2, '0')}`;
+                            onShowToast(`Photos moved to ${dayLabel}.`, 'info', {
+                              durationMs: 5000,
+                              actionLabel: 'Undo',
+                              onAction: () => {
+                                onSaveToHistory(previousPhotos);
+                              },
+                            });
+                          }
                         }}
                       >
-                        Ingest to Day
+                        {isIngested ? 'Undo Ingest' : 'Ingest to Day'}
                       </button>
                       <button
                         className="text-xs text-gray-300 hover:text-gray-100"
@@ -371,23 +406,6 @@ export default function PhotoGrid({
                       >
                         Keep Subfolder
                       </button>
-                      {hasExplicitOverride && (
-                        <button
-                          className="text-xs text-red-300 hover:text-red-200"
-                          onClick={() => {
-                            const updated = photos.map(p => {
-                              if (p.day !== selectedDay) return p;
-                              if (derivedGroupPhotos.find(dp => dp.id === p.id)) {
-                                return { ...p, subfolderOverride: undefined };
-                              }
-                              return p;
-                            });
-                            onSaveToHistory(updated);
-                          }}
-                        >
-                          Undo Ingest
-                        </button>
-                      )}
                     </div>
                   )}
                 </div>
