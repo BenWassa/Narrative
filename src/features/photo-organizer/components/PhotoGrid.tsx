@@ -313,14 +313,10 @@ export default function PhotoGrid({
           const videos = groupSorted.filter(isVideoPhoto);
           const stills = groupSorted.filter(photo => !isVideoPhoto(photo));
           const hasSplit = videos.length > 0 && stills.length > 0;
-          const derivedGroupPhotos = group.photos.filter(p => {
-            if (p.day !== selectedDay) return false;
-            return getDerivedSubfolderGroup(p, selectedDay) === group.label;
-          });
-          const hasExplicitOverride = derivedGroupPhotos.some(
-            p => p.subfolderOverride !== undefined,
-          );
-          const isIngested = derivedGroupPhotos.some(p => p.subfolderOverride === null);
+          // Use group.photos directly - they're already correctly grouped by sortPhotos
+          const groupPhotos = group.photos.filter(p => p.day === selectedDay);
+          const hasExplicitOverride = groupPhotos.some(p => p.subfolderOverride !== undefined);
+          const isIngested = groupPhotos.some(p => p.subfolderOverride === null);
           const isDayRootGroup = group.label === 'Day Root';
           const isMeceGroup = isMeceBucketLabel(group.label);
           // Show undo button for Day Root if photos were explicitly ingested
@@ -340,7 +336,7 @@ export default function PhotoGrid({
                       onClick={() => {
                         const updated = photos.map(p => {
                           if (p.day !== selectedDay) return p;
-                          if (derivedGroupPhotos.find(dp => dp.id === p.id)) {
+                          if (groupPhotos.find(dp => dp.id === p.id)) {
                             return { ...p, subfolderOverride: undefined };
                           }
                           return p;
@@ -398,7 +394,7 @@ export default function PhotoGrid({
                           onClick={() => {
                             const updated = photos.map(p => {
                               if (p.day !== selectedDay) return p;
-                              if (derivedGroupPhotos.find(dp => dp.id === p.id)) {
+                              if (groupPhotos.find(dp => dp.id === p.id)) {
                                 return { ...p, subfolderOverride: undefined };
                               }
                               return p;
