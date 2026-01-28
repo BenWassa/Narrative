@@ -206,29 +206,44 @@ export function useExportScript(
       lines.push("GREEN='\\033[0;32m'");
       lines.push("YELLOW='\\033[1;33m'");
       lines.push("BLUE='\\033[0;34m'");
+      lines.push("CYAN='\\033[0;36m'");
+      lines.push("BOLD='\\033[1m'");
       lines.push("NC='\\033[0m' # No Color");
       lines.push('');
-      lines.push('echo "${BLUE}═══════════════════════════════════════════════════════════${NC}"');
-      lines.push('echo "${BLUE}       EXPORT SCRIPT - DRY RUN PREVIEW${NC}"');
-      lines.push('echo "${BLUE}═══════════════════════════════════════════════════════════${NC}"');
-      lines.push('echo');
-      lines.push('echo "${YELLOW}Project root:${NC} ${PROJECT_ROOT}"');
-      lines.push('echo "${YELLOW}Target days folder:${NC} ${TARGET_DAYS_DIR}"');
-      lines.push('echo "${YELLOW}Target archive folder:${NC} ${TARGET_ARCHIVE_DIR}"');
-      lines.push('echo');
-      lines.push('echo "${GREEN}This is a DRY RUN - no files will be copied yet.${NC}"');
+      lines.push('# Print section header');
+      lines.push('print_section() {');
+      lines.push('  local title="$1"');
+      lines.push(
+        '  local line="${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"',
+      );
+      lines.push('  echo ""; echo "$line"; echo "$title"; echo "$line"');
+      lines.push('}');
+      lines.push('');
+      lines.push('print_section "${CYAN}${BOLD}📋 EXPORT PREVIEW${NC}"');
+      lines.push('');
+      lines.push('echo "${YELLOW}Project root:${NC}"');
+      lines.push('echo "  ${CYAN}${PROJECT_ROOT}${NC}"');
+      lines.push('echo ""');
+      lines.push('echo "${YELLOW}Destination folders:${NC}"');
+      lines.push('echo "  Days folder:  ${CYAN}${TARGET_DAYS_DIR}${NC}"');
+      if (archivePhotos.length > 0) {
+        lines.push('echo "  Archive:      ${CYAN}${TARGET_ARCHIVE_DIR}${NC}"');
+      }
+      lines.push('echo ""');
+      lines.push('echo "${GREEN}${BOLD}ℹ️  This is a DRY RUN${NC} - no files will be copied yet."');
       lines.push('echo "${GREEN}You will be asked to confirm before any files are moved.${NC}"');
-      lines.push('echo');
+      lines.push('');
 
       // Preview: root files
       if (rootPhotos.length > 0) {
-        lines.push('echo "${YELLOW}Root files (${NC}' + rootPhotos.length + '):${NC}"');
+        lines.push('echo "${YELLOW}${BOLD}📁 Root Files${NC} (${rootPhotos.length})"');
+        lines.push('echo ""');
         rootPhotos.forEach(p => {
           if (p.filePath) {
-            lines.push(`echo "  cp \"\${PROJECT_ROOT}/${p.filePath}\" → \"${p.currentName}\""`);
+            lines.push(`echo "  ${CYAN}→${NC} ${p.currentName}"`);
           }
         });
-        lines.push('');
+        lines.push('echo ""');
       }
 
       // Count total files for summary
@@ -239,7 +254,8 @@ export function useExportScript(
         });
       });
 
-      lines.push('echo "${YELLOW}Days with organized photos:${NC}"');
+      lines.push('echo "${YELLOW}${BOLD}📅 Organized Photos by Day${NC}"');
+      lines.push('echo ""');
       // Preview: days with bucket subfolders
       Object.keys(photosByDay)
         .map(Number)
@@ -252,47 +268,51 @@ export function useExportScript(
             0,
           );
 
-          lines.push(`echo "  ${label} (${dayPhotosCount} photos)"`);
+          lines.push(`echo "  ${CYAN}${label}${NC} — ${BOLD}${dayPhotosCount}${NC} photos"`);
 
           Object.keys(buckets)
             .sort()
-            .forEach(bucket => {
+            .forEach((bucket, idx) => {
               const bucketLabel = bucketNames[bucket] || bucket;
               const bucketPhotos = buckets[bucket];
+              const isLast = idx === Object.keys(buckets).length - 1;
+              const prefix = isLast ? '    └─' : '    ├─';
 
-              lines.push(`echo "    ├─ ${bucket}_${bucketLabel} (${bucketPhotos.length})"`);
+              lines.push(`echo "  ${prefix} ${bucket}_${bucketLabel} (${bucketPhotos.length})"`);
             });
+          lines.push('echo ""');
         });
 
       // Preview: archive
       if (archivePhotos.length > 0) {
-        lines.push('echo "  ${YELLOW}Archive (' + archivePhotos.length + ')${NC}"');
+        lines.push('echo "${YELLOW}${BOLD}🗑️  Archive${NC} (${archivePhotos.length})"');
+        lines.push('echo ""');
       }
 
       lines.push('');
-      lines.push('echo "${YELLOW}Total files to copy:${NC} ' + totalFiles + '"');
-      lines.push('echo');
+      lines.push('echo "${YELLOW}${BOLD}📊 Summary${NC}"');
+      lines.push('echo "  Total files to copy: ${CYAN}${BOLD}' + totalFiles + '${NC}${BOLD}${NC}"');
+      lines.push('echo ""');
+      lines.push('echo "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"');
+      lines.push('echo ""');
       lines.push(
-        'echo "${YELLOW}═══════════════════════════════════════════════════════════${NC}"',
+        'echo "${RED}${BOLD}⚠️  WARNING:${NC} This will copy files to your project directory."',
       );
-      lines.push('echo "${YELLOW}Ready to proceed?${NC}"');
-      lines.push('echo "${RED}WARNING: This will copy files to your project directory.${NC}"');
+      lines.push('echo ""');
       lines.push(
-        'echo "${YELLOW}═══════════════════════════════════════════════════════════${NC}"',
-      );
-      lines.push('echo');
-      lines.push(
-        'read -r -p "${YELLOW}Type \\"yes\\" to confirm and copy files (or press Ctrl+C to abort):${NC} " confirm',
+        'read -r -p "${YELLOW}${BOLD}Type ${NC}\\"${GREEN}yes${NC}\\"${YELLOW} to confirm (or press Ctrl+C to abort): ${NC}" confirm',
       );
       lines.push('if [ "$confirm" != "yes" ]; then');
-      lines.push('  echo "${RED}Aborted - no files were copied.${NC}"');
+      lines.push('  echo ""');
+      lines.push('  echo "${YELLOW}✗ Aborted${NC} - no files were copied."');
+      lines.push('  echo ""');
       lines.push('  exit 0');
       lines.push('fi');
       lines.push('');
-      lines.push('echo "${GREEN}═══════════════════════════════════════════════════════════${NC}"');
-      lines.push('echo "${GREEN}Starting file copy operation...${NC}"');
-      lines.push('echo "${GREEN}═══════════════════════════════════════════════════════════${NC}"');
-      lines.push('echo');
+      lines.push('echo "${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"');
+      lines.push('echo "${GREEN}${BOLD}✓ Copying files...${NC}"');
+      lines.push('echo "${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"');
+      lines.push('echo ""');
 
       if (rootPhotos.length > 0) {
         rootPhotos.forEach(p => {
@@ -359,9 +379,11 @@ export function useExportScript(
       }
 
       lines.push('');
-      lines.push('echo "${GREEN}═══════════════════════════════════════════════════════════${NC}"');
-      lines.push('echo "${GREEN}✓ Copy operation complete!${NC}"');
-      lines.push('echo "${GREEN}═══════════════════════════════════════════════════════════${NC}"');
+      lines.push('echo ""');
+      lines.push('echo "${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"');
+      lines.push('echo "${GREEN}${BOLD}✨ Copy operation complete!${NC}"');
+      lines.push('echo "${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"');
+      lines.push('echo ""');
 
       return lines.join('\n');
     },
