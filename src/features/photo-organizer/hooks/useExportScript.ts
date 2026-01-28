@@ -291,7 +291,22 @@ export function useExportScript(
           const photosBySubfolder: Record<string, Record<string, ProjectPhoto[]>> = {};
           Object.entries(buckets).forEach(([bucket, photos]) => {
             photos.forEach(p => {
-              const subfolder = p.subfolderOverride || 'root';
+              // Extract subfolder from filePath
+              // filePath format: 01_DAYS/Day 02/[subfolder]/A_Establishing/filename.jpg
+              let subfolder = 'root';
+              if (p.filePath) {
+                const pathParts = p.filePath.split(/[\\/]/).filter(Boolean);
+                // Find the index of the day label in the path
+                const dayIdx = pathParts.findIndex(part => part === label);
+                // If there's a folder between the day and bucket, it's a subfolder
+                if (dayIdx !== -1 && dayIdx < pathParts.length - 1) {
+                  const nextPart = pathParts[dayIdx + 1];
+                  // Check if next part is NOT a bucket folder
+                  if (nextPart && !nextPart.match(/^[A-E]_|^M_/)) {
+                    subfolder = nextPart;
+                  }
+                }
+              }
               if (!photosBySubfolder[subfolder]) {
                 photosBySubfolder[subfolder] = {};
               }
