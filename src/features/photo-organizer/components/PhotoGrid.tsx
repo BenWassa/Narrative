@@ -323,6 +323,8 @@ export default function PhotoGrid({
           const isIngested = derivedGroupPhotos.some(p => p.subfolderOverride === null);
           const isDayRootGroup = group.label === 'Day Root';
           const isMeceGroup = isMeceBucketLabel(group.label);
+          // Show undo button for Day Root if photos were explicitly ingested
+          const showUndoIngest = isDayRootGroup && isIngested;
           const showIngestActions = !isDayRootGroup && !isMeceGroup;
 
           return (
@@ -331,6 +333,25 @@ export default function PhotoGrid({
                 <h3 className="text-sm font-semibold text-gray-200">{group.label}</h3>
                 <div className="flex items-center gap-3 text-xs text-gray-400">
                   <span>{group.photos.length} items</span>
+                  {showUndoIngest && (
+                    <button
+                      className="text-xs text-red-300 hover:text-red-200"
+                      title="Revert photos back to subfolder"
+                      onClick={() => {
+                        const updated = photos.map(p => {
+                          if (p.day !== selectedDay) return p;
+                          if (derivedGroupPhotos.find(dp => dp.id === p.id)) {
+                            return { ...p, subfolderOverride: undefined };
+                          }
+                          return p;
+                        });
+                        onSaveToHistory(updated);
+                        onShowToast(`Photos reverted to subfolder.`, 'info');
+                      }}
+                    >
+                      Undo Ingest
+                    </button>
+                  )}
                   {showIngestActions && (
                     <div className="flex items-center gap-2">
                       {!isIngested && (
