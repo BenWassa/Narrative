@@ -258,7 +258,7 @@ export function useExportScript(
 
       lines.push('echo -e "${YELLOW}${BOLD}📅 Organized Photos by Day${NC}"');
       lines.push('echo ""');
-      // Preview: days with bucket subfolders
+      // Preview: days with bucket subfolders and folder structure
       Object.keys(photosByDay)
         .map(Number)
         .sort((a, b) => a - b)
@@ -270,30 +270,41 @@ export function useExportScript(
             0,
           );
 
-          lines.push(
-            'echo -e "  ${CYAN}' + label + '${NC} — ${BOLD}' + dayPhotosCount + '${NC} photos"',
-          );
+          // Show day folder
+          if (isIngested) {
+            lines.push(
+              'echo -e "  ${CYAN}' +
+                daysFolder +
+                '/' +
+                label +
+                '${NC} — ${BOLD}' +
+                dayPhotosCount +
+                '${NC} photos"',
+            );
+          } else {
+            lines.push(
+              'echo -e "  ${CYAN}' + label + '${NC} — ${BOLD}' + dayPhotosCount + '${NC} photos"',
+            );
+          }
 
-          Object.keys(buckets)
-            .sort()
-            .forEach((bucket, idx) => {
-              const bucketLabel = bucketNames[bucket] || bucket;
-              const bucketPhotos = buckets[bucket];
-              const isLast = idx === Object.keys(buckets).length - 1;
-              const prefix = isLast ? '    └─' : '    ├─';
+          const bucketEntries = Object.keys(buckets).sort();
+          bucketEntries.forEach((bucket, idx) => {
+            const bucketLabel = bucketNames[bucket] || bucket;
+            const bucketPhotos = buckets[bucket];
+            const isLastBucket = idx === bucketEntries.length - 1;
+            const prefix = isLastBucket ? '    └─' : '    ├─';
+            const bucketFolderName = bucket + '_' + bucketLabel;
 
-              lines.push(
-                'echo "  ' +
-                  prefix +
-                  ' ' +
-                  bucket +
-                  '_' +
-                  bucketLabel +
-                  ' (' +
-                  bucketPhotos.length +
-                  ')"',
-              );
-            });
+            lines.push(
+              'echo -e "  ' +
+                prefix +
+                ' ${CYAN}' +
+                bucketFolderName +
+                '${NC} (${BOLD}' +
+                bucketPhotos.length +
+                '${NC})"',
+            );
+          });
           lines.push('echo ""');
         });
 
@@ -314,8 +325,9 @@ export function useExportScript(
       );
       lines.push('echo ""');
       lines.push(
-        'read -r -p "$(echo -e \\"${YELLOW}${BOLD}Type ${NC}\\\\\\"${GREEN}yes${NC}\\\\\\"${YELLOW} to confirm (or press Ctrl+C to abort): ${NC}\\")" confirm',
+        'echo -e "${YELLOW}${BOLD}Type ${NC}\\"${GREEN}yes${NC}\\"${YELLOW} to confirm (or press Ctrl+C to abort)${NC}"',
       );
+      lines.push('read -r -p "Confirm: " confirm');
       lines.push('if [ "$confirm" != "yes" ]; then');
       lines.push('  echo ""');
       lines.push('  echo -e "${YELLOW}✗ Aborted${NC} - no files were copied."');
