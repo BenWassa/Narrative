@@ -53,7 +53,7 @@ describe('pathResolver', () => {
       const photos: ProjectPhoto[] = [
         {
           id: '1',
-          filePath: '/photos/trip/day1/IMG_001.jpg',
+          filePath: '/photos/trip/IMG_001.jpg',
           originalName: 'IMG_001.jpg',
           currentName: 'IMG_001.jpg',
           timestamp: 0,
@@ -67,7 +67,7 @@ describe('pathResolver', () => {
         },
         {
           id: '2',
-          filePath: '/photos/trip/day1/IMG_002.jpg',
+          filePath: '/photos/trip/IMG_002.jpg',
           originalName: 'IMG_002.jpg',
           currentName: 'IMG_002.jpg',
           timestamp: 0,
@@ -200,13 +200,7 @@ describe('pathResolver', () => {
       };
       const photos: ProjectPhoto[] = [];
 
-      const result = resolveMeceBucketPath(
-        state as ProjectState,
-        photos,
-        1,
-        'A',
-        'Establishing',
-      );
+      const result = resolveMeceBucketPath(state as ProjectState, photos, 1, 'A', 'Establishing');
       expect(result).toBe('/project/root/01_DAYS/Day 01 - Iceland/A_Establishing');
     });
 
@@ -233,13 +227,7 @@ describe('pathResolver', () => {
         },
       ];
 
-      const result = resolveMeceBucketPath(
-        state as ProjectState,
-        photos,
-        1,
-        'A',
-        'Establishing',
-      );
+      const result = resolveMeceBucketPath(state as ProjectState, photos, 1, 'A', 'Establishing');
       expect(result).toBe('/photos/trip/A_Establishing');
     });
   });

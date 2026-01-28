@@ -38,9 +38,7 @@ describe('exportManifest', () => {
       expect(script).toContain('Ingested: true');
 
       // Verify file deletions
-      expect(script).toContain(
-        '/project/root/01_DAYS/Day 01/A_Establishing/Day1_A_001.jpg',
-      );
+      expect(script).toContain('/project/root/01_DAYS/Day 01/A_Establishing/Day1_A_001.jpg');
       expect(script).toContain('/project/root/01_DAYS/Day 01/B_People/Day1_B_002.jpg');
 
       // Verify size validation
@@ -49,7 +47,7 @@ describe('exportManifest', () => {
       expect(script).toContain('2048000');
 
       // Verify confirmation prompt
-      expect(script).toContain('Type "DELETE" to confirm');
+      expect(script).toContain('Type \\"DELETE\\" to confirm');
     });
 
     it('should handle empty operations list', () => {

@@ -1,6 +1,11 @@
 import { useCallback, useState } from 'react';
 
-import type { ProjectPhoto, ProjectSettings, ProjectState, ExportManifest } from '../services/projectService';
+import type {
+  ProjectPhoto,
+  ProjectSettings,
+  ProjectState,
+  ExportManifest,
+} from '../services/projectService';
 import {
   resolveSourceRoot,
   resolveDestinationRoot,
@@ -134,7 +139,11 @@ export function useExportScript(
       lines.push('# This script organizes your photos based on ingest state');
       lines.push('set -e');
       lines.push('');
-      lines.push(`# Ingest mode: ${isIngested ? 'INGESTED (photos in project)' : 'NOT INGESTED (organize in-place)'}`);
+      lines.push(
+        `# Ingest mode: ${
+          isIngested ? 'INGESTED (photos in project)' : 'NOT INGESTED (organize in-place)'
+        }`,
+      );
       lines.push('');
       lines.push(
         `# Export script with dry-run first, then safe execution with preview and confirmation.`,
@@ -171,7 +180,7 @@ export function useExportScript(
       lines.push('');
       lines.push(`DAYS_FOLDER="${daysFolder}"`);
       lines.push(`ARCHIVE_FOLDER="${archiveFolder}"`);
-      
+
       // For ingested projects, days go inside PROJECT_ROOT
       // For non-ingested, MECE folders go directly in source folders
       if (isIngested) {
@@ -182,7 +191,7 @@ export function useExportScript(
         lines.push('TARGET_DAYS_DIR="${PROJECT_ROOT}"');
         lines.push('TARGET_ARCHIVE_DIR="${PROJECT_ROOT}/${ARCHIVE_FOLDER}"');
       }
-      
+
       lines.push('');
       lines.push('# Color codes for output');
       lines.push("RED='\\033[0;31m'");
@@ -293,7 +302,7 @@ export function useExportScript(
         lines.push('# Ingested mode: create day folders with MECE buckets inside');
         lines.push('mkdir -p "${TARGET_DAYS_DIR}"');
       }
-      
+
       Object.keys(photosByDay)
         .map(Number)
         .sort((a, b) => a - b)
@@ -306,7 +315,7 @@ export function useExportScript(
             .forEach(bucket => {
               const bucketLabel = bucketNames[bucket] || bucket;
               let bucketFolder: string;
-              
+
               if (isIngested) {
                 // Ingested: buckets inside day folder
                 bucketFolder = `${daysFolder}/${label}/${bucket}_${bucketLabel}`;
@@ -314,7 +323,7 @@ export function useExportScript(
                 // Non-ingested: buckets in source location
                 bucketFolder = `${bucket}_${bucketLabel}`;
               }
-              
+
               const photos = buckets[bucket];
 
               lines.push(`mkdir -p "${bucketFolder}"`);

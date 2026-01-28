@@ -2,7 +2,7 @@ import type { ProjectPhoto, ProjectState } from '../services/projectService';
 
 /**
  * Resolves the source root directory for a project.
- * 
+ *
  * For ingested projects: returns the project root path (photos are already in project)
  * For non-ingested projects: returns the detected common path from photo file paths
  */
@@ -23,7 +23,7 @@ export function resolveSourceRoot(state: ProjectState, photos: ProjectPhoto[]): 
 
 /**
  * Resolves the destination root directory for export operations.
- * 
+ *
  * For ingested projects: returns day folder structure within project
  * For non-ingested projects: returns the source folder (MECE buckets created in-place)
  */

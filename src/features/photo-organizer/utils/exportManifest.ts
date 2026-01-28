@@ -30,7 +30,13 @@ export async function generateExportManifest(
     if (!photo.filePath) continue;
 
     // Skip photos that don't need to be exported
-    const shouldExport = determineIfShouldExport(photo, archiveFolder, dayLabels, daysFolder, bucketNames);
+    const shouldExport = determineIfShouldExport(
+      photo,
+      archiveFolder,
+      dayLabels,
+      daysFolder,
+      bucketNames,
+    );
     if (!shouldExport) continue;
 
     let destinationPath = '';
@@ -109,7 +115,11 @@ export function generateUndoScript(manifest: ExportManifest): string {
   lines.push('echo "${YELLOW}       UNDO EXPORT - DRY RUN${NC}"');
   lines.push('echo "${YELLOW}═══════════════════════════════════════════════════════════${NC}"');
   lines.push('echo');
-  lines.push('echo "${YELLOW}This will delete ' + manifest.operations.length + ' files created by the export.${NC}"');
+  lines.push(
+    'echo "${YELLOW}This will delete ' +
+      manifest.operations.length +
+      ' files created by the export.${NC}"',
+  );
   lines.push('echo "${RED}WARNING: This operation cannot be undone!${NC}"');
   lines.push('echo');
 
@@ -147,7 +157,13 @@ export function generateUndoScript(manifest: ExportManifest): string {
 
     // Validate file size if available
     if (op.fileSize > 0) {
-      lines.push('  FILE_SIZE=$(stat -f%z "' + op.destinationPath + '" 2>/dev/null || stat -c%s "' + op.destinationPath + '" 2>/dev/null || echo "0")');
+      lines.push(
+        '  FILE_SIZE=$(stat -f%z "' +
+          op.destinationPath +
+          '" 2>/dev/null || stat -c%s "' +
+          op.destinationPath +
+          '" 2>/dev/null || echo "0")',
+      );
       lines.push('  if [ "$FILE_SIZE" -eq "' + op.fileSize + '" ]; then');
       lines.push('    rm "' + op.destinationPath + '"');
       lines.push('    echo "${GREEN}✓ Deleted: ' + op.destinationPath + '${NC}"');
@@ -225,7 +241,9 @@ function determineIfShouldExport(
     needsToMove = photo.filePath !== targetPath && !photo.filePath?.includes(targetPath);
   }
 
-  return hasBeenRenamed || hasUserAssignedBucket || hasUserAssignedDay || wasArchived || needsToMove;
+  return (
+    hasBeenRenamed || hasUserAssignedBucket || hasUserAssignedDay || wasArchived || needsToMove
+  );
 }
 
 /**
