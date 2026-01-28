@@ -333,57 +333,42 @@ export default function PhotoGrid({
                   <span>{group.photos.length} items</span>
                   {showIngestActions && (
                     <div className="flex items-center gap-2">
-                      <button
-                        className="text-xs text-blue-300 hover:text-blue-200"
-                        title={
-                          isIngested
-                            ? 'Keep photos in day root'
-                            : 'Move photos in this subfolder to the day root'
-                        }
-                        onClick={() => {
-                          if (isIngested) {
-                            // Keep in day root - toggle off subfolder override
-                            const updated = photos.map(p => {
-                              if (p.day !== selectedDay) return p;
-                              if (derivedGroupPhotos.find(dp => dp.id === p.id)) {
-                                return { ...p, subfolderOverride: undefined };
-                              }
-                              return p;
-                            });
-                            onSaveToHistory(updated);
-                          } else {
-                            // Ingest to day
-                            const updated = photos.map(p => {
-                              if (p.day !== selectedDay) return p;
-                              const derived = getDerivedSubfolderGroup(p, selectedDay);
-                              if (derived !== group.label) return p;
-                              return { ...p, subfolderOverride: null };
-                            });
-                            onSaveToHistory(updated);
-                            const dayLabel =
-                              dayLabels[selectedDay] ||
-                              `Day ${String(selectedDay).padStart(2, '0')}`;
-                            onShowToast(`Photos moved to ${dayLabel}.`, 'info');
-                          }
-                        }}
-                      >
-                        {isIngested ? 'Keep in Day' : 'Ingest to Day'}
-                      </button>
                       {!isIngested && (
-                        <button
-                          className="text-xs text-gray-300 hover:text-gray-100"
-                          onClick={() => {
-                            const updated = photos.map(p => {
-                              if (p.day !== selectedDay) return p;
-                              const derived = getDerivedSubfolderGroup(p, selectedDay);
-                              if (derived !== group.label) return p;
-                              return { ...p, subfolderOverride: derived };
-                            });
-                            onSaveToHistory(updated);
-                          }}
-                        >
-                          Keep Subfolder
-                        </button>
+                        <>
+                          <button
+                            className="text-xs text-blue-300 hover:text-blue-200"
+                            title="Move photos in this subfolder to the day root"
+                            onClick={() => {
+                              const updated = photos.map(p => {
+                                if (p.day !== selectedDay) return p;
+                                const derived = getDerivedSubfolderGroup(p, selectedDay);
+                                if (derived !== group.label) return p;
+                                return { ...p, subfolderOverride: null };
+                              });
+                              onSaveToHistory(updated);
+                              const dayLabel =
+                                dayLabels[selectedDay] ||
+                                `Day ${String(selectedDay).padStart(2, '0')}`;
+                              onShowToast(`Photos moved to ${dayLabel}.`, 'info');
+                            }}
+                          >
+                            Ingest to Day
+                          </button>
+                          <button
+                            className="text-xs text-gray-300 hover:text-gray-100"
+                            onClick={() => {
+                              const updated = photos.map(p => {
+                                if (p.day !== selectedDay) return p;
+                                const derived = getDerivedSubfolderGroup(p, selectedDay);
+                                if (derived !== group.label) return p;
+                                return { ...p, subfolderOverride: derived };
+                              });
+                              onSaveToHistory(updated);
+                            }}
+                          >
+                            Keep Subfolder
+                          </button>
+                        </>
                       )}
                       {isIngested && (
                         <button
