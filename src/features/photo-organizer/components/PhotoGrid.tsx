@@ -170,19 +170,6 @@ export default function PhotoGrid({
                 'bg-gray-500': 'rgb(107, 114, 128)',
               };
               const bgColor = colorMap[bucketColor];
-              
-              // Debug M bucket rendering for Day 2 only
-              if (photo.bucket === 'M' && photo.day === 2) {
-                console.log('[M Bucket UI Debug - Day 2]', {
-                  photoName: photo.currentName,
-                  bucket: photo.bucket,
-                  bucketDef,
-                  bucketColor,
-                  bgColor,
-                  isRendering: true
-                });
-              }
-              
               return (
                 <div
                   className="absolute bottom-2 left-2 px-2 py-1 rounded text-xs font-bold text-white shadow-lg z-10"

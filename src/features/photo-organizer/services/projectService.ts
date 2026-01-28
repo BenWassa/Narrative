@@ -513,25 +513,6 @@ export async function buildPhotosFromHandle(
       day = pathAnalysis.detectedDay;
       bucket = pathAnalysis.detectedBucket;
       
-      // Debug logging for bucket detection
-      if (bucket && import.meta.env.DEV && day === 2) {
-        console.log('[Bucket Detection SUCCESS]', 
-          `path: ${entry.path}`,
-          `bucket: ${bucket}`,
-          `day: ${day}`,
-          `confidence: ${pathAnalysis.confidence}`
-        );
-      }
-    } else if (import.meta.env.DEV && (pathAnalysis.detectedDay || pathAnalysis.detectedBucket) && pathAnalysis.detectedDay === 2) {
-      // Log when detection failed despite finding day/bucket
-      console.warn('[Bucket Detection FAILED]',
-        `\n  Path: ${entry.path}`,
-        `\n  Detected Day: ${pathAnalysis.detectedDay}`,
-        `\n  Detected Bucket: ${pathAnalysis.detectedBucket}`,
-        `\n  isPreOrganized: ${pathAnalysis.isPreOrganized}`,
-        `\n  Confidence: ${pathAnalysis.confidence}`,
-        `\n  Reason: ${!pathAnalysis.isPreOrganized ? 'Not pre-organized (need BOTH day AND bucket)' : `Confidence too low: ${pathAnalysis.confidence} (need high or medium)`}`
-      );
     }
 
     photos.push({
