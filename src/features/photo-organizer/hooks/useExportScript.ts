@@ -423,53 +423,104 @@ export function useExportScript(
           const label = dayLabels[day] || `Day ${String(day).padStart(2, '0')}`;
           const buckets = photosByDay[day];
 
-          Object.keys(buckets)
-            .sort()
-            .forEach(bucket => {
-              const bucketLabel = bucketNames[bucket] || bucket;
-              let bucketFolder: string;
-
-              if (isIngested) {
-                // Ingested: buckets inside day folder
-                bucketFolder = `${daysFolder}/${label}/${bucket}_${bucketLabel}`;
-              } else {
-                // Non-ingested: buckets in source location
-                bucketFolder = `${bucket}_${bucketLabel}`;
-              }
-
-              const photos = buckets[bucket];
-
-              // In script: use absolute paths with $PROJECT_ROOT for non-ingested, relative for ingested
-              if (isIngested) {
-                lines.push('mkdir -p "${PROJECT_ROOT}/' + bucketFolder + '"');
-              } else {
-                lines.push('mkdir -p "${PROJECT_ROOT}/' + bucketFolder + '"');
-              }
-
+          // For non-ingested mode, group by subfolder first
+          if (!isIngested) {
+            const photosBySubfolder: Record<string, Record<string, ProjectPhoto[]>> = {};
+            Object.entries(buckets).forEach(([bucket, photos]) => {
               photos.forEach(p => {
+                // Extract subfolder from filePath
+                let subfolder = '';
                 if (p.filePath) {
-                  lines.push(
-                    'if [ -e "${PROJECT_ROOT}/' +
-                      bucketFolder +
-                      '/' +
-                      p.currentName +
-                      '" ]; then echo "Skipping existing: ' +
-                      bucketFolder +
-                      '/' +
-                      p.currentName +
-                      '"; else mkdir -p "${PROJECT_ROOT}/' +
-                      bucketFolder +
-                      '" && cp "${PROJECT_ROOT}/' +
-                      p.filePath +
-                      '" "${PROJECT_ROOT}/' +
-                      bucketFolder +
-                      '/' +
-                      p.currentName +
-                      '"; fi',
-                  );
+                  const pathParts = p.filePath.split(/[\\/]/).filter(Boolean);
+                  const dayIdx = pathParts.findIndex(part => part === label);
+                  if (dayIdx !== -1 && dayIdx < pathParts.length - 1) {
+                    const nextPart = pathParts[dayIdx + 1];
+                    if (nextPart && !nextPart.match(/^[A-E]_|^M_/)) {
+                      subfolder = nextPart;
+                    }
+                  }
                 }
+                if (!photosBySubfolder[subfolder]) {
+                  photosBySubfolder[subfolder] = {};
+                }
+                if (!photosBySubfolder[subfolder][bucket]) {
+                  photosBySubfolder[subfolder][bucket] = [];
+                }
+                photosBySubfolder[subfolder][bucket].push(p);
               });
             });
+
+            // Create buckets within each subfolder
+            Object.entries(photosBySubfolder).forEach(([subfolder, subfolderBuckets]) => {
+              Object.entries(subfolderBuckets).forEach(([bucket, photos]) => {
+                const bucketLabel = bucketNames[bucket] || bucket;
+                let bucketFolder: string;
+                if (subfolder) {
+                  bucketFolder = `${label}/${subfolder}/${bucket}_${bucketLabel}`;
+                } else {
+                  bucketFolder = `${label}/${bucket}_${bucketLabel}`;
+                }
+
+                // Create folder and copy files
+                lines.push('mkdir -p "${PROJECT_ROOT}/' + bucketFolder + '"');
+                photos.forEach(p => {
+                  if (p.filePath) {
+                    lines.push(
+                      'if [ -e "${PROJECT_ROOT}/' +
+                        bucketFolder +
+                        '/' +
+                        p.currentName +
+                        '" ]; then echo "Skipping existing: ' +
+                        bucketFolder +
+                        '/' +
+                        p.currentName +
+                        '"; else cp "${PROJECT_ROOT}/' +
+                        p.filePath +
+                        '" "${PROJECT_ROOT}/' +
+                        bucketFolder +
+                        '/' +
+                        p.currentName +
+                        '"; fi',
+                    );
+                  }
+                });
+              });
+            });
+          } else {
+            // Ingested mode: original logic
+            Object.keys(buckets)
+              .sort()
+              .forEach(bucket => {
+                const bucketLabel = bucketNames[bucket] || bucket;
+                const bucketFolder = `${daysFolder}/${label}/${bucket}_${bucketLabel}`;
+                const photos = buckets[bucket];
+
+                lines.push('mkdir -p "${PROJECT_ROOT}/' + bucketFolder + '"');
+                photos.forEach(p => {
+                  if (p.filePath) {
+                    lines.push(
+                      'if [ -e "${PROJECT_ROOT}/' +
+                        bucketFolder +
+                        '/' +
+                        p.currentName +
+                        '" ]; then echo "Skipping existing: ' +
+                        bucketFolder +
+                        '/' +
+                        p.currentName +
+                        '"; else mkdir -p "${PROJECT_ROOT}/' +
+                        bucketFolder +
+                        '" && cp "${PROJECT_ROOT}/' +
+                        p.filePath +
+                        '" "${PROJECT_ROOT}/' +
+                        bucketFolder +
+                        '/' +
+                        p.currentName +
+                        '"; fi',
+                    );
+                  }
+                });
+              });
+          }
         });
 
       // Execution: archive
