@@ -139,7 +139,10 @@ export default function PhotoOrganizer() {
     openExportScriptModal,
     closeExportScriptModal,
     copyExportScript,
-  } = useExportScript(photos, dayLabels, projectSettings);
+    downloadExportScript,
+    regenerateScript,
+    getDetectedProjectPath,
+  } = useExportScript(photos, dayLabels, projectSettings, projectRootPath);
 
   const { setCoverForPhotoId } = useCoverPhoto({
     photos,
@@ -530,8 +533,11 @@ export default function PhotoOrganizer() {
         isOpen={showExportScript}
         scriptText={exportScriptText}
         copyStatus={exportCopyStatus}
+        detectedProjectPath={getDetectedProjectPath()}
         onClose={closeExportScriptModal}
         onCopyScript={copyExportScript}
+        onDownloadScript={downloadExportScript}
+        onRegenerateScript={regenerateScript}
       />
 
       {/* Help Modal */}

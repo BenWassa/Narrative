@@ -135,7 +135,7 @@ export default function PhotoGrid({
             </div>
           )}
 
-          <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/30 to-transparent opacity-0 group-hover:opacity-100 transition-opacity">
+          <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/30 to-transparent opacity-0 group-hover:opacity-100 transition-opacity z-5">
             <div className="absolute bottom-0 left-0 right-0 p-2">
               <p className="text-xs font-medium text-white truncate">{photo.currentName}</p>
             </div>
@@ -154,21 +154,36 @@ export default function PhotoGrid({
             </div>
           )}
 
-          {photo.bucket && (
-            <div
-              className={`absolute bottom-2 left-2 px-2 py-1 rounded text-xs font-bold ${
-                buckets.find(b => b.key === photo.bucket)?.color
-              } text-white shadow-lg`}
-            >
-              <div className="flex items-center gap-1">
-                <span>{photo.bucket}</span>
-                {photo.favorite && <Heart className="w-3 h-3 fill-current" />}
-              </div>
-            </div>
-          )}
+          {photo.bucket &&
+            (() => {
+              const bucketDef = buckets.find(b => b.key === photo.bucket);
+              const bucketColor = bucketDef?.color || 'bg-gray-500';
+              const colorMap: Record<string, string> = {
+                'bg-blue-500': 'rgb(59, 130, 246)',
+                'bg-purple-500': 'rgb(168, 85, 247)',
+                'bg-green-500': 'rgb(34, 197, 94)',
+                'bg-orange-500': 'rgb(249, 115, 22)',
+                'bg-yellow-500': 'rgb(234, 179, 8)',
+                'bg-indigo-500': 'rgb(99, 102, 241)',
+                'bg-gray-500': 'rgb(107, 114, 128)',
+              };
+              const bgColor = colorMap[bucketColor];
+              return (
+                <div
+                  className="absolute bottom-2 left-2 px-2 py-1 rounded text-xs font-bold text-white shadow-lg z-10"
+                  style={{ backgroundColor: bgColor || 'rgb(107, 114, 128)' }}
+                  title={`Bucket: ${photo.bucket}${bucketDef ? ` (${bucketDef.label})` : ''}`}
+                >
+                  <div className="flex items-center gap-1">
+                    <span>{photo.bucket}</span>
+                    {photo.favorite && <Heart className="w-3 h-3 fill-current" />}
+                  </div>
+                </div>
+              );
+            })()}
 
           {!photo.bucket && photo.favorite && (
-            <div className="absolute bottom-2 left-2 bg-yellow-500 text-white rounded-full p-1.5 shadow-lg">
+            <div className="absolute bottom-2 left-2 bg-yellow-500 text-white rounded-full p-1.5 shadow-lg z-10">
               <Heart className="w-3.5 h-3.5 fill-current" />
             </div>
           )}
