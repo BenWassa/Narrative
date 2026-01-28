@@ -395,7 +395,7 @@ export function useExportScript(
         rootPhotos.forEach(p => {
           if (p.filePath) {
             lines.push(
-              `if [ -e "${p.currentName}" ]; then echo "Skipping existing: ${p.currentName}"; else cp "\${PROJECT_ROOT}/${p.filePath}" "${p.currentName}"; fi`,
+              `if [ -e "\${PROJECT_ROOT}/${p.currentName}" ]; then echo "Skipping existing: ${p.currentName}"; else cp "\${PROJECT_ROOT}/${p.filePath}" "\${PROJECT_ROOT}/${p.currentName}"; fi`,
             );
           }
         });
@@ -431,12 +431,17 @@ export function useExportScript(
 
               const photos = buckets[bucket];
 
-              lines.push(`mkdir -p "${bucketFolder}"`);
+              // In script: use absolute paths with $PROJECT_ROOT for non-ingested, relative for ingested
+              if (isIngested) {
+                lines.push(`mkdir -p "\\${PROJECT_ROOT}/${bucketFolder}"`);
+              } else {
+                lines.push(`mkdir -p "\\${PROJECT_ROOT}/${bucketFolder}"`);
+              }
 
               photos.forEach(p => {
                 if (p.filePath) {
                   lines.push(
-                    `if [ -e "${bucketFolder}/${p.currentName}" ]; then echo "Skipping existing: ${bucketFolder}/${p.currentName}"; else cp "\${PROJECT_ROOT}/${p.filePath}" "${bucketFolder}/${p.currentName}"; fi`,
+                    `if [ -e "\${PROJECT_ROOT}/${bucketFolder}/${p.currentName}" ]; then echo "Skipping existing: ${bucketFolder}/${p.currentName}"; else mkdir -p "\${PROJECT_ROOT}/${bucketFolder}" && cp "\${PROJECT_ROOT}/${p.filePath}" "\${PROJECT_ROOT}/${bucketFolder}/${p.currentName}"; fi`,
                   );
                 }
               });
@@ -449,7 +454,7 @@ export function useExportScript(
         archivePhotos.forEach(p => {
           if (p.filePath) {
             lines.push(
-              `if [ -e "\${TARGET_ARCHIVE_DIR}/${p.currentName}" ]; then echo "Skipping existing: \${TARGET_ARCHIVE_DIR}/${p.currentName}"; else cp "\${PROJECT_ROOT}/${p.filePath}" "\${TARGET_ARCHIVE_DIR}/${p.currentName}"; fi`,
+              `if [ -e "\${TARGET_ARCHIVE_DIR}/${p.currentName}" ]; then echo "Skipping existing: \${TARGET_ARCHIVE_DIR}/${p.currentName}"; else cp "\${PROJECT_ROOT}/${p.filePath}" "\${TARGET_ARCHIVE_DIR}/${p.currentName}" && echo "Copied: ${p.currentName}"; fi`,
             );
           }
         });
