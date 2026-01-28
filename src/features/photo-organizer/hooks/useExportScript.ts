@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useState, useEffect } from 'react';
 
 import type {
   ProjectPhoto,
@@ -46,6 +46,14 @@ export function useExportScript(
   const [lastExportManifest, setLastExportManifest] = useState<ExportManifest | null>(null);
   const [showUndoScript, setShowUndoScript] = useState(false);
   const [undoScriptText, setUndoScriptText] = useState('');
+
+  // Initialize manifest from localStorage on mount
+  useEffect(() => {
+    if (projectRootPath) {
+      const manifest = loadExportManifest(projectRootPath);
+      setLastExportManifest(manifest);
+    }
+  }, [projectRootPath]);
 
   const buildExportScript = useCallback(
     (overrideProjectPath?: string) => {
@@ -511,10 +519,8 @@ export function useExportScript(
   }, [undoScriptText]);
 
   const hasExportManifest = useCallback(() => {
-    if (!projectRootPath) return false;
-    const manifest = loadExportManifest(projectRootPath);
-    return manifest !== null;
-  }, [projectRootPath]);
+    return lastExportManifest !== null;
+  }, [lastExportManifest]);
 
   return {
     showExportScript,
