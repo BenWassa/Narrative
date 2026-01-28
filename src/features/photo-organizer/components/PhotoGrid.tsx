@@ -337,12 +337,12 @@ export default function PhotoGrid({
                         className="text-xs text-blue-300 hover:text-blue-200"
                         title={
                           isIngested
-                            ? 'Revert photos back to subfolder'
+                            ? 'Keep photos in day root'
                             : 'Move photos in this subfolder to the day root'
                         }
                         onClick={() => {
                           if (isIngested) {
-                            // Undo ingest - revert to subfolder
+                            // Keep in day root - toggle off subfolder override
                             const updated = photos.map(p => {
                               if (p.day !== selectedDay) return p;
                               if (derivedGroupPhotos.find(dp => dp.id === p.id)) {
@@ -351,25 +351,8 @@ export default function PhotoGrid({
                               return p;
                             });
                             onSaveToHistory(updated);
-                            const dayLabel =
-                              dayLabels[selectedDay] ||
-                              `Day ${String(selectedDay).padStart(2, '0')}`;
-                            onShowToast(`Photos reverted to subfolder.`, 'info', {
-                              durationMs: 5000,
-                              actionLabel: 'Undo',
-                              onAction: () => {
-                                const reingested = photos.map(p => {
-                                  if (p.day !== selectedDay) return p;
-                                  const derived = getDerivedSubfolderGroup(p, selectedDay);
-                                  if (derived !== group.label) return p;
-                                  return { ...p, subfolderOverride: null };
-                                });
-                                onSaveToHistory(reingested);
-                              },
-                            });
                           } else {
                             // Ingest to day
-                            const previousPhotos = photos;
                             const updated = photos.map(p => {
                               if (p.day !== selectedDay) return p;
                               const derived = getDerivedSubfolderGroup(p, selectedDay);
@@ -380,32 +363,47 @@ export default function PhotoGrid({
                             const dayLabel =
                               dayLabels[selectedDay] ||
                               `Day ${String(selectedDay).padStart(2, '0')}`;
-                            onShowToast(`Photos moved to ${dayLabel}.`, 'info', {
-                              durationMs: 5000,
-                              actionLabel: 'Undo',
-                              onAction: () => {
-                                onSaveToHistory(previousPhotos);
-                              },
-                            });
+                            onShowToast(`Photos moved to ${dayLabel}.`, 'info');
                           }
                         }}
                       >
-                        {isIngested ? 'Undo Ingest' : 'Ingest to Day'}
+                        {isIngested ? 'Keep in Day' : 'Ingest to Day'}
                       </button>
-                      <button
-                        className="text-xs text-gray-300 hover:text-gray-100"
-                        onClick={() => {
-                          const updated = photos.map(p => {
-                            if (p.day !== selectedDay) return p;
-                            const derived = getDerivedSubfolderGroup(p, selectedDay);
-                            if (derived !== group.label) return p;
-                            return { ...p, subfolderOverride: derived };
-                          });
-                          onSaveToHistory(updated);
-                        }}
-                      >
-                        Keep Subfolder
-                      </button>
+                      {!isIngested && (
+                        <button
+                          className="text-xs text-gray-300 hover:text-gray-100"
+                          onClick={() => {
+                            const updated = photos.map(p => {
+                              if (p.day !== selectedDay) return p;
+                              const derived = getDerivedSubfolderGroup(p, selectedDay);
+                              if (derived !== group.label) return p;
+                              return { ...p, subfolderOverride: derived };
+                            });
+                            onSaveToHistory(updated);
+                          }}
+                        >
+                          Keep Subfolder
+                        </button>
+                      )}
+                      {isIngested && (
+                        <button
+                          className="text-xs text-red-300 hover:text-red-200"
+                          title="Revert photos back to subfolder"
+                          onClick={() => {
+                            const updated = photos.map(p => {
+                              if (p.day !== selectedDay) return p;
+                              if (derivedGroupPhotos.find(dp => dp.id === p.id)) {
+                                return { ...p, subfolderOverride: undefined };
+                              }
+                              return p;
+                            });
+                            onSaveToHistory(updated);
+                            onShowToast(`Photos reverted to subfolder.`, 'info');
+                          }}
+                        >
+                          Undo Ingest
+                        </button>
+                      )}
                     </div>
                   )}
                 </div>
