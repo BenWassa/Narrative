@@ -1,19 +1,46 @@
 import { useCallback, useState } from 'react';
 
-import type { ProjectPhoto, ProjectSettings } from '../services/projectService';
+import type { ProjectPhoto, ProjectSettings, ProjectState, ExportManifest } from '../services/projectService';
+import {
+  resolveSourceRoot,
+  resolveDestinationRoot,
+  resolveMeceBucketPath,
+} from '../utils/pathResolver';
+import {
+  generateExportManifest,
+  generateUndoScript,
+  saveExportManifest,
+  loadExportManifest,
+  clearExportManifest,
+} from '../utils/exportManifest';
 
 export type ExportCopyStatus = 'idle' | 'copied' | 'failed';
+
+interface UseExportScriptOptions {
+  photos: ProjectPhoto[];
+  dayLabels: Record<number, string>;
+  projectSettings: ProjectSettings;
+  projectRootPath?: string;
+  // NEW: Optional ingest state for enhanced path resolution
+  ingested?: boolean;
+  sourceRoot?: string;
+}
 
 export function useExportScript(
   photos: ProjectPhoto[],
   dayLabels: Record<number, string>,
   projectSettings: ProjectSettings,
   projectRootPath?: string,
+  ingested?: boolean,
+  sourceRoot?: string,
 ) {
   const [showExportScript, setShowExportScript] = useState(false);
   const [exportScriptText, setExportScriptText] = useState('');
   const [exportCopyStatus, setExportCopyStatus] = useState<ExportCopyStatus>('idle');
   const [customProjectPath, setCustomProjectPath] = useState<string>('');
+  const [lastExportManifest, setLastExportManifest] = useState<ExportManifest | null>(null);
+  const [showUndoScript, setShowUndoScript] = useState(false);
+  const [undoScriptText, setUndoScriptText] = useState('');
 
   const buildExportScript = useCallback(
     (overrideProjectPath?: string) => {
@@ -22,37 +49,21 @@ export function useExportScript(
       const daysFolder = projectSettings.folderStructure.daysFolder;
       const archiveFolder = projectSettings.folderStructure.archiveFolder;
 
-      // Extract the project root path from photo file paths
-      // Photo filePath is absolute, we need to find where the project root is
-      let detectedProjectRoot = overrideProjectPath || customProjectPath || '';
+      // Build a minimal ProjectState for path resolution
+      const projectState: Partial<ProjectState> = {
+        rootPath: projectRootPath || '',
+        settings: projectSettings,
+        dayLabels: dayLabels,
+        ingested: ingested,
+        sourceRoot: sourceRoot,
+      };
 
-      // Only auto-detect if no override provided
-      if (!detectedProjectRoot) {
-        const samplePhoto = photos.find(p => p.filePath);
-        if (samplePhoto?.filePath && samplePhoto.folderHierarchy) {
-          // The filePath is absolute, folderHierarchy is relative from project root
-          // Remove the relative portion to get the project root
-          const relativePath = samplePhoto.folderHierarchy.join('/');
-          const fullPath = samplePhoto.filePath;
+      // Resolve source and destination using path resolver
+      const computedSourceRoot = resolveSourceRoot(projectState as ProjectState, photos);
+      const isIngested = ingested !== false; // Default to true for backward compatibility
 
-          if (relativePath && fullPath.includes(relativePath)) {
-            // Find where the relative path starts in the full path
-            const relativeIndex = fullPath.lastIndexOf(relativePath);
-            if (relativeIndex > 0) {
-              detectedProjectRoot = fullPath.substring(0, relativeIndex - 1); // -1 to remove trailing slash
-            }
-          }
-        }
-
-        // Fallback: try to extract from first photo by going up directories
-        if (!detectedProjectRoot && samplePhoto?.filePath) {
-          const parts = samplePhoto.filePath.split('/');
-          // Assume project root is 2-3 levels up from the photo
-          if (parts.length > 3) {
-            detectedProjectRoot = parts.slice(0, -2).join('/');
-          }
-        }
-      }
+      // Use override or custom path if provided
+      let detectedProjectRoot = overrideProjectPath || customProjectPath || computedSourceRoot;
 
       // Bucket name mapping for folder naming
       const bucketNames: Record<string, string> = {
@@ -118,10 +129,12 @@ export function useExportScript(
       });
 
       // Header: show a preview and require confirmation before executing
-      // Note: No shebang needed since this is pasted directly into terminal
-      lines.push('# Narrative Export Script');
-      lines.push('# This script organizes your photos into day folders with buckets');
+      lines.push('#!/bin/bash');
+      lines.push('# Narrative Export Script - Ingest-Aware Export');
+      lines.push('# This script organizes your photos based on ingest state');
       lines.push('set -e');
+      lines.push('');
+      lines.push(`# Ingest mode: ${isIngested ? 'INGESTED (photos in project)' : 'NOT INGESTED (organize in-place)'}`);
       lines.push('');
       lines.push(
         `# Export script with dry-run first, then safe execution with preview and confirmation.`,
@@ -158,8 +171,18 @@ export function useExportScript(
       lines.push('');
       lines.push(`DAYS_FOLDER="${daysFolder}"`);
       lines.push(`ARCHIVE_FOLDER="${archiveFolder}"`);
-      lines.push('TARGET_DAYS_DIR="${PROJECT_ROOT}/${DAYS_FOLDER}"');
-      lines.push('TARGET_ARCHIVE_DIR="${PROJECT_ROOT}/${ARCHIVE_FOLDER}"');
+      
+      // For ingested projects, days go inside PROJECT_ROOT
+      // For non-ingested, MECE folders go directly in source folders
+      if (isIngested) {
+        lines.push('TARGET_DAYS_DIR="${PROJECT_ROOT}/${DAYS_FOLDER}"');
+        lines.push('TARGET_ARCHIVE_DIR="${PROJECT_ROOT}/${ARCHIVE_FOLDER}"');
+      } else {
+        lines.push('# Non-ingested mode: MECE folders created in source location');
+        lines.push('TARGET_DAYS_DIR="${PROJECT_ROOT}"');
+        lines.push('TARGET_ARCHIVE_DIR="${PROJECT_ROOT}/${ARCHIVE_FOLDER}"');
+      }
+      
       lines.push('');
       lines.push('# Color codes for output');
       lines.push("RED='\\033[0;31m'");
@@ -206,7 +229,6 @@ export function useExportScript(
         .sort((a, b) => a - b)
         .forEach(day => {
           const label = dayLabels[day] || `Day ${String(day).padStart(2, '0')}`;
-          const dayFolder = `${daysFolder}/${label}`;
           const buckets = photosByDay[day];
           const dayPhotosCount = Object.values(buckets).reduce(
             (sum, bucket) => sum + bucket.length,
@@ -219,7 +241,6 @@ export function useExportScript(
             .sort()
             .forEach(bucket => {
               const bucketLabel = bucketNames[bucket] || bucket;
-              const bucketFolder = `${dayFolder}/${bucket}_${bucketLabel}`;
               const bucketPhotos = buckets[bucket];
 
               lines.push(`echo "    ├─ ${bucket}_${bucketLabel} (${bucketPhotos.length})"`);
@@ -268,20 +289,32 @@ export function useExportScript(
       }
 
       // Execution: create day folders with bucket subfolders and copy files
-      lines.push('mkdir -p "${DAYS_FOLDER}"');
+      if (isIngested) {
+        lines.push('# Ingested mode: create day folders with MECE buckets inside');
+        lines.push('mkdir -p "${TARGET_DAYS_DIR}"');
+      }
+      
       Object.keys(photosByDay)
         .map(Number)
         .sort((a, b) => a - b)
         .forEach(day => {
           const label = dayLabels[day] || `Day ${String(day).padStart(2, '0')}`;
-          const dayFolder = `${daysFolder}/${label}`;
           const buckets = photosByDay[day];
 
           Object.keys(buckets)
             .sort()
             .forEach(bucket => {
               const bucketLabel = bucketNames[bucket] || bucket;
-              const bucketFolder = `${dayFolder}/${bucket}_${bucketLabel}`;
+              let bucketFolder: string;
+              
+              if (isIngested) {
+                // Ingested: buckets inside day folder
+                bucketFolder = `${daysFolder}/${label}/${bucket}_${bucketLabel}`;
+              } else {
+                // Non-ingested: buckets in source location
+                bucketFolder = `${bucket}_${bucketLabel}`;
+              }
+              
               const photos = buckets[bucket];
 
               lines.push(`mkdir -p "${bucketFolder}"`);
@@ -298,11 +331,11 @@ export function useExportScript(
 
       // Execution: archive
       if (archivePhotos.length > 0) {
-        lines.push('mkdir -p "${ARCHIVE_FOLDER}"');
+        lines.push('mkdir -p "${TARGET_ARCHIVE_DIR}"');
         archivePhotos.forEach(p => {
           if (p.filePath) {
             lines.push(
-              `if [ -e "${archiveFolder}/${p.currentName}" ]; then echo "Skipping existing: ${archiveFolder}/${p.currentName}"; else cp "\${PROJECT_ROOT}/${p.filePath}" "${archiveFolder}/${p.currentName}"; fi`,
+              `if [ -e "${TARGET_ARCHIVE_DIR}/${p.currentName}" ]; then echo "Skipping existing: ${TARGET_ARCHIVE_DIR}/${p.currentName}"; else cp "\${PROJECT_ROOT}/${p.filePath}" "${TARGET_ARCHIVE_DIR}/${p.currentName}"; fi`,
             );
           }
         });
@@ -315,7 +348,7 @@ export function useExportScript(
 
       return lines.join('\n');
     },
-    [photos, dayLabels, projectSettings, projectRootPath, customProjectPath],
+    [photos, dayLabels, projectSettings, projectRootPath, customProjectPath, ingested, sourceRoot],
   );
 
   const openExportScriptModal = useCallback(() => {
@@ -403,6 +436,77 @@ export function useExportScript(
     return '';
   }, [photos, customProjectPath]);
 
+  // Generate and save export manifest
+  const generateManifest = useCallback(async () => {
+    if (!projectRootPath) return;
+
+    const projectState: Partial<ProjectState> = {
+      rootPath: projectRootPath,
+      settings: projectSettings,
+      dayLabels: dayLabels,
+      ingested: ingested,
+      sourceRoot: sourceRoot,
+    };
+
+    const computedSourceRoot = resolveSourceRoot(projectState as ProjectState, photos);
+    const computedDestRoot = resolveDestinationRoot(projectState as ProjectState, photos);
+
+    const manifest = await generateExportManifest(
+      photos,
+      computedSourceRoot,
+      computedDestRoot,
+      ingested !== false,
+      dayLabels,
+      projectSettings,
+    );
+
+    setLastExportManifest(manifest);
+    saveExportManifest(projectRootPath, manifest);
+    return manifest;
+  }, [photos, dayLabels, projectSettings, projectRootPath, ingested, sourceRoot]);
+
+  // Open undo script modal
+  const openUndoScriptModal = useCallback(() => {
+    if (!projectRootPath) return;
+
+    // Try to load existing manifest
+    const manifest = loadExportManifest(projectRootPath);
+    if (!manifest) {
+      console.warn('No export manifest found for this project');
+      return;
+    }
+
+    const script = generateUndoScript(manifest);
+    setUndoScriptText(script);
+    setShowUndoScript(true);
+  }, [projectRootPath]);
+
+  const closeUndoScriptModal = useCallback(() => {
+    setShowUndoScript(false);
+  }, []);
+
+  const downloadUndoScript = useCallback(() => {
+    if (!undoScriptText) return;
+
+    const blob = new Blob([undoScriptText], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'narrative-undo-export.sh';
+    document.body.appendChild(link);
+    link.click();
+
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  }, [undoScriptText]);
+
+  const hasExportManifest = useCallback(() => {
+    if (!projectRootPath) return false;
+    const manifest = loadExportManifest(projectRootPath);
+    return manifest !== null;
+  }, [projectRootPath]);
+
   return {
     showExportScript,
     exportScriptText,
@@ -415,5 +519,13 @@ export function useExportScript(
     resetExportCopyStatus,
     regenerateScript,
     getDetectedProjectPath,
+    // NEW: Undo functionality
+    showUndoScript,
+    undoScriptText,
+    openUndoScriptModal,
+    closeUndoScriptModal,
+    downloadUndoScript,
+    generateManifest,
+    hasExportManifest,
   };
 }

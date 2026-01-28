@@ -24,6 +24,7 @@ interface ProjectHeaderProps {
   projectError: string | null;
   permissionRetryProjectId: string | null;
   loadingProject: boolean;
+  hasExportManifest?: boolean;
   onMainMenu: () => void;
   onStartCoverSelection: () => void;
   onUseCoverSelection: () => void;
@@ -33,6 +34,7 @@ interface ProjectHeaderProps {
   onDeleteProject: () => void;
   onImportTrip: () => void;
   onExportScript: () => void;
+  onUndoExport?: () => void;
   onShowHelp: () => void;
   onRetryPermission: () => void;
   onChangeView: (viewId: string) => void;
@@ -56,6 +58,7 @@ export default function ProjectHeader({
   projectError,
   permissionRetryProjectId,
   loadingProject,
+  hasExportManifest,
   onMainMenu,
   onStartCoverSelection,
   onUseCoverSelection,
@@ -65,6 +68,7 @@ export default function ProjectHeader({
   onDeleteProject,
   onImportTrip,
   onExportScript,
+  onUndoExport,
   onShowHelp,
   onRetryPermission,
   onChangeView,
@@ -216,6 +220,15 @@ export default function ProjectHeader({
           >
             Export Script
           </button>
+          {hasExportManifest && onUndoExport && (
+            <button
+              onClick={onUndoExport}
+              className="px-3 py-1 bg-yellow-800 hover:bg-yellow-700 rounded text-sm font-medium"
+              title="Undo last export"
+            >
+              Undo Export
+            </button>
+          )}
           <button
             onClick={onShowHelp}
             className="p-2 hover:bg-gray-800 rounded"

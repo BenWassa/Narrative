@@ -31,6 +31,7 @@ import PhotoGrid from './components/PhotoGrid';
 import RightSidebar from './components/RightSidebar';
 import HelpModal from './components/HelpModal';
 import ExportScriptModal from './components/ExportScriptModal';
+import UndoScriptModal from './components/UndoScriptModal';
 import Toast from './components/Toast';
 import FullscreenOverlay from './components/FullscreenOverlay';
 import DebugOverlay from './components/DebugOverlay';
@@ -142,7 +143,13 @@ export default function PhotoOrganizer() {
     downloadExportScript,
     regenerateScript,
     getDetectedProjectPath,
-  } = useExportScript(photos, dayLabels, projectSettings, projectRootPath);
+    showUndoScript,
+    undoScriptText,
+    openUndoScriptModal,
+    closeUndoScriptModal,
+    downloadUndoScript,
+    hasExportManifest,
+  } = useExportScript(photos, dayLabels, projectSettings, projectRootPath || undefined);
 
   const { setCoverForPhotoId } = useCoverPhoto({
     photos,
@@ -352,6 +359,7 @@ export default function PhotoOrganizer() {
         projectError={projectError}
         permissionRetryProjectId={permissionRetryProjectId}
         loadingProject={loadingProject}
+        hasExportManifest={hasExportManifest()}
         onMainMenu={() => {
           setShowOnboarding(false);
           setProjectError(null);
@@ -414,6 +422,7 @@ export default function PhotoOrganizer() {
           setShowOnboarding(true);
         }}
         onExportScript={openExportScriptModal}
+        onUndoExport={openUndoScriptModal}
         onShowHelp={() => setShowHelp(true)}
         onRetryPermission={retryProjectPermission}
         onChangeView={viewId => setCurrentView(viewId)}
@@ -538,6 +547,14 @@ export default function PhotoOrganizer() {
         onCopyScript={copyExportScript}
         onDownloadScript={downloadExportScript}
         onRegenerateScript={regenerateScript}
+      />
+
+      {/* Undo Script Modal */}
+      <UndoScriptModal
+        isOpen={showUndoScript}
+        scriptText={undoScriptText}
+        onClose={closeUndoScriptModal}
+        onDownloadScript={downloadUndoScript}
       />
 
       {/* Help Modal */}

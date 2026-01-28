@@ -11,7 +11,7 @@ Completed sprints are archived in `archive/SPRINTS_COMPLETE.md`.
 **Goal**: Make export behavior honor "ingest" state, support MECE folder creation in-source or in-day, and provide robust undo.
 
 ### S10-1: Define Ingest State + Source/Destination Rules
-**Status**: not-started  
+**Status**: completed  
 **Description**:
 - Formalize what "ingest" means in data model/state.
 - Define source root resolution (e.g., `01_DAYS/Day 02/Diving photos`) and destination rules:
@@ -24,7 +24,7 @@ Completed sprints are archived in `archive/SPRINTS_COMPLETE.md`.
 - Document rules in `docs/SPRINT_10_IMPLEMENTATION.md`.
 
 ### S10-2: Export Script Generator Updates
-**Status**: not-started  
+**Status**: completed  
 **Description**:
 - Update export script generation to:
   - Use computed source/destination roots.
@@ -37,7 +37,7 @@ Completed sprints are archived in `archive/SPRINTS_COMPLETE.md`.
 - Introduce `--dry-run` and `--execute` flags as optional CLI arguments.
 
 ### S10-3: Robust Undo/Redo for Export
-**Status**: not-started  
+**Status**: completed  
 **Description**:
 - Generate a manifest (JSON) of all copy operations.
 - Provide an undo script or built-in `--undo` mode that reverts copies safely.
@@ -48,7 +48,7 @@ Completed sprints are archived in `archive/SPRINTS_COMPLETE.md`.
 - Include checksums or file sizes to avoid deleting mismatched files.
 
 ### S10-4: UI Integration for Ingest + Export
-**Status**: not-started  
+**Status**: completed  
 **Description**:
 - Make "Ingest" state explicit in UI with a clear toggle/indicator.
 - Show destination preview based on ingest mode.
@@ -59,7 +59,7 @@ Completed sprints are archived in `archive/SPRINTS_COMPLETE.md`.
 - Keep user-facing language consistent with ingest behavior.
 
 ### S10-5: Tests + Safety Validation
-**Status**: not-started  
+**Status**: completed  
 **Description**:
 - Add unit tests for path resolution logic.
 - Add integration test coverage for export script generation.

@@ -41,6 +41,22 @@ export interface ProjectSettings {
   };
 }
 
+export interface ExportOperation {
+  sourcePath: string;
+  destinationPath: string;
+  fileSize: number;
+  checksum?: string;
+  operation: 'copy' | 'move';
+}
+
+export interface ExportManifest {
+  timestamp: number;
+  operations: ExportOperation[];
+  sourceRoot: string;
+  destinationRoot: string;
+  ingested: boolean;
+}
+
 export interface ProjectState {
   projectName: string;
   rootPath: string;
@@ -50,6 +66,12 @@ export interface ProjectState {
   // list of folder names that the user marked as day containers during onboarding
   dayContainers?: string[];
   lastModified?: number;
+  // Ingest tracking: whether photos have been copied into project structure
+  ingested?: boolean;
+  // Original source path (for non-ingested projects)
+  sourceRoot?: string;
+  // Last export operation for undo
+  lastExportManifest?: ExportManifest;
 }
 
 interface ProjectInitResponse {
