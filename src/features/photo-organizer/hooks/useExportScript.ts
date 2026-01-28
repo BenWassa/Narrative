@@ -236,11 +236,11 @@ export function useExportScript(
 
       // Preview: root files
       if (rootPhotos.length > 0) {
-        lines.push('echo "${YELLOW}${BOLD}📁 Root Files${NC} (${rootPhotos.length})"');
+        lines.push('echo "${YELLOW}${BOLD}📁 Root Files${NC} (' + rootPhotos.length + ')"');
         lines.push('echo ""');
         rootPhotos.forEach(p => {
           if (p.filePath) {
-            lines.push(`echo "  ${CYAN}→${NC} ${p.currentName}"`);
+            lines.push('echo "  ${CYAN}→${NC} ' + p.currentName + '"');
           }
         });
         lines.push('echo ""');
@@ -268,7 +268,9 @@ export function useExportScript(
             0,
           );
 
-          lines.push(`echo "  ${CYAN}${label}${NC} — ${BOLD}${dayPhotosCount}${NC} photos"`);
+          lines.push(
+            'echo "  ${CYAN}' + label + '${NC} — ${BOLD}' + dayPhotosCount + '${NC} photos"',
+          );
 
           Object.keys(buckets)
             .sort()
@@ -278,20 +280,30 @@ export function useExportScript(
               const isLast = idx === Object.keys(buckets).length - 1;
               const prefix = isLast ? '    └─' : '    ├─';
 
-              lines.push(`echo "  ${prefix} ${bucket}_${bucketLabel} (${bucketPhotos.length})"`);
+              lines.push(
+                'echo "  ' +
+                  prefix +
+                  ' ' +
+                  bucket +
+                  '_' +
+                  bucketLabel +
+                  ' (' +
+                  bucketPhotos.length +
+                  ')"',
+              );
             });
           lines.push('echo ""');
         });
 
       // Preview: archive
       if (archivePhotos.length > 0) {
-        lines.push('echo "${YELLOW}${BOLD}🗑️  Archive${NC} (${archivePhotos.length})"');
+        lines.push('echo "${YELLOW}${BOLD}🗑️  Archive${NC} (' + archivePhotos.length + ')"');
         lines.push('echo ""');
       }
 
       lines.push('');
       lines.push('echo "${YELLOW}${BOLD}📊 Summary${NC}"');
-      lines.push('echo "  Total files to copy: ${CYAN}${BOLD}' + totalFiles + '${NC}${BOLD}${NC}"');
+      lines.push('echo "  Total files to copy: ${CYAN}${BOLD}' + totalFiles + '${NC}"');
       lines.push('echo ""');
       lines.push('echo "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"');
       lines.push('echo ""');
