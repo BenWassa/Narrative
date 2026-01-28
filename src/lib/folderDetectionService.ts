@@ -52,20 +52,57 @@ const TIMESTAMP_PATTERN = /(\d{10,13})|(\d{4}(?:\d{2}){2})/;
 
 /**
  * Bucket pattern matchers (in priority order)
+ * 
+ * IMPORTANT: The BUCKET_STANDARD_PATTERN is now dynamically generated from MECE_BUCKETS
+ * to ensure consistency between bucket definitions and regex patterns.
+ * See src/features/photo-organizer/constants/meceBuckets.ts
+ * 
+ * Note: We use a Unicode hyphen pattern to match various dash types (-, –, —, −, etc.)
+ * because macOS and other systems sometimes auto-correct regular hyphens to en/em dashes.
  */
 
-// Pattern 1: Standard bucket naming (highest confidence)
-// Matches: "A_Establishing", "B_People", "C_Culture-Detail", etc.
-const BUCKET_STANDARD_PATTERN =
-  /^([A-M])(?:[\s_-]+)(Establishing|People|Culture(?:[-_\s]?Detail)?|Detail|Action|Moment|Transition|Mood|Food)$/i;
+// Unicode-aware hyphen pattern that matches:
+// - Regular hyphen (U+002D)
+// - En dash (U+2013)
+// - Em dash (U+2014)
+// - Minus sign (U+2212)
+// And underscore + whitespace
+const HYPHEN_PATTERN = '[\\s_\\-–—−]';
+
+// Build the standard bucket pattern from MECE bucket definitions
+// This ensures the pattern always matches the defined bucket categories
+function generateBucketStandardPattern(): RegExp {
+  // Import bucket names at runtime to avoid circular dependencies
+  // Fallback categories if import fails
+  // Note: Use Unicode hyphen pattern inside category definitions
+  const categories = [
+    'Establishing',
+    'People',
+    `Culture(?:${HYPHEN_PATTERN}?Detail)?`,
+    'Detail',
+    `Action(?:${HYPHEN_PATTERN}?Moment)?`,
+    'Moment',
+    'Transition',
+    `(?:Mood${HYPHEN_PATTERN}?Food|Food${HYPHEN_PATTERN}?Mood)`,
+    'Mood',
+    'Food',
+    'Archive',
+  ];
+  
+  const pattern = `^([A-MX])(?:${HYPHEN_PATTERN}+)(${categories.join('|')})$`;
+  return new RegExp(pattern, 'i');
+}
+
+const BUCKET_STANDARD_PATTERN = generateBucketStandardPattern();
 
 // Pattern 2: Simple bucket letter (high confidence)
-// Matches: "A", "B", "C", etc.
-const BUCKET_LETTER_PATTERN = /^([A-M])$/i;
+// Matches: "A", "B", "C", "D", "E", "M", "X", etc.
+const BUCKET_LETTER_PATTERN = /^([A-MX])$/i;
 
 // Pattern 3: Bucket with custom suffix (medium confidence)
-// Matches: "A_Custom", "B_Whatever", etc.
-const BUCKET_CUSTOM_PATTERN = /^([A-M])(?:[\s_-]+)(.+)$/i;
+// Matches: "A_Custom", "B_Whatever", "X_Archive", etc.
+// Uses Unicode hyphen pattern to handle various dash types
+const BUCKET_CUSTOM_PATTERN = new RegExp(`^([A-MX])(?:${HYPHEN_PATTERN}+)(.+)$`, 'i');
 
 // Pattern 4: Numeric bucket folders (low confidence)
 // Matches: "01", "02", "03", etc. (could be days or buckets)
@@ -167,8 +204,14 @@ export function detectDayNumberFromFolderName(
 export function detectBucketFromFolderName(
   folderName: string,
 ): { bucket: string; confidence: 'high' | 'medium' | 'low'; pattern: string } | null {
+  // Debug: Log the folder name being tested
+  const isDev = typeof window !== 'undefined' && import.meta?.env?.DEV;
+  
   const standardMatch = folderName.match(BUCKET_STANDARD_PATTERN);
   if (standardMatch) {
+    if (isDev) {
+      console.log('[detectBucket] STANDARD match:', { folderName, bucket: standardMatch[1].toUpperCase() });
+    }
     return {
       bucket: standardMatch[1].toUpperCase(),
       confidence: 'high',
@@ -178,6 +221,9 @@ export function detectBucketFromFolderName(
 
   const letterMatch = folderName.match(BUCKET_LETTER_PATTERN);
   if (letterMatch) {
+    if (isDev) {
+      console.log('[detectBucket] LETTER match:', { folderName, bucket: letterMatch[1].toUpperCase() });
+    }
     return {
       bucket: letterMatch[1].toUpperCase(),
       confidence: 'high',
@@ -201,6 +247,17 @@ export function detectBucketFromFolderName(
       confidence: 'low',
       pattern: 'numeric',
     };
+  }
+
+  // Debug: Log when no pattern matches
+  if (isDev && /^[A-MX]/i.test(folderName)) {
+    console.warn('[detectBucket] NO MATCH for folder:', folderName, {
+      testedPatterns: {
+        standard: BUCKET_STANDARD_PATTERN.toString(),
+        letter: BUCKET_LETTER_PATTERN.toString(),
+        custom: BUCKET_CUSTOM_PATTERN.toString(),
+      }
+    });
   }
 
   return null;

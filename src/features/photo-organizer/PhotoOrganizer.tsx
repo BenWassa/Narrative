@@ -11,6 +11,7 @@ import {
   getHandle,
 } from './services/projectService';
 import { ACTIVE_PROJECT_KEY, RECENT_PROJECTS_KEY } from './constants/projectKeys';
+import { MECE_BUCKETS, isMeceBucketLabel } from './constants/meceBuckets';
 import { useHistory } from './hooks/useHistory';
 import { usePhotoSelection } from './hooks/usePhotoSelection';
 import { useProjectState } from './hooks/useProjectState';
@@ -36,27 +37,6 @@ import Toast from './components/Toast';
 import FullscreenOverlay from './components/FullscreenOverlay';
 import DebugOverlay from './components/DebugOverlay';
 import { sortPhotos } from './utils/photoOrdering';
-
-const MECE_BUCKETS = [
-  { key: 'A', label: 'Establishing', color: 'bg-blue-500', description: 'Wide shots, landscapes' },
-  { key: 'B', label: 'People', color: 'bg-purple-500', description: 'Portraits, groups' },
-  {
-    key: 'C',
-    label: 'Culture/Detail',
-    color: 'bg-green-500',
-    description: 'Local life, close-ups',
-  },
-  { key: 'D', label: 'Action/Moment', color: 'bg-orange-500', description: 'Events, activities' },
-  { key: 'E', label: 'Transition', color: 'bg-yellow-500', description: 'Travel, movement' },
-  { key: 'M', label: 'Mood/Food', color: 'bg-indigo-500', description: 'Food, mood' },
-  { key: 'X', label: 'Archive', color: 'bg-gray-500', description: 'Unwanted shots' },
-];
-const MECE_BUCKET_KEYS = new Set(MECE_BUCKETS.map(bucket => bucket.key));
-const isMeceBucketLabel = (label: string) => {
-  const trimmed = label.trim();
-  const firstToken = trimmed.split(/[\s_-]+/)[0] || '';
-  return MECE_BUCKET_KEYS.has(firstToken.toUpperCase());
-};
 
 export default function PhotoOrganizer() {
   const prevThumbnailsRef = useRef<string[]>([]);

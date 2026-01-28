@@ -11,6 +11,7 @@ import {
   resolveDestinationRoot,
   resolveMeceBucketPath,
 } from '../utils/pathResolver';
+import { BUCKET_LABELS } from '../constants/meceBuckets';
 import {
   generateExportManifest,
   generateUndoScript,
@@ -78,15 +79,8 @@ export function useExportScript(
       // Use override or custom path if provided
       let detectedProjectRoot = overrideProjectPath || customProjectPath || computedSourceRoot;
 
-      // Bucket name mapping for folder naming
-      const bucketNames: Record<string, string> = {
-        A: 'Establishing',
-        B: 'People',
-        C: 'Culture-Detail',
-        D: 'Action-Moment',
-        E: 'Transition',
-        M: 'Mood-Food',
-      };
+      // Bucket name mapping for folder naming (from centralized definitions)
+      const bucketNames: Record<string, string> = BUCKET_LABELS;
 
       // Group photos by day and bucket - ONLY INCLUDE MODIFIED PHOTOS
       // This ensures we only touch files that have been changed, not existing organized photos

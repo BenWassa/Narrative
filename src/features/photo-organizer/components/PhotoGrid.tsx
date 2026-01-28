@@ -102,30 +102,32 @@ export default function PhotoGrid({
           key={photo.id}
           onClick={e => handlePhotoClick(photo.id, e)}
           data-testid={`photo-${photo.id}`}
-          className={`relative group cursor-pointer rounded-lg overflow-hidden transition-all shadow-lg hover:shadow-xl ${
-            photo.bucket || photo.archived ? 'opacity-70 saturate-75' : 'hover:scale-105'
+          className={`relative group cursor-pointer rounded-lg overflow-visible transition-all shadow-lg hover:shadow-xl ${
+            photo.bucket || photo.archived ? '' : 'hover:scale-105'
           } ${selectedPhotos.has(photo.id) ? 'ring-2 ring-blue-500' : ''}`}
         >
-          {photo.thumbnail ? (
-            photo.mimeType?.startsWith('video/') ? (
-              <video
-                src={photo.thumbnail}
-                className="w-full aspect-square object-cover"
-                muted
-                preload="metadata"
-              />
+          <div className={`rounded-lg overflow-hidden ${photo.bucket || photo.archived ? 'opacity-70 saturate-75' : ''}`}>
+            {photo.thumbnail ? (
+              photo.mimeType?.startsWith('video/') ? (
+                <video
+                  src={photo.thumbnail}
+                  className="w-full aspect-square object-cover"
+                  muted
+                  preload="metadata"
+                />
+              ) : (
+                <img
+                  src={photo.thumbnail}
+                  alt={photo.currentName}
+                  className="w-full aspect-square object-cover"
+                />
+              )
             ) : (
-              <img
-                src={photo.thumbnail}
-                alt={photo.currentName}
-                className="w-full aspect-square object-cover"
-              />
-            )
-          ) : (
-            <div className="w-full aspect-square bg-gray-900 flex items-center justify-center text-xs text-gray-400 px-2 text-center">
-              {photo.currentName}
-            </div>
-          )}
+              <div className="w-full aspect-square bg-gray-900 flex items-center justify-center text-xs text-gray-400 px-2 text-center">
+                {photo.currentName}
+              </div>
+            )}
+          </div>
 
           {photo.mimeType?.startsWith('video/') && (
             <div className="absolute top-2 left-2 bg-black/70 backdrop-blur-sm rounded-full p-1.5">
@@ -168,6 +170,19 @@ export default function PhotoGrid({
                 'bg-gray-500': 'rgb(107, 114, 128)',
               };
               const bgColor = colorMap[bucketColor];
+              
+              // Debug M bucket rendering for Day 2 only
+              if (photo.bucket === 'M' && photo.day === 2) {
+                console.log('[M Bucket UI Debug - Day 2]', {
+                  photoName: photo.currentName,
+                  bucket: photo.bucket,
+                  bucketDef,
+                  bucketColor,
+                  bgColor,
+                  isRendering: true
+                });
+              }
+              
               return (
                 <div
                   className="absolute bottom-2 left-2 px-2 py-1 rounded text-xs font-bold text-white shadow-lg z-10"

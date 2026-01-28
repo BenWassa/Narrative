@@ -507,9 +507,31 @@ export async function buildPhotosFromHandle(
 
     let day: number | null = null;
     let bucket: string | null = null;
-    if (pathAnalysis.isPreOrganized && pathAnalysis.confidence === 'high') {
+    // Accept both 'high' and 'medium' confidence for pre-organized detection
+    // 'medium' occurs when folder structure is present but without explicit 01_DAYS prefix
+    if (pathAnalysis.isPreOrganized && (pathAnalysis.confidence === 'high' || pathAnalysis.confidence === 'medium')) {
       day = pathAnalysis.detectedDay;
       bucket = pathAnalysis.detectedBucket;
+      
+      // Debug logging for bucket detection
+      if (bucket && import.meta.env.DEV && day === 2) {
+        console.log('[Bucket Detection SUCCESS]', 
+          `path: ${entry.path}`,
+          `bucket: ${bucket}`,
+          `day: ${day}`,
+          `confidence: ${pathAnalysis.confidence}`
+        );
+      }
+    } else if (import.meta.env.DEV && (pathAnalysis.detectedDay || pathAnalysis.detectedBucket) && pathAnalysis.detectedDay === 2) {
+      // Log when detection failed despite finding day/bucket
+      console.warn('[Bucket Detection FAILED]',
+        `\n  Path: ${entry.path}`,
+        `\n  Detected Day: ${pathAnalysis.detectedDay}`,
+        `\n  Detected Bucket: ${pathAnalysis.detectedBucket}`,
+        `\n  isPreOrganized: ${pathAnalysis.isPreOrganized}`,
+        `\n  Confidence: ${pathAnalysis.confidence}`,
+        `\n  Reason: ${!pathAnalysis.isPreOrganized ? 'Not pre-organized (need BOTH day AND bucket)' : `Confidence too low: ${pathAnalysis.confidence} (need high or medium)`}`
+      );
     }
 
     photos.push({
@@ -738,11 +760,12 @@ export async function getState(projectId: string): Promise<ProjectState> {
     photos = freshPhotos.map(photo => {
       const cached = photo.filePath ? cachedEdits.get(photo.filePath) : null;
       if (cached) {
-        // Apply cached edits but keep fresh thumbnail
+        // Apply cached edits but keep fresh thumbnail and freshly-detected bucket if not explicitly set in cache
+        // This ensures that newly fixed bucket detection doesn't get overridden by old cached data
         return {
           ...photo,
           day: cached.day,
-          bucket: cached.bucket,
+          bucket: cached.bucket || photo.bucket,
           sequence: cached.sequence,
           favorite: cached.favorite,
           rating: cached.rating,
