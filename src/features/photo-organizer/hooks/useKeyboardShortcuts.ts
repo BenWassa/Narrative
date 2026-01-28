@@ -172,10 +172,8 @@ export function useKeyboardShortcuts(options: KeyboardHandlerOptions) {
           return;
         }
 
-        // Look up current photo fresh using the indexMap to avoid stale closures
-        const currentIndex = getPhotoIndex(primaryId, orderingResult.indexMap);
-        if (currentIndex === -1) return;
-        const currentPhoto = orderingResult.photos[currentIndex];
+        // Look up current photo from filteredPhotos (most up-to-date source)
+        const currentPhoto = filteredPhotos.find(p => p.id === primaryId);
         if (!currentPhoto) return;
 
         const newBucket = currentPhoto.bucket === bucket ? '' : bucket;
