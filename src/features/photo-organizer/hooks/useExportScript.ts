@@ -352,7 +352,7 @@ export function useExportScript(
         archivePhotos.forEach(p => {
           if (p.filePath) {
             lines.push(
-              `if [ -e "${TARGET_ARCHIVE_DIR}/${p.currentName}" ]; then echo "Skipping existing: ${TARGET_ARCHIVE_DIR}/${p.currentName}"; else cp "\${PROJECT_ROOT}/${p.filePath}" "${TARGET_ARCHIVE_DIR}/${p.currentName}"; fi`,
+              `if [ -e "\${TARGET_ARCHIVE_DIR}/${p.currentName}" ]; then echo "Skipping existing: \${TARGET_ARCHIVE_DIR}/${p.currentName}"; else cp "\${PROJECT_ROOT}/${p.filePath}" "\${TARGET_ARCHIVE_DIR}/${p.currentName}"; fi`,
             );
           }
         });
