@@ -648,14 +648,12 @@ export function useProjectState({
         (async () => {
           try {
             const handle = await getHandle(activeProjectId);
-            if (handle) {
-              setPermissionRetryProjectId(activeProjectId);
-              setProjectError(
-                'Project needs permission to access its folder. Click "Try Again" to grant access.',
-              );
+            if (!handle) {
+              // No stored handle - show welcome screen
               setShowWelcome(true);
             } else {
-              setShowWelcome(true);
+              // Handle exists - try to load the project
+              loadProject(activeProjectId);
             }
           } catch (err) {
             console.warn('Error checking stored handle on startup:', err);
