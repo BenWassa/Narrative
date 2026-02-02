@@ -15,6 +15,7 @@ docs/site/
 # Env
 .env
 .env.*
+.venv
 
 # Logs
 logs/
