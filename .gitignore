@@ -30,3 +30,7 @@ Thumbs.db
 # Backend runtime data
 _meta/
 99_EXPORTS/
+
+
+# narrative-template specific
+narrative-template/
