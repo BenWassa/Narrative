@@ -1,6 +1,6 @@
 /**
  * MECE (Mutually Exclusive, Collectively Exhaustive) Bucket Definitions
- * 
+ *
  * This is the single source of truth for MECE bucket categories.
  * All other parts of the app should reference these definitions to maintain consistency.
  */
@@ -55,7 +55,7 @@ export const BUCKET_LABELS: Record<string, string> = {
  */
 export const BUCKET_CATEGORY_NAMES = Object.values(BUCKET_LABELS).flatMap(label =>
   // Split compound labels like "Culture-Detail" or "Action-Moment" or "Mood-Food" into parts
-  label.split('-').map(part => part.trim())
+  label.split('-').map(part => part.trim()),
 );
 
 /**

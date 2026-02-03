@@ -7,6 +7,7 @@ export interface ProjectPhoto {
   originalName: string;
   currentName: string;
   timestamp: number;
+  fileSize?: number;
   day: number | null;
   bucket: string | null;
   sequence: number | null;
@@ -74,6 +75,34 @@ export interface ProjectState {
   lastExportManifest?: ExportManifest;
 }
 
+interface ProjectManifestPhoto {
+  filePath?: string;
+  originalName: string;
+  currentName: string;
+  timestamp: number;
+  fileSize?: number;
+  day: number | null;
+  bucket: string | null;
+  sequence: number | null;
+  favorite: boolean;
+  rating: number;
+  archived: boolean;
+  subfolderOverride?: string | null;
+}
+
+interface ProjectManifest {
+  version: 1;
+  projectName: string;
+  rootPath: string;
+  settings: ProjectSettings;
+  dayLabels?: Record<string, string>;
+  dayContainers?: string[];
+  lastModified?: number;
+  ingested?: boolean;
+  sourceRoot?: string;
+  photos: ProjectManifestPhoto[];
+}
+
 interface ProjectInitResponse {
   projectId: string;
   photos: ProjectPhoto[];
@@ -84,6 +113,7 @@ const SUPPORTED_EXT = ['jpg', 'jpeg', 'png', 'heic', 'webp', 'mp4', 'mov', 'webm
 const STATE_PREFIX = 'narrative:projectState:';
 const HANDLE_DB = 'narrative:handles';
 const HANDLE_STORE = 'projects';
+const MANIFEST_FILENAME = '.narrative.json';
 const DEFAULT_SETTINGS: ProjectSettings = {
   autoDay: true,
   folderStructure: {
@@ -103,6 +133,16 @@ function generateId() {
 }
 
 const OPEN_DB_TIMEOUT_MS = 10000;
+
+async function requestDirectoryPermission(
+  dirHandle: FileSystemDirectoryHandle,
+  mode: 'read' | 'readwrite',
+) {
+  if (!('requestPermission' in dirHandle)) {
+    throw new Error('File System Access API is not available or supported in this environment.');
+  }
+  return (dirHandle as any).requestPermission({ mode });
+}
 
 async function openHandleDb(): Promise<IDBDatabase> {
   if (!window.indexedDB) {
@@ -212,6 +252,37 @@ async function collectFiles(
     }
   }
   return entries;
+}
+
+async function readManifest(dirHandle: FileSystemDirectoryHandle): Promise<ProjectManifest | null> {
+  try {
+    const fileHandle = await dirHandle.getFileHandle(MANIFEST_FILENAME);
+    const file = await fileHandle.getFile();
+    const text = await file.text();
+    const parsed = JSON.parse(text);
+    if (parsed?.version !== 1 || !Array.isArray(parsed.photos)) {
+      return null;
+    }
+    return parsed as ProjectManifest;
+  } catch (err: any) {
+    if (err?.name === 'NotFoundError') return null;
+    console.warn('Failed to read project manifest:', err);
+    return null;
+  }
+}
+
+async function writeManifest(
+  dirHandle: FileSystemDirectoryHandle,
+  manifest: ProjectManifest,
+): Promise<void> {
+  const fileHandle = await dirHandle.getFileHandle(MANIFEST_FILENAME, { create: true });
+  const writable = await fileHandle.createWritable();
+  try {
+    const payload = JSON.stringify(manifest, null, 2);
+    await writable.write(payload);
+  } finally {
+    await writable.close();
+  }
 }
 
 export async function heicToBlob(file: File): Promise<Blob> {
@@ -453,6 +524,7 @@ export async function buildPhotosFromHandle(
     const file = await entry.handle.getFile();
     const timestamp = file.lastModified;
     const originalName = file.name;
+    const fileSize = file.size;
 
     // Create a fingerprint to detect duplicates
     // Use filename + timestamp + size to identify same file in multiple locations
@@ -509,10 +581,12 @@ export async function buildPhotosFromHandle(
     let bucket: string | null = null;
     // Accept both 'high' and 'medium' confidence for pre-organized detection
     // 'medium' occurs when folder structure is present but without explicit 01_DAYS prefix
-    if (pathAnalysis.isPreOrganized && (pathAnalysis.confidence === 'high' || pathAnalysis.confidence === 'medium')) {
+    if (
+      pathAnalysis.isPreOrganized &&
+      (pathAnalysis.confidence === 'high' || pathAnalysis.confidence === 'medium')
+    ) {
       day = pathAnalysis.detectedDay;
       bucket = pathAnalysis.detectedBucket;
-      
     }
 
     photos.push({
@@ -520,6 +594,7 @@ export async function buildPhotosFromHandle(
       originalName,
       currentName: originalName,
       timestamp,
+      fileSize,
       day,
       bucket,
       sequence: null,
@@ -611,6 +686,67 @@ function applyEdits(photos: ProjectPhoto[], edits: Array<any>) {
   });
 }
 
+function applyManifestEdits(photos: ProjectPhoto[], edits: ProjectManifestPhoto[]) {
+  const byPath = new Map<string, ProjectManifestPhoto>();
+  const byFingerprint = new Map<string, ProjectManifestPhoto>();
+
+  edits.forEach(edit => {
+    if (edit?.filePath) byPath.set(edit.filePath, edit);
+    const fingerprint = `${edit.originalName}|${edit.timestamp}|${edit.fileSize ?? '0'}`;
+    byFingerprint.set(fingerprint, edit);
+  });
+
+  return photos.map(photo => {
+    let edit = photo.filePath ? byPath.get(photo.filePath) : null;
+    if (!edit) {
+      const fingerprint = `${photo.originalName}|${photo.timestamp}|${photo.fileSize ?? '0'}`;
+      edit = byFingerprint.get(fingerprint) || null;
+    }
+    if (!edit) return photo;
+    return {
+      ...photo,
+      day: edit.day,
+      bucket: edit.bucket,
+      sequence: edit.sequence,
+      favorite: edit.favorite,
+      rating: edit.rating,
+      archived: edit.archived,
+      currentName: edit.currentName,
+      subfolderOverride: edit.subfolderOverride,
+    };
+  });
+}
+
+function buildManifest(state: ProjectState): ProjectManifest {
+  const photos: ProjectManifestPhoto[] = state.photos.map(photo => ({
+    filePath: photo.filePath,
+    originalName: photo.originalName,
+    currentName: photo.currentName,
+    timestamp: photo.timestamp,
+    fileSize: photo.fileSize,
+    day: photo.day,
+    bucket: photo.bucket,
+    sequence: photo.sequence,
+    favorite: photo.favorite,
+    rating: photo.rating,
+    archived: photo.archived,
+    subfolderOverride: photo.subfolderOverride,
+  }));
+
+  return {
+    version: 1,
+    projectName: state.projectName,
+    rootPath: state.rootPath,
+    settings: state.settings,
+    dayLabels: state.dayLabels || {},
+    dayContainers: state.dayContainers || [],
+    lastModified: state.lastModified ?? Date.now(),
+    ingested: state.ingested,
+    sourceRoot: state.sourceRoot,
+    photos,
+  };
+}
+
 function isArchiveFolderSegment(segment: string, archiveFolder: string) {
   const normalized = segment.toLowerCase();
   const simplified = normalized.replace(/[^a-z0-9]+/g, ' ').trim();
@@ -643,13 +779,12 @@ export async function initProject(options: {
   const { dirHandle, projectName, rootLabel, onProgress } = options;
 
   // Check if File System Access API is supported
-  if (!('requestPermission' in dirHandle)) {
-    throw new Error('File System Access API is not available or supported in this environment.');
-  }
-
   let permission;
   try {
-    permission = await (dirHandle as any).requestPermission({ mode: 'read' });
+    permission = await requestDirectoryPermission(dirHandle, 'readwrite');
+    if (permission !== 'granted') {
+      permission = await requestDirectoryPermission(dirHandle, 'read');
+    }
   } catch (err) {
     console.warn('Permission request failed:', err);
     throw new Error('Unable to request folder access. Please try again.');
@@ -685,6 +820,11 @@ export async function initProject(options: {
 
   await saveHandle(projectId, dirHandle);
   safeLocalStorage.set(`${STATE_PREFIX}${projectId}`, JSON.stringify(serializeState(state)));
+  try {
+    await writeManifest(dirHandle, buildManifest(state));
+  } catch (err) {
+    console.warn('Failed to write project manifest:', err);
+  }
 
   onProgress?.(95, 'Project initialized successfully');
   return { projectId, photos, suggestedDays };
@@ -696,14 +836,12 @@ export async function getState(projectId: string): Promise<ProjectState> {
     throw new Error('Project folder access not available. Please reselect the folder.');
   }
 
-  // Check if File System Access API is supported
-  if (!('requestPermission' in handle)) {
-    throw new Error('File System Access API is not available or supported in this environment.');
-  }
-
   let permission;
   try {
-    permission = await (handle as any).requestPermission({ mode: 'read' });
+    permission = await requestDirectoryPermission(handle, 'readwrite');
+    if (permission !== 'granted') {
+      permission = await requestDirectoryPermission(handle, 'read');
+    }
   } catch (err) {
     // If requestPermission throws, the handle is likely stale/invalid
     // Remove the invalid handle so user can reselect
@@ -719,6 +857,7 @@ export async function getState(projectId: string): Promise<ProjectState> {
 
   const raw = safeLocalStorage.get(`${STATE_PREFIX}${projectId}`);
   const stored = raw ? JSON.parse(raw) : {};
+  const manifest = await readManifest(handle);
 
   // Build photos from filesystem
   const freshPhotos = await buildPhotosFromHandle(handle);
@@ -730,7 +869,9 @@ export async function getState(projectId: string): Promise<ProjectState> {
 
   // Apply cached edits (including thumbnails) if available
   let photos = freshPhotos;
-  if (stored.edits) {
+  if (manifest?.photos?.length) {
+    photos = applyManifestEdits(freshPhotos, manifest.photos);
+  } else if (stored.edits) {
     // Create a map of cached edits by filePath
     const cachedEdits = new Map<string, any>();
     stored.edits.forEach((edit: any) => {
@@ -759,25 +900,35 @@ export async function getState(projectId: string): Promise<ProjectState> {
     });
   }
 
-  const settings = stored.settings || DEFAULT_SETTINGS;
+  const settings = manifest?.settings || stored.settings || DEFAULT_SETTINGS;
   const archivedPhotos = applyArchiveFolder(
     photos,
     settings.folderStructure?.archiveFolder || DEFAULT_SETTINGS.folderStructure.archiveFolder,
   );
 
   return {
-    projectName: stored.projectName || handle.name,
-    rootPath: stored.rootPath || handle.name,
+    projectName: manifest?.projectName || stored.projectName || handle.name,
+    rootPath: manifest?.rootPath || stored.rootPath || handle.name,
     photos: archivedPhotos,
     settings,
-    dayLabels: stored.dayLabels || {},
-    dayContainers: stored.dayContainers || [],
-    lastModified: stored.lastModified,
+    dayLabels: manifest?.dayLabels || stored.dayLabels || {},
+    dayContainers: manifest?.dayContainers || stored.dayContainers || [],
+    lastModified: manifest?.lastModified || stored.lastModified,
+    ingested: manifest?.ingested,
+    sourceRoot: manifest?.sourceRoot,
   };
 }
 
 export async function saveState(projectId: string, state: ProjectState): Promise<void> {
   safeLocalStorage.set(`${STATE_PREFIX}${projectId}`, JSON.stringify(serializeState(state)));
+  try {
+    const handle = await getHandle(projectId);
+    if (handle) {
+      await writeManifest(handle, buildManifest(state));
+    }
+  } catch (err) {
+    console.warn('Failed to persist project manifest:', err);
+  }
 }
 
 export async function deleteProject(projectId: string): Promise<void> {

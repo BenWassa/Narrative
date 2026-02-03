@@ -54,6 +54,7 @@ export function useProjectState({
   const [dayLabels, setDayLabels] = useState<Record<number, string>>({});
   const [dayContainers, setDayContainers] = useState<string[]>([]);
   const initializeRef = useRef(false); // Track if we've already initialized
+  const autosaveTimerRef = useRef<number | null>(null);
 
   const deriveProjectName = useCallback((rootPath: string) => {
     const parts = rootPath.split(/[/\\]/).filter(Boolean);
@@ -665,6 +666,47 @@ export function useProjectState({
       setShowWelcome(true);
     }
   }, []); // Empty array - run only once on mount
+
+  useEffect(() => {
+    if (!projectRootPath || loadingProject || showWelcome) return;
+
+    if (autosaveTimerRef.current) {
+      window.clearTimeout(autosaveTimerRef.current);
+    }
+
+    autosaveTimerRef.current = window.setTimeout(() => {
+      const state: ProjectState = {
+        projectName: projectName || 'Untitled Project',
+        rootPath: projectFolderLabel || projectName || 'Unknown location',
+        photos,
+        settings: projectSettings,
+        dayLabels: (dayLabels as any) || {},
+        dayContainers: dayContainers || [],
+        lastModified: Date.now(),
+      };
+
+      saveState(projectRootPath, state).catch(err => {
+        console.warn('Autosave failed:', err);
+      });
+    }, 1200);
+
+    return () => {
+      if (autosaveTimerRef.current) {
+        window.clearTimeout(autosaveTimerRef.current);
+        autosaveTimerRef.current = null;
+      }
+    };
+  }, [
+    projectRootPath,
+    projectName,
+    projectFolderLabel,
+    projectSettings,
+    photos,
+    dayLabels,
+    dayContainers,
+    loadingProject,
+    showWelcome,
+  ]);
 
   return {
     photos,

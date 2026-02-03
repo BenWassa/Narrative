@@ -52,11 +52,11 @@ const TIMESTAMP_PATTERN = /(\d{10,13})|(\d{4}(?:\d{2}){2})/;
 
 /**
  * Bucket pattern matchers (in priority order)
- * 
+ *
  * IMPORTANT: The BUCKET_STANDARD_PATTERN is now dynamically generated from MECE_BUCKETS
  * to ensure consistency between bucket definitions and regex patterns.
  * See src/features/photo-organizer/constants/meceBuckets.ts
- * 
+ *
  * Note: We use a Unicode hyphen pattern to match various dash types (-, –, —, −, etc.)
  * because macOS and other systems sometimes auto-correct regular hyphens to en/em dashes.
  */
@@ -88,7 +88,7 @@ function generateBucketStandardPattern(): RegExp {
     'Food',
     'Archive',
   ];
-  
+
   const pattern = `^([A-MX])(?:${HYPHEN_PATTERN}+)(${categories.join('|')})$`;
   return new RegExp(pattern, 'i');
 }
@@ -206,11 +206,14 @@ export function detectBucketFromFolderName(
 ): { bucket: string; confidence: 'high' | 'medium' | 'low'; pattern: string } | null {
   // Debug: Log the folder name being tested
   const isDev = typeof window !== 'undefined' && import.meta?.env?.DEV;
-  
+
   const standardMatch = folderName.match(BUCKET_STANDARD_PATTERN);
   if (standardMatch) {
     if (isDev) {
-      console.log('[detectBucket] STANDARD match:', { folderName, bucket: standardMatch[1].toUpperCase() });
+      console.log('[detectBucket] STANDARD match:', {
+        folderName,
+        bucket: standardMatch[1].toUpperCase(),
+      });
     }
     return {
       bucket: standardMatch[1].toUpperCase(),
@@ -222,7 +225,10 @@ export function detectBucketFromFolderName(
   const letterMatch = folderName.match(BUCKET_LETTER_PATTERN);
   if (letterMatch) {
     if (isDev) {
-      console.log('[detectBucket] LETTER match:', { folderName, bucket: letterMatch[1].toUpperCase() });
+      console.log('[detectBucket] LETTER match:', {
+        folderName,
+        bucket: letterMatch[1].toUpperCase(),
+      });
     }
     return {
       bucket: letterMatch[1].toUpperCase(),
@@ -256,7 +262,7 @@ export function detectBucketFromFolderName(
         standard: BUCKET_STANDARD_PATTERN.toString(),
         letter: BUCKET_LETTER_PATTERN.toString(),
         custom: BUCKET_CUSTOM_PATTERN.toString(),
-      }
+      },
     });
   }
 

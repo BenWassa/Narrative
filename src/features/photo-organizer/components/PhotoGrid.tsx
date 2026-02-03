@@ -106,7 +106,11 @@ export default function PhotoGrid({
             photo.bucket || photo.archived ? '' : 'hover:scale-105'
           } ${selectedPhotos.has(photo.id) ? 'ring-2 ring-blue-500' : ''}`}
         >
-          <div className={`rounded-lg overflow-hidden ${photo.bucket || photo.archived ? 'opacity-70 saturate-75' : ''}`}>
+          <div
+            className={`rounded-lg overflow-hidden ${
+              photo.bucket || photo.archived ? 'opacity-70 saturate-75' : ''
+            }`}
+          >
             {photo.thumbnail ? (
               photo.mimeType?.startsWith('video/') ? (
                 <video
