@@ -1,5 +1,6 @@
 import React from 'react';
 import PhotoOrganizer from './features/photo-organizer/PhotoOrganizer';
+import { PhotoProvider } from './features/photo-organizer/store/PhotoContext';
 
 /**
  * Top-level application component
@@ -15,7 +16,11 @@ import PhotoOrganizer from './features/photo-organizer/PhotoOrganizer';
  * @see docs/FRONTEND_ARCHITECTURE.md for architecture details
  */
 function App() {
-  return <PhotoOrganizer />;
+  return (
+    <PhotoProvider>
+      <PhotoOrganizer />
+    </PhotoProvider>
+  );
 }
 
 export default App;

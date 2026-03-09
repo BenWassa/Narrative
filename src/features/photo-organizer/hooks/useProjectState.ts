@@ -1,4 +1,12 @@
-import { MutableRefObject, useCallback, useEffect, useState, useRef } from 'react';
+import {
+  MutableRefObject,
+  SetStateAction,
+  useCallback,
+  useEffect,
+  useReducer,
+  useState,
+  useRef,
+} from 'react';
 import safeLocalStorage from '../utils/safeLocalStorage';
 import { detectDayNumberFromFolderName } from '../../../lib/folderDetectionService';
 import {
@@ -14,6 +22,8 @@ import {
 } from '../services/projectService';
 import { OnboardingState, RecentProject } from '../OnboardingModal';
 import { ACTIVE_PROJECT_KEY, RECENT_PROJECTS_KEY } from '../constants/projectKeys';
+import { useOptionalPhotoContext } from '../store/PhotoContext';
+import { initialPhotoEngineState, photoReducer } from '../store/photoReducer';
 
 const DEFAULT_SETTINGS: ProjectSettings = {
   autoDay: true,
@@ -37,7 +47,11 @@ export function useProjectState({
   showToast,
   prevThumbnailsRef,
 }: UseProjectStateOptions) {
-  const [photos, setPhotos] = useState<ProjectPhoto[]>([]);
+  const sharedPhotoContext = useOptionalPhotoContext();
+  const [localPhotoState, localPhotoDispatch] = useReducer(photoReducer, initialPhotoEngineState);
+  const photoState = sharedPhotoContext?.state ?? localPhotoState;
+  const photoDispatch = sharedPhotoContext?.dispatch ?? localPhotoDispatch;
+  const photos = photoState.photos;
   const [projectName, setProjectName] = useState('No Project');
   const [projectRootPath, setProjectRootPath] = useState<string | null>(null);
   const [projectFolderLabel, setProjectFolderLabel] = useState<string | null>(null);
@@ -55,6 +69,40 @@ export function useProjectState({
   const [dayContainers, setDayContainers] = useState<string[]>([]);
   const initializeRef = useRef(false); // Track if we've already initialized
   const autosaveTimerRef = useRef<number | null>(null);
+
+  const setPhotos = useCallback(
+    (value: SetStateAction<ProjectPhoto[]>, options?: { resetHistory?: boolean }) => {
+      const nextPhotos =
+        typeof value === 'function'
+          ? (value as (prev: ProjectPhoto[]) => ProjectPhoto[])(photos)
+          : value;
+      photoDispatch({
+        type: 'SET_PHOTOS',
+        payload: nextPhotos,
+        resetHistory: options?.resetHistory ?? true,
+      });
+    },
+    [photoDispatch, photos],
+  );
+
+  const commitPhotos = useCallback(
+    (nextPhotos: ProjectPhoto[]) => {
+      photoDispatch({ type: 'COMMIT_PHOTOS', payload: nextPhotos });
+    },
+    [photoDispatch],
+  );
+
+  const undo = useCallback(() => {
+    photoDispatch({ type: 'UNDO' });
+  }, [photoDispatch]);
+
+  const redo = useCallback(() => {
+    photoDispatch({ type: 'REDO' });
+  }, [photoDispatch]);
+
+  const clearPhotoHistory = useCallback(() => {
+    photoDispatch({ type: 'CLEAR_HISTORY' });
+  }, [photoDispatch]);
 
   const deriveProjectName = useCallback((rootPath: string) => {
     const parts = rootPath.split(/[/\\]/).filter(Boolean);
@@ -547,7 +595,7 @@ export function useProjectState({
 
         setLoadingProgress(90);
         setLoadingMessage('Saving project state...');
-        setPhotos(hydratedPhotos);
+        setPhotos(nextState.photos);
         setProjectName(nextProjectName);
         setProjectRootPath(nextProjectId);
         setProjectFolderLabel(state.rootPath || state.dirHandle.name);
@@ -708,9 +756,42 @@ export function useProjectState({
     showWelcome,
   ]);
 
+  const persistState = useCallback(
+    (newPhotos?: ProjectPhoto[]) => {
+      if (!projectRootPath) return;
+      const nextState: ProjectState = {
+        projectName,
+        rootPath: projectFolderLabel || projectRootPath,
+        photos: newPhotos ?? photos,
+        settings: projectSettings,
+        dayLabels: dayLabels as any,
+        dayContainers: dayContainers || [],
+        lastModified: Date.now(),
+      };
+      saveState(projectRootPath, nextState).catch(() => {});
+    },
+    [
+      projectRootPath,
+      projectName,
+      projectFolderLabel,
+      photos,
+      projectSettings,
+      dayLabels,
+      dayContainers,
+    ],
+  );
+
   return {
     photos,
     setPhotos,
+    commitPhotos,
+    photoDispatch,
+    undo,
+    redo,
+    clearPhotoHistory,
+    canUndo: photoState.past.length > 0,
+    canRedo: photoState.future.length > 0,
+    persistState,
     projectName,
     setProjectName,
     projectRootPath,

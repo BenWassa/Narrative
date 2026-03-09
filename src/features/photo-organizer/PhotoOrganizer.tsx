@@ -7,12 +7,12 @@ import { versionManager } from '../../lib/versionManager';
 import {
   deleteProject as deleteProjectService,
   ProjectPhoto,
+  type ProjectState,
   saveHandle,
   getHandle,
 } from './services/projectService';
 import { ACTIVE_PROJECT_KEY, RECENT_PROJECTS_KEY } from './constants/projectKeys';
 import { MECE_BUCKETS, isMeceBucketLabel } from './constants/meceBuckets';
-import { useHistory } from './hooks/useHistory';
 import { usePhotoSelection } from './hooks/usePhotoSelection';
 import { useProjectState } from './hooks/useProjectState';
 import { useViewOptions } from './hooks/useViewOptions';
@@ -22,7 +22,6 @@ import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
 import { useDayEditing } from './hooks/useDayEditing';
 import { useFolderModel } from './hooks/useFolderModel';
 import { useCoverPhoto } from './hooks/useCoverPhoto';
-import { usePhotoMutations } from './hooks/usePhotoMutations';
 import { useAutoSelection } from './hooks/useAutoSelection';
 import { useCoverSelection } from './hooks/useCoverSelection';
 import { useOnboardingHandlers } from './hooks/useOnboardingHandlers';
@@ -70,6 +69,12 @@ export default function PhotoOrganizer() {
   const {
     photos,
     setPhotos,
+    commitPhotos,
+    photoDispatch,
+    undo,
+    redo,
+    clearPhotoHistory,
+    persistState,
     projectName,
     setProjectName,
     projectRootPath,
@@ -99,17 +104,6 @@ export default function PhotoOrganizer() {
   } = useProjectState({
     debugEnabled,
     showToast,
-    prevThumbnailsRef,
-  });
-
-  const { setHistory, setHistoryIndex, persistState, saveToHistory, undo, redo } = useHistory({
-    photos,
-    setPhotos,
-    projectRootPath,
-    projectName,
-    projectFolderLabel,
-    projectSettings,
-    dayLabels,
     prevThumbnailsRef,
   });
 
@@ -248,8 +242,7 @@ export default function PhotoOrganizer() {
 
   const { handleOnboardingComplete } = useOnboardingHandlers({
     handleOnboardingCompleteInternal,
-    setHistory,
-    setHistoryIndex,
+    clearPhotoHistory,
     resetSelection,
     setSelectedDay,
     setSelectedRootFolder,
@@ -273,42 +266,68 @@ export default function PhotoOrganizer() {
     setSelectedRootFolder,
   });
 
-  const { assignBucket, removeDayAssignment, toggleFavorite } = usePhotoMutations({
-    photos,
-    saveToHistory,
-    selectedDay,
-  });
+  const assignBucket = useCallback(
+    (photoIds: string | string[], bucket: string, dayNum: number | null = null) => {
+      const ids = Array.isArray(photoIds) ? photoIds : [photoIds];
+      photoDispatch({
+        type: 'ASSIGN_BUCKET',
+        payload: { photoIds: ids, bucket, selectedDay, dayNum },
+      });
+    },
+    [photoDispatch, selectedDay],
+  );
+
+  const removeDayAssignment = useCallback(
+    (photoIds: string | string[]) => {
+      const ids = Array.isArray(photoIds) ? photoIds : [photoIds];
+      photoDispatch({ type: 'REMOVE_DAY_ASSIGNMENT', payload: { photoIds: ids } });
+    },
+    [photoDispatch],
+  );
+
+  const toggleFavorite = useCallback(
+    (photoIds: string | string[]) => {
+      const ids = Array.isArray(photoIds) ? photoIds : [photoIds];
+      photoDispatch({ type: 'TOGGLE_FAVORITE', payload: { photoIds: ids } });
+    },
+    [photoDispatch],
+  );
+
+  const isViewerOpen = galleryViewPhoto !== null;
 
   // Keyboard shortcuts
   // Keyboard shortcuts handler
-  useKeyboardShortcuts({
-    selectedPhotos,
-    focusedPhoto,
-    filteredPhotos,
-    orderingResult,
-    fullscreenPhoto,
-    showHelp,
-    showExportScript,
-    showWelcome,
-    showOnboarding,
-    coverSelectionMode,
-    hideAssigned,
-    MECE_BUCKETS,
-    onAssignBucket: assignBucket,
-    onToggleFavorite: toggleFavorite,
-    onUndo: undo,
-    onRedo: redo,
-    onSetFocusedPhoto: setFocusedPhoto,
-    onSetSelectedPhotos: setSelectedPhotos,
-    onSetLastSelectedIndex: setLastSelectedIndex,
-    onSetFullscreenPhoto: setFullscreenPhoto,
-    onSetShowHelp: setShowHelp,
-    onSetCoverSelectionMode: setCoverSelectionMode,
-    onSetHideAssigned: setHideAssigned,
-    onToggleDebugOverlay: () => setDebugOverlayEnabled(prev => !prev),
-    onShowToast: showToast,
-    lastSelectedIndexRef,
-  });
+  useKeyboardShortcuts(
+    {
+      selectedPhotos,
+      focusedPhoto,
+      filteredPhotos,
+      orderingResult,
+      fullscreenPhoto,
+      showHelp,
+      showExportScript,
+      showWelcome,
+      showOnboarding,
+      coverSelectionMode,
+      hideAssigned,
+      MECE_BUCKETS,
+      onAssignBucket: assignBucket,
+      onToggleFavorite: toggleFavorite,
+      onUndo: undo,
+      onRedo: redo,
+      onSetFocusedPhoto: setFocusedPhoto,
+      onSetSelectedPhotos: setSelectedPhotos,
+      onSetLastSelectedIndex: setLastSelectedIndex,
+      onSetFullscreenPhoto: setFullscreenPhoto,
+      onSetShowHelp: setShowHelp,
+      onSetCoverSelectionMode: setCoverSelectionMode,
+      onSetHideAssigned: setHideAssigned,
+      onToggleDebugOverlay: () => setDebugOverlayEnabled(prev => !prev),
+      onShowToast: showToast,
+      lastSelectedIndexRef,
+    },
+    !isViewerOpen,
+  );
 
   // Stats
   const stats = React.useMemo(
@@ -468,20 +487,12 @@ export default function PhotoOrganizer() {
               onOpenViewer={photoId => setGalleryViewPhoto(photoId)}
               onCloseViewer={() => setGalleryViewPhoto(null)}
               onNavigateViewer={photoId => setGalleryViewPhoto(photoId)}
-              onToggleFavorite={photoId => {
-                setPhotos(prev =>
-                  prev.map(p => (p.id === photoId ? { ...p, favorite: !p.favorite } : p)),
-                );
-                persistState(
-                  photos.map(p => (p.id === photoId ? { ...p, favorite: !p.favorite } : p)),
-                );
-              }}
+              onToggleFavorite={photoId => toggleFavorite(photoId)}
               onAssignBucket={(photoId, bucket) => assignBucket(photoId, bucket)}
               onAssignDay={(photoId, day) => {
-                setPhotos(prev => prev.map(p => (p.id === photoId ? { ...p, day } : p)));
-                persistState(photos.map(p => (p.id === photoId ? { ...p, day } : p)));
+                photoDispatch({ type: 'ASSIGN_DAY', payload: { photoIds: [photoId], day } });
               }}
-              onSaveToHistory={saveToHistory}
+              onSaveToHistory={commitPhotos}
               onShowToast={showToast}
               getSubfolderGroup={getSubfolderGroup}
               getDerivedSubfolderGroup={getDerivedSubfolderGroup}
@@ -497,7 +508,7 @@ export default function PhotoOrganizer() {
             photos={photos}
             days={days}
             buckets={MECE_BUCKETS}
-            onSaveToHistory={saveToHistory}
+            onSaveToHistory={commitPhotos}
             onPersistState={persistState}
             onSetDayLabels={setDayLabels}
             onSetSelectedDay={setSelectedDay}

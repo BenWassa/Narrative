@@ -7,8 +7,7 @@ interface UseOnboardingHandlersOptions {
     state: OnboardingState,
     reselectionProjectId?: string | null,
   ) => Promise<boolean>;
-  setHistory: (history: unknown[]) => void;
-  setHistoryIndex: (index: number) => void;
+  clearPhotoHistory: () => void;
   resetSelection: () => void;
   setSelectedDay: (day: number | null) => void;
   setSelectedRootFolder: (folder: string | null) => void;
@@ -17,8 +16,7 @@ interface UseOnboardingHandlersOptions {
 
 export function useOnboardingHandlers({
   handleOnboardingCompleteInternal,
-  setHistory,
-  setHistoryIndex,
+  clearPhotoHistory,
   resetSelection,
   setSelectedDay,
   setSelectedRootFolder,
@@ -31,19 +29,17 @@ export function useOnboardingHandlers({
         return;
       }
 
-      setHistory([]);
-      setHistoryIndex(-1);
+      clearPhotoHistory();
       resetSelection();
       setSelectedDay(null);
       setSelectedRootFolder(null);
       setCurrentView('folders');
     },
     [
+      clearPhotoHistory,
       handleOnboardingCompleteInternal,
       resetSelection,
       setCurrentView,
-      setHistory,
-      setHistoryIndex,
       setSelectedDay,
       setSelectedRootFolder,
     ],

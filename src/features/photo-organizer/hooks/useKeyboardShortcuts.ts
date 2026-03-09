@@ -38,7 +38,7 @@ export interface KeyboardHandlerOptions {
   lastSelectedIndexRef?: MutableRefObject<number | null>;
 }
 
-export function useKeyboardShortcuts(options: KeyboardHandlerOptions) {
+export function useKeyboardShortcuts(options: KeyboardHandlerOptions, isActive = true) {
   const {
     selectedPhotos,
     focusedPhoto,
@@ -69,6 +69,10 @@ export function useKeyboardShortcuts(options: KeyboardHandlerOptions) {
   } = options;
 
   useEffect(() => {
+    if (!isActive) {
+      return;
+    }
+
     const handleKeyPress = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement | null;
       if (
@@ -259,5 +263,6 @@ export function useKeyboardShortcuts(options: KeyboardHandlerOptions) {
     onToggleDebugOverlay,
     onShowToast,
     lastSelectedIndexRef,
+    isActive,
   ]);
 }
