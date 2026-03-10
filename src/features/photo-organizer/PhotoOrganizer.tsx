@@ -117,6 +117,8 @@ export default function PhotoOrganizer() {
     copyExportScript,
     downloadExportScript,
     regenerateScript,
+    exportStructureMode,
+    updateStructureMode,
     getDetectedProjectPath,
     showUndoScript,
     undoScriptText,
@@ -542,10 +544,12 @@ export default function PhotoOrganizer() {
         scriptText={exportScriptText}
         copyStatus={exportCopyStatus}
         detectedProjectPath={getDetectedProjectPath()}
+        structureMode={exportStructureMode}
         onClose={closeExportScriptModal}
         onCopyScript={copyExportScript}
         onDownloadScript={downloadExportScript}
         onRegenerateScript={regenerateScript}
+        onStructureModeChange={updateStructureMode}
       />
 
       {/* Undo Script Modal */}

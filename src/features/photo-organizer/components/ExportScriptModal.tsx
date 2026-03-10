@@ -1,15 +1,18 @@
 import React, { useState, useEffect } from 'react';
 import { X, Download, Copy, Info } from 'lucide-react';
+import type { ExportStructureMode } from '../hooks/useExportScript';
 
 interface ExportScriptModalProps {
   isOpen: boolean;
   scriptText: string;
   copyStatus: 'idle' | 'copied' | 'failed';
   detectedProjectPath: string;
+  structureMode: ExportStructureMode;
   onClose: () => void;
   onCopyScript: () => Promise<void>;
   onDownloadScript: () => void;
-  onRegenerateScript: (projectPath: string) => void;
+  onRegenerateScript: (projectPath: string, structureMode?: ExportStructureMode) => void;
+  onStructureModeChange: (mode: ExportStructureMode) => void;
 }
 
 export default function ExportScriptModal({
@@ -17,10 +20,12 @@ export default function ExportScriptModal({
   scriptText,
   copyStatus,
   detectedProjectPath,
+  structureMode,
   onClose,
   onCopyScript,
   onDownloadScript,
   onRegenerateScript,
+  onStructureModeChange,
 }: ExportScriptModalProps) {
   const [projectPath, setProjectPath] = useState(detectedProjectPath);
 
@@ -31,7 +36,7 @@ export default function ExportScriptModal({
   const handlePathChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const newPath = e.target.value;
     setProjectPath(newPath);
-    onRegenerateScript(newPath);
+    onRegenerateScript(newPath, structureMode);
   };
 
   if (!isOpen) return null;
@@ -66,6 +71,19 @@ export default function ExportScriptModal({
               className="w-full px-4 py-3 rounded-lg border border-gray-700 bg-gray-950 text-gray-100 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
             />
             <p className="text-xs text-gray-500">Full path to your photo project folder</p>
+          </div>
+
+          <div className="space-y-2">
+            <label className="block text-sm font-semibold text-gray-200">Export Structure</label>
+            <select
+              value={structureMode}
+              onChange={e => onStructureModeChange(e.target.value as ExportStructureMode)}
+              className="w-full rounded-lg border border-gray-700 bg-gray-950 px-4 py-3 text-sm text-gray-100 focus:border-transparent focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="auto">Auto (single-day = flat, multi-day = nested)</option>
+              <option value="single_day_flat">Single-day (flat buckets in root)</option>
+              <option value="multi_day_nested">Multi-day (nested day folders)</option>
+            </select>
           </div>
 
           {/* Info Box */}

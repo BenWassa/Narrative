@@ -21,6 +21,7 @@ import {
 } from '../utils/exportManifest';
 
 export type ExportCopyStatus = 'idle' | 'copied' | 'failed';
+export type ExportStructureMode = 'auto' | 'single_day_flat' | 'multi_day_nested';
 
 interface UseExportScriptOptions {
   photos: ProjectPhoto[];
@@ -44,6 +45,7 @@ export function useExportScript(
   const [exportScriptText, setExportScriptText] = useState('');
   const [exportCopyStatus, setExportCopyStatus] = useState<ExportCopyStatus>('idle');
   const [customProjectPath, setCustomProjectPath] = useState<string>('');
+  const [exportStructureMode, setExportStructureMode] = useState<ExportStructureMode>('auto');
   const [lastExportManifest, setLastExportManifest] = useState<ExportManifest | null>(null);
   const [showUndoScript, setShowUndoScript] = useState(false);
   const [undoScriptText, setUndoScriptText] = useState('');
@@ -57,7 +59,7 @@ export function useExportScript(
   }, [projectRootPath]);
 
   const buildExportScript = useCallback(
-    (overrideProjectPath?: string) => {
+    (options?: { overrideProjectPath?: string; overrideStructureMode?: ExportStructureMode }) => {
       const lines: string[] = [];
 
       const daysFolder = projectSettings.folderStructure.daysFolder;
@@ -77,6 +79,9 @@ export function useExportScript(
       const isIngested = ingested !== false; // Default to true for backward compatibility
 
       // Use override or custom path if provided
+      const overrideProjectPath = options?.overrideProjectPath;
+      const overrideStructureMode = options?.overrideStructureMode;
+      const selectedStructureMode = overrideStructureMode || exportStructureMode;
       let detectedProjectRoot = overrideProjectPath || customProjectPath || computedSourceRoot;
 
       // Bucket name mapping for folder naming (from centralized definitions)
@@ -135,6 +140,28 @@ export function useExportScript(
         }
       });
 
+      const activeDayKeys = Object.keys(photosByDay)
+        .map(Number)
+        .filter(day => !Number.isNaN(day));
+      const resolvedStructureMode: Exclude<ExportStructureMode, 'auto'> =
+        selectedStructureMode === 'auto'
+          ? activeDayKeys.length <= 1
+            ? 'single_day_flat'
+            : 'multi_day_nested'
+          : selectedStructureMode;
+      const useSingleDayFlat = resolvedStructureMode === 'single_day_flat';
+      const flatArchiveFolder = 'Z_ARCHIVE';
+
+      const photosByBucket: Record<string, ProjectPhoto[]> = {};
+      Object.values(photosByDay).forEach(dayBuckets => {
+        Object.entries(dayBuckets).forEach(([bucket, bucketPhotos]) => {
+          if (!photosByBucket[bucket]) {
+            photosByBucket[bucket] = [];
+          }
+          photosByBucket[bucket].push(...bucketPhotos);
+        });
+      });
+
       // Header: show a preview and require confirmation before executing
       lines.push('#!/bin/bash');
       lines.push('# Narrative Export Script - Ingest-Aware Export');
@@ -144,6 +171,13 @@ export function useExportScript(
       lines.push(
         `# Ingest mode: ${
           isIngested ? 'INGESTED (photos in project)' : 'NOT INGESTED (organize in-place)'
+        }`,
+      );
+      lines.push(
+        `# Structure mode: ${
+          resolvedStructureMode === 'single_day_flat'
+            ? 'SINGLE DAY FLAT (root bucket folders)'
+            : 'MULTI DAY NESTED (day folders + bucket subfolders)'
         }`,
       );
       lines.push('');
@@ -181,11 +215,14 @@ export function useExportScript(
       lines.push('mkdir -p "$PROJECT_ROOT"');
       lines.push('');
       lines.push(`DAYS_FOLDER="${daysFolder}"`);
-      lines.push(`ARCHIVE_FOLDER="${archiveFolder}"`);
+      lines.push(`ARCHIVE_FOLDER="${useSingleDayFlat ? flatArchiveFolder : archiveFolder}"`);
 
       // For ingested projects, days go inside PROJECT_ROOT
       // For non-ingested, MECE folders go directly in source folders
-      if (isIngested) {
+      if (useSingleDayFlat) {
+        lines.push('# Single-day flat mode: bucket folders created directly at project root');
+        lines.push('TARGET_ARCHIVE_DIR="${PROJECT_ROOT}/${ARCHIVE_FOLDER}"');
+      } else if (isIngested) {
         lines.push('TARGET_DAYS_DIR="${PROJECT_ROOT}/${DAYS_FOLDER}"');
         lines.push('TARGET_ARCHIVE_DIR="${PROJECT_ROOT}/${ARCHIVE_FOLDER}"');
       } else {
@@ -219,7 +256,11 @@ export function useExportScript(
       lines.push('echo -e "  ${CYAN}${PROJECT_ROOT}${NC}"');
       lines.push('echo ""');
       lines.push('echo -e "${YELLOW}Destination folders:${NC}"');
-      lines.push('echo -e "  Days folder:  ${CYAN}${TARGET_DAYS_DIR}${NC}"');
+      if (useSingleDayFlat) {
+        lines.push('echo -e "  Bucket folders: ${CYAN}${PROJECT_ROOT}/{A..E,M}_*${NC}"');
+      } else {
+        lines.push('echo -e "  Days folder:  ${CYAN}${TARGET_DAYS_DIR}${NC}"');
+      }
       if (archivePhotos.length > 0) {
         lines.push('echo -e "  Archive:      ${CYAN}${TARGET_ARCHIVE_DIR}${NC}"');
       }
@@ -250,108 +291,127 @@ export function useExportScript(
         });
       });
 
-      lines.push('echo -e "${YELLOW}${BOLD}📅 Organized Photos by Day${NC}"');
-      lines.push('echo ""');
-      // Preview: days with bucket subfolders and folder structure
-      Object.keys(photosByDay)
-        .map(Number)
-        .sort((a, b) => a - b)
-        .forEach(day => {
-          const label = dayLabels[day] || `Day ${String(day).padStart(2, '0')}`;
-          const buckets = photosByDay[day];
-          const dayPhotosCount = Object.values(buckets).reduce(
-            (sum, bucket) => sum + bucket.length,
-            0,
-          );
-
-          // Show day folder
-          if (isIngested) {
+      if (useSingleDayFlat) {
+        lines.push('echo -e "${YELLOW}${BOLD}🗂️ Organized Photos by Bucket${NC}"');
+        lines.push('echo ""');
+        Object.keys(photosByBucket)
+          .sort()
+          .forEach(bucket => {
+            const bucketLabel = bucketNames[bucket] || bucket;
+            const bucketFolderName = `${bucket}_${bucketLabel}`;
             lines.push(
               'echo -e "  ${CYAN}' +
-                daysFolder +
-                '/' +
-                label +
-                '${NC} — ${BOLD}' +
-                dayPhotosCount +
-                '${NC} photos"',
+                bucketFolderName +
+                '${NC} (${BOLD}' +
+                photosByBucket[bucket].length +
+                '${NC})"',
             );
-          } else {
-            lines.push(
-              'echo -e "  ${CYAN}' + label + '${NC} — ${BOLD}' + dayPhotosCount + '${NC} photos"',
-            );
-          }
-
-          // Group buckets by subfolder if present
-          const photosBySubfolder: Record<string, Record<string, ProjectPhoto[]>> = {};
-          Object.entries(buckets).forEach(([bucket, photos]) => {
-            photos.forEach(p => {
-              // Extract subfolder from filePath
-              // filePath format: 01_DAYS/Day 02/[subfolder]/A_Establishing/filename.jpg
-              let subfolder = 'root';
-              if (p.filePath) {
-                const pathParts = p.filePath.split(/[\\/]/).filter(Boolean);
-                // Find the index of the day label in the path
-                const dayIdx = pathParts.findIndex(part => part === label);
-                // If there's a folder between the day and bucket, it's a subfolder
-                if (dayIdx !== -1 && dayIdx < pathParts.length - 1) {
-                  const nextPart = pathParts[dayIdx + 1];
-                  // Check if next part is NOT a bucket folder
-                  if (nextPart && !nextPart.match(/^[A-E]_|^M_/)) {
-                    subfolder = nextPart;
-                  }
-                }
-              }
-              if (!photosBySubfolder[subfolder]) {
-                photosBySubfolder[subfolder] = {};
-              }
-              if (!photosBySubfolder[subfolder][bucket]) {
-                photosBySubfolder[subfolder][bucket] = [];
-              }
-              photosBySubfolder[subfolder][bucket].push(p);
-            });
           });
+        lines.push('echo ""');
+      } else {
+        lines.push('echo -e "${YELLOW}${BOLD}📅 Organized Photos by Day${NC}"');
+        lines.push('echo ""');
+        // Preview: days with bucket subfolders and folder structure
+        Object.keys(photosByDay)
+          .map(Number)
+          .sort((a, b) => a - b)
+          .forEach(day => {
+            const label = dayLabels[day] || `Day ${String(day).padStart(2, '0')}`;
+            const buckets = photosByDay[day];
+            const dayPhotosCount = Object.values(buckets).reduce(
+              (sum, bucket) => sum + bucket.length,
+              0,
+            );
 
-          // Display subfolders and their buckets
-          const subfolderEntries = Object.keys(photosBySubfolder).sort();
-          subfolderEntries.forEach((subfolder, subfolderIdx) => {
-            const isLastSubfolder = subfolderIdx === subfolderEntries.length - 1;
-            const subfolderPrefix = isLastSubfolder ? '    └─' : '    ├─';
-
-            // Only show subfolder name if it's not root
-            if (subfolder !== 'root') {
-              lines.push('echo -e "  ' + subfolderPrefix + ' ${CYAN}' + subfolder + '${NC}"');
+            // Show day folder
+            if (isIngested) {
+              lines.push(
+                'echo -e "  ${CYAN}' +
+                  daysFolder +
+                  '/' +
+                  label +
+                  '${NC} — ${BOLD}' +
+                  dayPhotosCount +
+                  '${NC} photos"',
+              );
+            } else {
+              lines.push(
+                'echo -e "  ${CYAN}' + label + '${NC} — ${BOLD}' + dayPhotosCount + '${NC} photos"',
+              );
             }
 
-            const subfolderBuckets = photosBySubfolder[subfolder];
-            const bucketEntries = Object.keys(subfolderBuckets).sort();
-            bucketEntries.forEach((bucket, bucketIdx) => {
-              const bucketLabel = bucketNames[bucket] || bucket;
-              const bucketPhotos = subfolderBuckets[bucket];
-              const isLastBucket = bucketIdx === bucketEntries.length - 1;
+            // Group buckets by subfolder if present
+            const photosBySubfolder: Record<string, Record<string, ProjectPhoto[]>> = {};
+            Object.entries(buckets).forEach(([bucket, photos]) => {
+              photos.forEach(p => {
+                // Extract subfolder from filePath
+                // filePath format: 01_DAYS/Day 02/[subfolder]/A_Establishing/filename.jpg
+                let subfolder = 'root';
+                if (p.filePath) {
+                  const pathParts = p.filePath.split(/[\\/]/).filter(Boolean);
+                  // Find the index of the day label in the path
+                  const dayIdx = pathParts.findIndex(part => part === label);
+                  // If there's a folder between the day and bucket, it's a subfolder
+                  if (dayIdx !== -1 && dayIdx < pathParts.length - 1) {
+                    const nextPart = pathParts[dayIdx + 1];
+                    // Check if next part is NOT a bucket folder
+                    if (nextPart && !nextPart.match(/^[A-E]_|^M_/)) {
+                      subfolder = nextPart;
+                    }
+                  }
+                }
+                if (!photosBySubfolder[subfolder]) {
+                  photosBySubfolder[subfolder] = {};
+                }
+                if (!photosBySubfolder[subfolder][bucket]) {
+                  photosBySubfolder[subfolder][bucket] = [];
+                }
+                photosBySubfolder[subfolder][bucket].push(p);
+              });
+            });
 
-              // Adjust prefix based on subfolder level
-              let bucketPrefix: string;
+            // Display subfolders and their buckets
+            const subfolderEntries = Object.keys(photosBySubfolder).sort();
+            subfolderEntries.forEach((subfolder, subfolderIdx) => {
+              const isLastSubfolder = subfolderIdx === subfolderEntries.length - 1;
+              const subfolderPrefix = isLastSubfolder ? '    └─' : '    ├─';
+
+              // Only show subfolder name if it's not root
               if (subfolder !== 'root') {
-                bucketPrefix = isLastBucket ? '      └─' : '      ├─';
-              } else {
-                bucketPrefix = isLastBucket ? '    └─' : '    ├─';
+                lines.push('echo -e "  ' + subfolderPrefix + ' ${CYAN}' + subfolder + '${NC}"');
               }
 
-              const bucketFolderName = bucket + '_' + bucketLabel;
+              const subfolderBuckets = photosBySubfolder[subfolder];
+              const bucketEntries = Object.keys(subfolderBuckets).sort();
+              bucketEntries.forEach((bucket, bucketIdx) => {
+                const bucketLabel = bucketNames[bucket] || bucket;
+                const bucketPhotos = subfolderBuckets[bucket];
+                const isLastBucket = bucketIdx === bucketEntries.length - 1;
 
-              lines.push(
-                'echo -e "  ' +
-                  bucketPrefix +
-                  ' ${CYAN}' +
-                  bucketFolderName +
-                  '${NC} (${BOLD}' +
-                  bucketPhotos.length +
-                  '${NC})"',
-              );
+                // Adjust prefix based on subfolder level
+                let bucketPrefix: string;
+                if (subfolder !== 'root') {
+                  bucketPrefix = isLastBucket ? '      └─' : '      ├─';
+                } else {
+                  bucketPrefix = isLastBucket ? '    └─' : '    ├─';
+                }
+
+                const bucketFolderName = bucket + '_' + bucketLabel;
+
+                lines.push(
+                  'echo -e "  ' +
+                    bucketPrefix +
+                    ' ${CYAN}' +
+                    bucketFolderName +
+                    '${NC} (${BOLD}' +
+                    bucketPhotos.length +
+                    '${NC})"',
+                );
+              });
             });
+            lines.push('echo ""');
           });
-          lines.push('echo ""');
-        });
+      }
 
       // Preview: archive
       if (archivePhotos.length > 0) {
@@ -404,118 +464,149 @@ export function useExportScript(
         lines.push('');
       }
 
-      // Execution: create day folders with bucket subfolders and copy files
-      if (isIngested) {
-        lines.push('# Ingested mode: create day folders with MECE buckets inside');
-        lines.push('mkdir -p "${TARGET_DAYS_DIR}"');
-      }
+      if (useSingleDayFlat) {
+        Object.keys(photosByBucket)
+          .sort()
+          .forEach(bucket => {
+            const bucketLabel = bucketNames[bucket] || bucket;
+            const bucketFolder = `${bucket}_${bucketLabel}`;
+            lines.push('mkdir -p "${PROJECT_ROOT}/' + bucketFolder + '"');
+            photosByBucket[bucket].forEach(p => {
+              if (p.filePath) {
+                lines.push(
+                  'if [ -e "${PROJECT_ROOT}/' +
+                    bucketFolder +
+                    '/' +
+                    p.currentName +
+                    '" ]; then echo "Skipping existing: ' +
+                    bucketFolder +
+                    '/' +
+                    p.currentName +
+                    '"; else cp "${PROJECT_ROOT}/' +
+                    p.filePath +
+                    '" "${PROJECT_ROOT}/' +
+                    bucketFolder +
+                    '/' +
+                    p.currentName +
+                    '"; fi',
+                );
+              }
+            });
+          });
+      } else {
+        // Execution: create day folders with bucket subfolders and copy files
+        if (isIngested) {
+          lines.push('# Ingested mode: create day folders with MECE buckets inside');
+          lines.push('mkdir -p "${TARGET_DAYS_DIR}"');
+        }
 
-      Object.keys(photosByDay)
-        .map(Number)
-        .sort((a, b) => a - b)
-        .forEach(day => {
-          const label = dayLabels[day] || `Day ${String(day).padStart(2, '0')}`;
-          const buckets = photosByDay[day];
+        Object.keys(photosByDay)
+          .map(Number)
+          .sort((a, b) => a - b)
+          .forEach(day => {
+            const label = dayLabels[day] || `Day ${String(day).padStart(2, '0')}`;
+            const buckets = photosByDay[day];
 
-          // For non-ingested mode, group by subfolder first
-          if (!isIngested) {
-            const photosBySubfolder: Record<string, Record<string, ProjectPhoto[]>> = {};
-            Object.entries(buckets).forEach(([bucket, photos]) => {
-              photos.forEach(p => {
-                // Extract subfolder from filePath
-                let subfolder = '';
-                if (p.filePath) {
-                  const pathParts = p.filePath.split(/[\\/]/).filter(Boolean);
-                  const dayIdx = pathParts.findIndex(part => part === label);
-                  if (dayIdx !== -1 && dayIdx < pathParts.length - 1) {
-                    const nextPart = pathParts[dayIdx + 1];
-                    if (nextPart && !nextPart.match(/^[A-E]_|^M_/)) {
-                      subfolder = nextPart;
+            // For non-ingested mode, group by subfolder first
+            if (!isIngested) {
+              const photosBySubfolder: Record<string, Record<string, ProjectPhoto[]>> = {};
+              Object.entries(buckets).forEach(([bucket, photos]) => {
+                photos.forEach(p => {
+                  // Extract subfolder from filePath
+                  let subfolder = '';
+                  if (p.filePath) {
+                    const pathParts = p.filePath.split(/[\\/]/).filter(Boolean);
+                    const dayIdx = pathParts.findIndex(part => part === label);
+                    if (dayIdx !== -1 && dayIdx < pathParts.length - 1) {
+                      const nextPart = pathParts[dayIdx + 1];
+                      if (nextPart && !nextPart.match(/^[A-E]_|^M_/)) {
+                        subfolder = nextPart;
+                      }
                     }
                   }
-                }
-                if (!photosBySubfolder[subfolder]) {
-                  photosBySubfolder[subfolder] = {};
-                }
-                if (!photosBySubfolder[subfolder][bucket]) {
-                  photosBySubfolder[subfolder][bucket] = [];
-                }
-                photosBySubfolder[subfolder][bucket].push(p);
-              });
-            });
-
-            // Create buckets within each subfolder
-            Object.entries(photosBySubfolder).forEach(([subfolder, subfolderBuckets]) => {
-              Object.entries(subfolderBuckets).forEach(([bucket, photos]) => {
-                const bucketLabel = bucketNames[bucket] || bucket;
-                let bucketFolder: string;
-                if (subfolder) {
-                  bucketFolder = `${label}/${subfolder}/${bucket}_${bucketLabel}`;
-                } else {
-                  bucketFolder = `${label}/${bucket}_${bucketLabel}`;
-                }
-
-                // Create folder and copy files
-                lines.push('mkdir -p "${PROJECT_ROOT}/' + bucketFolder + '"');
-                photos.forEach(p => {
-                  if (p.filePath) {
-                    lines.push(
-                      'if [ -e "${PROJECT_ROOT}/' +
-                        bucketFolder +
-                        '/' +
-                        p.currentName +
-                        '" ]; then echo "Skipping existing: ' +
-                        bucketFolder +
-                        '/' +
-                        p.currentName +
-                        '"; else cp "${PROJECT_ROOT}/' +
-                        p.filePath +
-                        '" "${PROJECT_ROOT}/' +
-                        bucketFolder +
-                        '/' +
-                        p.currentName +
-                        '"; fi',
-                    );
+                  if (!photosBySubfolder[subfolder]) {
+                    photosBySubfolder[subfolder] = {};
                   }
+                  if (!photosBySubfolder[subfolder][bucket]) {
+                    photosBySubfolder[subfolder][bucket] = [];
+                  }
+                  photosBySubfolder[subfolder][bucket].push(p);
                 });
               });
-            });
-          } else {
-            // Ingested mode: original logic
-            Object.keys(buckets)
-              .sort()
-              .forEach(bucket => {
-                const bucketLabel = bucketNames[bucket] || bucket;
-                const bucketFolder = `${daysFolder}/${label}/${bucket}_${bucketLabel}`;
-                const photos = buckets[bucket];
 
-                lines.push('mkdir -p "${PROJECT_ROOT}/' + bucketFolder + '"');
-                photos.forEach(p => {
-                  if (p.filePath) {
-                    lines.push(
-                      'if [ -e "${PROJECT_ROOT}/' +
-                        bucketFolder +
-                        '/' +
-                        p.currentName +
-                        '" ]; then echo "Skipping existing: ' +
-                        bucketFolder +
-                        '/' +
-                        p.currentName +
-                        '"; else mkdir -p "${PROJECT_ROOT}/' +
-                        bucketFolder +
-                        '" && cp "${PROJECT_ROOT}/' +
-                        p.filePath +
-                        '" "${PROJECT_ROOT}/' +
-                        bucketFolder +
-                        '/' +
-                        p.currentName +
-                        '"; fi',
-                    );
+              // Create buckets within each subfolder
+              Object.entries(photosBySubfolder).forEach(([subfolder, subfolderBuckets]) => {
+                Object.entries(subfolderBuckets).forEach(([bucket, photos]) => {
+                  const bucketLabel = bucketNames[bucket] || bucket;
+                  let bucketFolder: string;
+                  if (subfolder) {
+                    bucketFolder = `${label}/${subfolder}/${bucket}_${bucketLabel}`;
+                  } else {
+                    bucketFolder = `${label}/${bucket}_${bucketLabel}`;
                   }
+
+                  // Create folder and copy files
+                  lines.push('mkdir -p "${PROJECT_ROOT}/' + bucketFolder + '"');
+                  photos.forEach(p => {
+                    if (p.filePath) {
+                      lines.push(
+                        'if [ -e "${PROJECT_ROOT}/' +
+                          bucketFolder +
+                          '/' +
+                          p.currentName +
+                          '" ]; then echo "Skipping existing: ' +
+                          bucketFolder +
+                          '/' +
+                          p.currentName +
+                          '"; else cp "${PROJECT_ROOT}/' +
+                          p.filePath +
+                          '" "${PROJECT_ROOT}/' +
+                          bucketFolder +
+                          '/' +
+                          p.currentName +
+                          '"; fi',
+                      );
+                    }
+                  });
                 });
               });
-          }
-        });
+            } else {
+              // Ingested mode: original logic
+              Object.keys(buckets)
+                .sort()
+                .forEach(bucket => {
+                  const bucketLabel = bucketNames[bucket] || bucket;
+                  const bucketFolder = `${daysFolder}/${label}/${bucket}_${bucketLabel}`;
+                  const photos = buckets[bucket];
+
+                  lines.push('mkdir -p "${PROJECT_ROOT}/' + bucketFolder + '"');
+                  photos.forEach(p => {
+                    if (p.filePath) {
+                      lines.push(
+                        'if [ -e "${PROJECT_ROOT}/' +
+                          bucketFolder +
+                          '/' +
+                          p.currentName +
+                          '" ]; then echo "Skipping existing: ' +
+                          bucketFolder +
+                          '/' +
+                          p.currentName +
+                          '"; else mkdir -p "${PROJECT_ROOT}/' +
+                          bucketFolder +
+                          '" && cp "${PROJECT_ROOT}/' +
+                          p.filePath +
+                          '" "${PROJECT_ROOT}/' +
+                          bucketFolder +
+                          '/' +
+                          p.currentName +
+                          '"; fi',
+                      );
+                    }
+                  });
+                });
+            }
+          });
+      }
 
       // Execution: archive
       if (archivePhotos.length > 0) {
@@ -548,7 +639,16 @@ export function useExportScript(
 
       return lines.join('\n');
     },
-    [photos, dayLabels, projectSettings, projectRootPath, customProjectPath, ingested, sourceRoot],
+    [
+      photos,
+      dayLabels,
+      projectSettings,
+      projectRootPath,
+      customProjectPath,
+      ingested,
+      sourceRoot,
+      exportStructureMode,
+    ],
   );
 
   const openExportScriptModal = useCallback(() => {
@@ -602,12 +702,30 @@ export function useExportScript(
   }, []);
 
   const regenerateScript = useCallback(
-    (newProjectPath: string) => {
+    (newProjectPath: string, newStructureMode?: ExportStructureMode) => {
       setCustomProjectPath(newProjectPath);
-      const scriptText = buildExportScript(newProjectPath);
+      if (newStructureMode) {
+        setExportStructureMode(newStructureMode);
+      }
+      const scriptText = buildExportScript({
+        overrideProjectPath: newProjectPath,
+        overrideStructureMode: newStructureMode,
+      });
       setExportScriptText(scriptText);
     },
     [buildExportScript],
+  );
+
+  const updateStructureMode = useCallback(
+    (mode: ExportStructureMode) => {
+      setExportStructureMode(mode);
+      const scriptText = buildExportScript({
+        overrideProjectPath: customProjectPath || undefined,
+        overrideStructureMode: mode,
+      });
+      setExportScriptText(scriptText);
+    },
+    [buildExportScript, customProjectPath],
   );
 
   const getDetectedProjectPath = useCallback(() => {
@@ -716,6 +834,8 @@ export function useExportScript(
     downloadExportScript,
     resetExportCopyStatus,
     regenerateScript,
+    exportStructureMode,
+    updateStructureMode,
     getDetectedProjectPath,
     // NEW: Undo functionality
     showUndoScript,
