@@ -29,6 +29,7 @@ import ProjectHeader from './components/ProjectHeader';
 import LeftSidebar from './components/LeftSidebar';
 import PhotoGrid from './components/PhotoGrid';
 import RightSidebar from './components/RightSidebar';
+import ViewContextBar from './components/ViewContextBar';
 import HelpModal from './components/HelpModal';
 import ExportScriptModal from './components/ExportScriptModal';
 import UndoScriptModal from './components/UndoScriptModal';
@@ -470,6 +471,13 @@ export default function PhotoOrganizer() {
         />
 
         <main className="flex-1 overflow-y-auto">
+          <ViewContextBar
+            currentView={currentView}
+            selectedDay={selectedDay}
+            selectedRootFolder={selectedRootFolder}
+            hideAssigned={hideAssigned}
+            dayLabels={dayLabels}
+          />
           <div className="p-6">
             <PhotoGrid
               loadingProject={loadingProject}

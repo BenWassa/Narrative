@@ -102,9 +102,9 @@ export default function PhotoGrid({
           key={photo.id}
           onClick={e => handlePhotoClick(photo.id, e)}
           data-testid={`photo-${photo.id}`}
-          className={`relative group cursor-pointer rounded-lg overflow-visible transition-all shadow-lg hover:shadow-xl ${
-            photo.bucket || photo.archived ? '' : 'hover:scale-105'
-          } ${selectedPhotos.has(photo.id) ? 'ring-2 ring-blue-500' : ''}`}
+          className={`relative group cursor-pointer rounded-lg overflow-hidden border-2 border-transparent transition-all shadow-lg hover:shadow-xl hover:border-blue-500 ${
+            selectedPhotos.has(photo.id) ? 'ring-2 ring-blue-500' : ''
+          }`}
         >
           <div
             className={`rounded-lg overflow-hidden ${
@@ -141,7 +141,7 @@ export default function PhotoGrid({
             </div>
           )}
 
-          <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/30 to-transparent opacity-0 group-hover:opacity-100 transition-opacity z-5">
+          <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/75 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity">
             <div className="absolute bottom-0 left-0 right-0 p-2">
               <p className="text-xs font-medium text-white truncate">{photo.currentName}</p>
             </div>

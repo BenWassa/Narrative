@@ -148,7 +148,7 @@ export const PhotoStrip: React.FC<PhotoStripProps> = ({
         ref={isActive ? currentPhotoRef : null}
         onClick={() => onSelectPhoto(photo.id)}
         className={`relative flex-shrink-0 group ${
-          isActive ? 'ring-4 ring-blue-500 shadow-xl scale-110' : 'hover:ring-2 hover:ring-gray-600'
+          isActive ? 'ring-4 ring-blue-500 shadow-xl' : 'hover:ring-2 hover:ring-blue-500'
         } transition-all duration-200 rounded-lg overflow-hidden`}
         style={{
           width: '120px',
@@ -199,7 +199,7 @@ export const PhotoStrip: React.FC<PhotoStripProps> = ({
 
         {/* Photo number overlay (shows on hover for non-active) */}
         {!isActive && (
-          <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+          <div className="pointer-events-none absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
             <span className="text-white text-xs font-medium">#{index + 1}</span>
           </div>
         )}
