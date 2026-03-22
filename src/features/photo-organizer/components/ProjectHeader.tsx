@@ -2,6 +2,8 @@ import { useState } from 'react';
 import { ChevronDown, Download, Loader } from 'lucide-react';
 import type { RecentProject } from '../OnboardingModal';
 
+const APP_ICON_SRC = `${import.meta.env.BASE_URL}assets/Narrative_icon.png`;
+
 interface ProjectStats {
   total: number;
   sorted: number;
@@ -88,11 +90,7 @@ export default function ProjectHeader({
     <header className="border-b border-gray-800 bg-gray-900">
       <div className="flex items-center justify-between px-6 py-3">
         <div className="flex items-center gap-4">
-          <img
-            src="/Narrative/assets/Narrative_icon.png"
-            alt="Narrative"
-            className="w-8 h-8 rounded"
-          />
+          <img src={APP_ICON_SRC} alt="Narrative" className="w-8 h-8 rounded" />
           <div>
             <h1 className="text-lg font-semibold text-gray-100">{projectName}</h1>
             <p className="text-xs text-gray-400">
