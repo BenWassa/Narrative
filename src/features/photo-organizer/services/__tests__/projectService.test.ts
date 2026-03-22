@@ -4,7 +4,7 @@ import {
   buildProjectTree,
   inspectProjectFolder,
   heicToBlob,
-  planProjectScaffoldingForTest,
+  planProjectScaffoldingPreview,
   ensureProjectScaffolding,
   type ProjectPhoto,
 } from '../projectService';
@@ -255,7 +255,7 @@ describe('Project file collection', () => {
       edits: makeDirHandle('edits', {}),
     });
 
-    const plan = await planProjectScaffoldingForTest(root, 'single_day', settings);
+    const plan = await planProjectScaffoldingPreview(root, 'single_day', settings);
 
     expect(plan.importDisposition).toBe('existing');
     expect(plan.hasCanonicalStructure).toBe(false);
@@ -269,7 +269,7 @@ describe('Project file collection', () => {
       Inbox: makeDirHandle('Inbox', {}),
     });
 
-    const plan = await planProjectScaffoldingForTest(root, 'single_day', settings);
+    const plan = await planProjectScaffoldingPreview(root, 'single_day', settings);
 
     expect(plan.importDisposition).toBe('existing');
     expect(plan.hasCanonicalStructure).toBe(true);
@@ -289,7 +289,7 @@ describe('Project file collection', () => {
       'Day 01': makeDirHandle('Day 01', {}),
     });
 
-    const plan = await planProjectScaffoldingForTest(root, 'multi_day', settings);
+    const plan = await planProjectScaffoldingPreview(root, 'multi_day', settings);
 
     expect(plan.importDisposition).toBe('existing');
     expect(plan.renamePaths).toEqual([]);
@@ -299,7 +299,7 @@ describe('Project file collection', () => {
   test('creates full single-day scaffold for empty folders', async () => {
     const root = makeDirHandle('root', {});
 
-    const plan = await planProjectScaffoldingForTest(root, 'single_day', settings);
+    const plan = await planProjectScaffoldingPreview(root, 'single_day', settings);
 
     expect(plan.importDisposition).toBe('new');
     expect(plan.renamePaths).toEqual([]);
@@ -333,7 +333,7 @@ describe('Project file collection', () => {
       X_ARCHIVE: makeDirHandle('X_ARCHIVE', {}),
     });
 
-    const plan = await planProjectScaffoldingForTest(root, 'single_day', settings);
+    const plan = await planProjectScaffoldingPreview(root, 'single_day', settings);
 
     expect(plan.renamePaths).toEqual([{ from: 'X_ARCHIVE', to: 'X_Archive' }]);
     expect(plan.createPaths).toEqual([

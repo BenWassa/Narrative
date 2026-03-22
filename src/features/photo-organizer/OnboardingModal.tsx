@@ -2,6 +2,8 @@ import React, { useCallback, useRef, useState } from 'react';
 import { FolderOpen, X } from 'lucide-react';
 import {
   inspectProjectFolder,
+  planProjectScaffoldingPreview,
+  type ProjectScaffoldingPlan,
   type ProjectFolderInspection,
   type ProjectMode,
 } from './services/projectService';
@@ -58,12 +60,17 @@ export default function OnboardingModal({
   const [loading, setLoading] = useState(false);
   const [projectMode, setProjectMode] = useState<ProjectMode>('single_day');
   const [folderInspection, setFolderInspection] = useState<ProjectFolderInspection | null>(null);
+  const [scaffoldingPlan, setScaffoldingPlan] = useState<ProjectScaffoldingPlan | null>(null);
+  const [planConfirmed, setPlanConfirmed] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const projectNameInputRef = useRef<HTMLInputElement | null>(null);
   const lastAutoProjectNameRef = useRef('');
 
   const primaryActionLabel =
     folderInspection?.recommendedAction === 'import' ? 'Import Existing Project' : 'Create Project';
+  const hasPlannedChanges =
+    (scaffoldingPlan?.createPaths.length || 0) > 0 ||
+    (scaffoldingPlan?.renamePaths.length || 0) > 0;
   const stepTitle =
     step === 'folder'
       ? 'Choose Project Folder'
@@ -103,7 +110,18 @@ export default function OnboardingModal({
     if (inspection.inferredProjectMode) {
       setProjectMode(inspection.inferredProjectMode);
     }
+    return inspection;
   }, []);
+
+  const refreshScaffoldingPlan = useCallback(
+    async (handle: FileSystemDirectoryHandle, nextProjectMode: ProjectMode) => {
+      const plan = await planProjectScaffoldingPreview(handle, nextProjectMode);
+      setScaffoldingPlan(plan);
+      setPlanConfirmed(false);
+      return plan;
+    },
+    [],
+  );
 
   const handleFolderNext = useCallback(async () => {
     if (!dirHandle) {
@@ -114,14 +132,15 @@ export default function OnboardingModal({
     setError(null);
     setLoading(true);
     try {
-      await inspectSelectedFolder(dirHandle);
+      const inspection = await inspectSelectedFolder(dirHandle);
+      await refreshScaffoldingPlan(dirHandle, inspection.inferredProjectMode || projectMode);
       setStep('details');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to inspect selected folder');
     } finally {
       setLoading(false);
     }
-  }, [dirHandle, inspectSelectedFolder]);
+  }, [dirHandle, inspectSelectedFolder, projectMode, refreshScaffoldingPlan]);
 
   const handleDetect = useCallback(async () => {
     if (!projectName.trim()) {
@@ -310,6 +329,7 @@ export default function OnboardingModal({
     projectMode,
     projectName,
     recentProjects,
+    refreshScaffoldingPlan,
     rootPath,
   ]);
 
@@ -452,6 +472,8 @@ export default function OnboardingModal({
                       syncProjectNameFromPath(folder);
                       setDirHandle(null);
                       setFolderInspection(null);
+                      setScaffoldingPlan(null);
+                      setPlanConfirmed(false);
                       setStep('folder');
                       requestAnimationFrame(() => projectNameInputRef.current?.select());
                       e.currentTarget.value = '';
@@ -465,6 +487,8 @@ export default function OnboardingModal({
                         setDirHandle(handle);
                         syncProjectNameFromPath(handle?.name || '');
                         setFolderInspection(null);
+                        setScaffoldingPlan(null);
+                        setPlanConfirmed(false);
                         return;
                       }
                       fileInputRef.current?.click();
@@ -533,6 +557,70 @@ export default function OnboardingModal({
                   )}
               </div>
 
+              <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 space-y-3">
+                <div>
+                  <div className="text-sm font-medium text-amber-900">Planned Folder Changes</div>
+                  <div className="text-xs text-amber-800 mt-1">
+                    Narrative will only apply these root-level changes during setup.
+                  </div>
+                </div>
+
+                {!scaffoldingPlan ? (
+                  <div className="text-xs text-amber-800">
+                    Preview will be generated before continuing.
+                  </div>
+                ) : (
+                  <>
+                    {scaffoldingPlan.renamePaths.length > 0 && (
+                      <div>
+                        <div className="text-xs font-medium text-amber-900">Rename</div>
+                        <div className="mt-1 space-y-1">
+                          {scaffoldingPlan.renamePaths.map(rename => (
+                            <div
+                              key={`${rename.from}->${rename.to}`}
+                              className="text-xs text-amber-900 font-mono"
+                            >
+                              {rename.from} {'->'} {rename.to}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {scaffoldingPlan.createPaths.length > 0 && (
+                      <div>
+                        <div className="text-xs font-medium text-amber-900">Add</div>
+                        <div className="mt-1 space-y-1">
+                          {scaffoldingPlan.createPaths.map(path => (
+                            <div key={path} className="text-xs text-amber-900 font-mono">
+                              {path}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {!hasPlannedChanges && (
+                      <div className="text-xs text-amber-800">
+                        No root-level folder changes are planned.
+                      </div>
+                    )}
+                  </>
+                )}
+
+                {hasPlannedChanges && (
+                  <label className="flex items-start gap-2 text-xs text-amber-900">
+                    <input
+                      type="checkbox"
+                      checked={planConfirmed}
+                      onChange={e => setPlanConfirmed(e.target.checked)}
+                      className="mt-0.5"
+                    />
+                    <span>I reviewed these planned changes and want to continue.</span>
+                  </label>
+                )}
+              </div>
+
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Project Topology
@@ -540,7 +628,12 @@ export default function OnboardingModal({
                 <div className="grid grid-cols-2 gap-3">
                   <button
                     type="button"
-                    onClick={() => setProjectMode('single_day')}
+                    onClick={async () => {
+                      setProjectMode('single_day');
+                      if (dirHandle) {
+                        await refreshScaffoldingPlan(dirHandle, 'single_day');
+                      }
+                    }}
                     className={`rounded-lg border px-4 py-3 text-left ${
                       projectMode === 'single_day'
                         ? 'border-blue-500 bg-blue-50'
@@ -555,7 +648,12 @@ export default function OnboardingModal({
                   </button>
                   <button
                     type="button"
-                    onClick={() => setProjectMode('multi_day')}
+                    onClick={async () => {
+                      setProjectMode('multi_day');
+                      if (dirHandle) {
+                        await refreshScaffoldingPlan(dirHandle, 'multi_day');
+                      }
+                    }}
                     className={`rounded-lg border px-4 py-3 text-left ${
                       projectMode === 'multi_day'
                         ? 'border-blue-500 bg-blue-50'
@@ -687,8 +785,18 @@ export default function OnboardingModal({
               </button>
               <button
                 onClick={handleDetect}
-                disabled={!projectName.trim() || !dirHandle || loading}
-                aria-disabled={!projectName.trim() || !dirHandle || loading}
+                disabled={
+                  !projectName.trim() ||
+                  !dirHandle ||
+                  loading ||
+                  (hasPlannedChanges && !planConfirmed)
+                }
+                aria-disabled={
+                  !projectName.trim() ||
+                  !dirHandle ||
+                  loading ||
+                  (hasPlannedChanges && !planConfirmed)
+                }
                 className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium disabled:bg-gray-200 disabled:text-gray-500 disabled:cursor-not-allowed"
               >
                 {loading

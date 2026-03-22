@@ -143,7 +143,7 @@ interface ProjectInitResponse {
   projectMode: ProjectMode;
 }
 
-interface ProjectScaffoldingPlan {
+export interface ProjectScaffoldingPlan {
   createPaths: string[];
   renamePaths: Array<{ from: string; to: string }>;
   importDisposition: 'new' | 'existing';
@@ -1826,7 +1826,7 @@ export async function deleteProject(projectId: string): Promise<void> {
   }
 }
 
-export async function planProjectScaffoldingForTest(
+export async function planProjectScaffoldingPreview(
   dirHandle: FileSystemDirectoryHandle,
   projectMode: ProjectMode,
   settings: ProjectSettings = DEFAULT_SETTINGS,
