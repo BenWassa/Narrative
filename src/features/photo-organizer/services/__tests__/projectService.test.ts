@@ -100,6 +100,12 @@ describe('Project file collection', () => {
         }
         throw new DOMException(`Directory "${entryName}" not found`, 'NotFoundError');
       },
+      async removeEntry(entryName: string) {
+        if (!(entryName in children)) {
+          throw new DOMException(`Entry "${entryName}" not found`, 'NotFoundError');
+        }
+        delete children[entryName];
+      },
     } as unknown as FileSystemDirectoryHandle);
 
   const settings = {
@@ -253,6 +259,7 @@ describe('Project file collection', () => {
 
     expect(plan.importDisposition).toBe('existing');
     expect(plan.hasCanonicalStructure).toBe(false);
+    expect(plan.renamePaths).toEqual([]);
     expect(plan.createPaths).toEqual(['Inbox', 'X_Archive']);
   });
 
@@ -266,6 +273,7 @@ describe('Project file collection', () => {
 
     expect(plan.importDisposition).toBe('existing');
     expect(plan.hasCanonicalStructure).toBe(true);
+    expect(plan.renamePaths).toEqual([]);
     expect(plan.createPaths).toEqual([
       'X_Archive',
       'B_People',
@@ -284,6 +292,7 @@ describe('Project file collection', () => {
     const plan = await planProjectScaffoldingForTest(root, 'multi_day', settings);
 
     expect(plan.importDisposition).toBe('existing');
+    expect(plan.renamePaths).toEqual([]);
     expect(plan.createPaths).toEqual(['Inbox', 'X_Archive', '01_DAYS']);
   });
 
@@ -293,6 +302,7 @@ describe('Project file collection', () => {
     const plan = await planProjectScaffoldingForTest(root, 'single_day', settings);
 
     expect(plan.importDisposition).toBe('new');
+    expect(plan.renamePaths).toEqual([]);
     expect(plan.createPaths).toEqual([
       'Inbox',
       'X_Archive',
@@ -315,6 +325,38 @@ describe('Project file collection', () => {
     expect(Object.keys(root.children).sort()).toEqual(['Inbox', 'RAW', 'X_Archive']);
     expect(root.children.A_Establishing).toBeUndefined();
     expect(root.children.B_People).toBeUndefined();
+  });
+
+  test('plans archive variant rename instead of creating duplicate canonical archive folder', async () => {
+    const root = makeDirHandle('root', {
+      A_Establishing: makeDirHandle('A_Establishing', {}),
+      X_ARCHIVE: makeDirHandle('X_ARCHIVE', {}),
+    });
+
+    const plan = await planProjectScaffoldingForTest(root, 'single_day', settings);
+
+    expect(plan.renamePaths).toEqual([{ from: 'X_ARCHIVE', to: 'X_Archive' }]);
+    expect(plan.createPaths).toEqual([
+      'Inbox',
+      'B_People',
+      'C_Culture-Detail',
+      'D_Action-Moment',
+      'E_Transition',
+      'M_Mood-Food',
+    ]);
+  });
+
+  test('ensureProjectScaffolding renames archive variants to canonical folder name', async () => {
+    const root = makeDirHandle('root', {
+      A_Establishing: makeDirHandle('A_Establishing', {}),
+      X_ARCHIVE: makeDirHandle('X_ARCHIVE', {}),
+    }) as any;
+
+    await ensureProjectScaffolding(root, 'single_day', settings);
+
+    expect(root.children.X_ARCHIVE).toBeUndefined();
+    expect(root.children.X_Archive).toBeDefined();
+    expect(root.children.Inbox).toBeDefined();
   });
 
   test('inspects canonical single-day structure as importable existing project', async () => {

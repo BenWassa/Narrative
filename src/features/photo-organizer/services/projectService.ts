@@ -145,6 +145,7 @@ interface ProjectInitResponse {
 
 interface ProjectScaffoldingPlan {
   createPaths: string[];
+  renamePaths: Array<{ from: string; to: string }>;
   importDisposition: 'new' | 'existing';
   hasExistingContent: boolean;
   hasCanonicalStructure: boolean;
@@ -378,6 +379,59 @@ function hasDayLikeFolder(name: string) {
   return /^day\s*\d{1,2}$/.test(normalized) || /^d\s*\d{1,2}$/.test(normalized);
 }
 
+function simplifyFolderName(name: string) {
+  return name
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim();
+}
+
+function compactFolderName(name: string) {
+  return name.toLowerCase().replace(/[^a-z0-9]+/g, '');
+}
+
+function scoreArchiveVariant(name: string, archiveFolder: string) {
+  const compact = compactFolderName(name);
+  const canonicalCompact = compactFolderName(archiveFolder);
+  const simplified = simplifyFolderName(name);
+  if (compact === canonicalCompact) return 100;
+  if (/^x\s+archives?$/.test(simplified) || /^xarchives?$/.test(compact)) return 90;
+  if (/^[a-z]\s+archives?$/.test(simplified) || /^[a-z]archives?$/.test(compact)) return 75;
+  if (/^\d+\s+archives?$/.test(simplified) || /^\d+archives?$/.test(compact)) return 70;
+  if (simplified === 'archive' || simplified === 'archives') return 60;
+  return 0;
+}
+
+function findArchiveFolderVariant(
+  topLevelDirectories: string[],
+  archiveFolder: string,
+): string | null {
+  const canonicalCompact = compactFolderName(archiveFolder);
+  const canonicalExact = topLevelDirectories.find(name => name === archiveFolder);
+  if (canonicalExact) {
+    return null;
+  }
+
+  const candidates = topLevelDirectories
+    .filter(name => {
+      if (name === archiveFolder) return false;
+      const compact = compactFolderName(name);
+      const simplified = simplifyFolderName(name);
+      return (
+        compact === canonicalCompact ||
+        simplified === 'archive' ||
+        simplified === 'archives' ||
+        /^[a-z]\s+archives?$/.test(simplified) ||
+        /^\d+\s+archives?$/.test(simplified) ||
+        /^[a-z]archives?$/.test(compact) ||
+        /^\d+archives?$/.test(compact)
+      );
+    })
+    .sort((a, b) => scoreArchiveVariant(b, archiveFolder) - scoreArchiveVariant(a, archiveFolder));
+
+  return candidates[0] || null;
+}
+
 async function planProjectScaffolding(
   dirHandle: FileSystemDirectoryHandle,
   projectMode: ProjectMode,
@@ -392,6 +446,7 @@ async function planProjectScaffolding(
 
   const hasTopLevelFolder = (name: string) =>
     topLevelDirectories.some(entry => normalizeRelativePath(entry) === normalizeRelativePath(name));
+  const archiveVariant = findArchiveFolderVariant(topLevelDirectories, archiveFolder);
   const hasBucketRoots = topLevelDirectories.some(name => isBucketFolderName(name));
   const hasDayRoots = topLevelDirectories.some(name => hasDayLikeFolder(name));
   const hasCanonicalStructure =
@@ -405,10 +460,13 @@ async function planProjectScaffolding(
     hasExistingContent || hasCanonicalStructure ? 'existing' : 'new';
 
   const createPaths: string[] = [];
+  const renamePaths: Array<{ from: string; to: string }> = [];
   if (!hasTopLevelFolder(inboxFolder)) {
     createPaths.push(inboxFolder);
   }
-  if (!hasTopLevelFolder(archiveFolder)) {
+  if (archiveVariant && !hasTopLevelFolder(archiveFolder)) {
+    renamePaths.push({ from: archiveVariant, to: archiveFolder });
+  } else if (!hasTopLevelFolder(archiveFolder)) {
     createPaths.push(archiveFolder);
   }
 
@@ -429,6 +487,7 @@ async function planProjectScaffolding(
 
   return {
     createPaths,
+    renamePaths,
     importDisposition,
     hasExistingContent,
     hasCanonicalStructure,
@@ -1120,6 +1179,9 @@ export async function ensureProjectScaffolding(
   settings: ProjectSettings = DEFAULT_SETTINGS,
 ): Promise<void> {
   const plan = await planProjectScaffolding(dirHandle, projectMode, settings);
+  for (const renamePath of plan.renamePaths) {
+    await moveDirectory(dirHandle, renamePath.from, renamePath.to);
+  }
   for (const relativePath of plan.createPaths) {
     await ensureDirectoryPath(dirHandle, relativePath);
   }

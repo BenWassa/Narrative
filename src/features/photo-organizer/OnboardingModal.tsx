@@ -481,7 +481,8 @@ export default function OnboardingModal({
                 </p>
                 <p className="text-xs text-gray-500 mt-1">
                   Existing folders are recognized as-is. Missing support folders like `Inbox` or
-                  `X_Archive` may be added, but existing folder trees are not rewritten.
+                  `X_Archive` may be added, and known folder variants like `X_ARCHIVE` may be
+                  normalized to the canonical name.
                 </p>
                 {folderInspection?.inferredProjectMode && (
                   <p className="text-xs text-blue-700 mt-1">
