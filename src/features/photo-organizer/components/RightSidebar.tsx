@@ -1,5 +1,5 @@
 import { type Dispatch, type SetStateAction, useEffect, useState } from 'react';
-import { Heart, Pencil, Save, X as XIcon } from 'lucide-react';
+import { Pencil, Save, X as XIcon } from 'lucide-react';
 import type { ProjectMode, ProjectPhoto } from '../services/projectService';
 
 interface Bucket {
@@ -23,7 +23,6 @@ interface RightSidebarProps {
   onSetSelectedPhotos: (next: Set<string>) => void;
   onRemoveDayAssignment: (photoIds: string[] | string) => void;
   onAssignBucket: (photoIds: string[] | string, bucket: string) => void;
-  onToggleFavorite: (photoIds: string[] | string) => void;
 }
 
 export default function RightSidebar({
@@ -40,7 +39,6 @@ export default function RightSidebar({
   onSetSelectedPhotos,
   onRemoveDayAssignment,
   onAssignBucket,
-  onToggleFavorite,
 }: RightSidebarProps) {
   const [editingName, setEditingName] = useState(false);
   const [nameInput, setNameInput] = useState('');
@@ -183,24 +181,6 @@ export default function RightSidebar({
               <p className="text-xs mt-1 opacity-80">{bucket.description}</p>
             </button>
           ))}
-        </div>
-
-        <div className="space-y-3 pt-6 border-t border-gray-800">
-          <button
-            onClick={() => onToggleFavorite(Array.from(selectedPhotos))}
-            className={`w-full px-4 py-2 rounded-lg flex items-center gap-2 transition-colors ${
-              selectedPhotos.size === 1 && selectedPhoto?.favorite
-                ? 'bg-yellow-600 hover:bg-yellow-700'
-                : 'bg-gray-800 hover:bg-gray-700'
-            }`}
-          >
-            <Heart
-              className={`w-4 h-4 ${
-                selectedPhotos.size === 1 && selectedPhoto?.favorite ? 'fill-current' : ''
-              }`}
-            />
-            Toggle Favorite (F)
-          </button>
         </div>
       </div>
     </aside>

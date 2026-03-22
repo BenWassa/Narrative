@@ -28,10 +28,9 @@ describe('PhotoOrganizer header contrast helpers', () => {
       settings: {
         autoDay: true,
         folderStructure: {
+          inboxFolder: 'Inbox',
           daysFolder: '01_DAYS',
-          archiveFolder: '98_ARCHIVE',
-          favoritesFolder: 'FAV',
-          metaFolder: '_meta',
+          archiveFolder: 'X_Archive',
         },
       },
       dayLabels: {},

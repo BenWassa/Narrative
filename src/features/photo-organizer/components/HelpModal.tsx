@@ -42,7 +42,7 @@ export default function HelpModal({ isOpen, buckets, onClose }: HelpModalProps) 
                 ))}
               </div>
               <p className="text-xs text-gray-400 mt-3">
-                Keyboard shortcuts: A–E, X, M (Mood/Food). F is reserved for Favorite.
+                Keyboard shortcuts: A-E, X, M (Mood/Food).
               </p>
             </div>
 
@@ -79,10 +79,6 @@ export default function HelpModal({ isOpen, buckets, onClose }: HelpModalProps) 
             <div>
               <h3 className="font-semibold text-blue-400 mb-3">Actions</h3>
               <div className="space-y-2 text-sm">
-                <div className="flex items-center gap-3">
-                  <kbd className="px-2 py-1 bg-gray-800 rounded">F</kbd>
-                  <span>Toggle favorite</span>
-                </div>
                 <div className="flex items-center gap-3">
                   <kbd className="px-2 py-1 bg-gray-800 rounded">Shift+H</kbd>
                   <span>Toggle Skip Assigned</span>

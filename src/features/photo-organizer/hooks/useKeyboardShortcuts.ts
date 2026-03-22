@@ -23,7 +23,6 @@ export interface KeyboardHandlerOptions {
   hideAssigned: boolean;
   MECE_BUCKETS: MECEBucket[];
   onAssignBucket: (photoIds: string[], bucket: string) => void;
-  onToggleFavorite: (photoIds: string[]) => void;
   onUndo: () => void;
   onRedo: () => void;
   onSetFocusedPhoto: (photoId: string | null) => void;
@@ -53,7 +52,6 @@ export function useKeyboardShortcuts(options: KeyboardHandlerOptions, isActive =
     hideAssigned,
     MECE_BUCKETS,
     onAssignBucket,
-    onToggleFavorite,
     onUndo,
     onRedo,
     onSetFocusedPhoto,
@@ -146,20 +144,13 @@ export function useKeyboardShortcuts(options: KeyboardHandlerOptions, isActive =
         }
       };
 
-      if (e.key.toLowerCase() === 'f' && !e.shiftKey && !e.metaKey && !e.ctrlKey && !e.altKey) {
-        const targets = selectedPhotos.size > 0 ? Array.from(selectedPhotos) : [primaryId];
-        onToggleFavorite(targets);
-        return;
-      }
-
       // MECE bucket assignment
       const validBuckets = ['A', 'B', 'C', 'D', 'E', 'M', 'X'];
       const pressedBucket = e.key.toUpperCase();
       const isValidBucket = validBuckets.includes(pressedBucket);
-      const isReservedFavorite = pressedBucket === 'F';
       const existsInBuckets = MECE_BUCKETS.some(bucket => bucket.key === pressedBucket);
 
-      if (isValidBucket || (existsInBuckets && !isReservedFavorite)) {
+      if (isValidBucket || existsInBuckets) {
         e.preventDefault();
         const bucket = pressedBucket;
 
@@ -242,7 +233,6 @@ export function useKeyboardShortcuts(options: KeyboardHandlerOptions, isActive =
     focusedPhoto,
     orderingResult,
     onAssignBucket,
-    onToggleFavorite,
     onUndo,
     onRedo,
     showHelp,

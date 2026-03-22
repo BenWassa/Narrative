@@ -28,10 +28,9 @@ const createMockPhoto = (overrides: Partial<ProjectPhoto> = {}): ProjectPhoto =>
 const mockSettings: ProjectSettings = {
   autoDay: true,
   folderStructure: {
+    inboxFolder: 'Inbox',
     daysFolder: '01_DAYS',
-    archiveFolder: '98_ARCHIVE',
-    favoritesFolder: 'FAV',
-    metaFolder: '_meta',
+    archiveFolder: 'X_Archive',
   },
 };
 
@@ -179,7 +178,7 @@ describe('buildOperationPlan', () => {
       structureMode: 'auto',
     });
 
-    expect(plan.operations[0].destinationRelativePath).toBe('98_ARCHIVE/IMG_1234.jpg');
+    expect(plan.operations[0].destinationRelativePath).toBe('X_Archive/IMG_1234.jpg');
   });
 
   it('should skip photos with missing filePath', () => {

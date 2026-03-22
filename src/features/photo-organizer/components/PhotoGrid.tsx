@@ -1,4 +1,4 @@
-import { FolderOpen, Heart, Loader } from 'lucide-react';
+import { FolderOpen, Loader } from 'lucide-react';
 import { useRef } from 'react';
 import { PhotoViewer } from '../ui/PhotoViewer';
 import type { ProjectPhoto } from '../services/projectService';
@@ -31,7 +31,6 @@ interface PhotoGridProps {
   onOpenViewer: (photoId: string) => void;
   onCloseViewer: () => void;
   onNavigateViewer: (photoId: string) => void;
-  onToggleFavorite: (photoId: string) => void;
   onAssignBucket: (photoId: string, bucket: string) => void;
   onAssignDay: (photoId: string, day: number | null) => void;
   onSaveToHistory: (newPhotos: ProjectPhoto[]) => void;
@@ -62,7 +61,6 @@ export default function PhotoGrid({
   onOpenViewer,
   onCloseViewer,
   onNavigateViewer,
-  onToggleFavorite,
   onAssignBucket,
   onAssignDay,
   onSaveToHistory,
@@ -129,14 +127,7 @@ export default function PhotoGrid({
 
           {photo.bucket ? (
             <div className="absolute bottom-2 left-2 rounded px-2 py-1 text-xs font-bold text-white shadow-lg z-10 bg-black/70">
-              <div className="flex items-center gap-1">
-                <span>{photo.bucket}</span>
-                {photo.favorite ? <Heart className="w-3 h-3 fill-current" /> : null}
-              </div>
-            </div>
-          ) : photo.favorite ? (
-            <div className="absolute bottom-2 left-2 bg-yellow-500 text-white rounded-full p-1.5 shadow-lg z-10">
-              <Heart className="w-3.5 h-3.5 fill-current" />
+              <span>{photo.bucket}</span>
             </div>
           ) : null}
         </div>
@@ -201,7 +192,6 @@ export default function PhotoGrid({
           orderingResult={orderingResult}
           onClose={onCloseViewer}
           onNavigate={onNavigateViewer}
-          onToggleFavorite={onToggleFavorite}
           onAssignBucket={(photoId, bucket) => {
             onAssignBucket(photoId, bucket);
             if (!bucket) return;

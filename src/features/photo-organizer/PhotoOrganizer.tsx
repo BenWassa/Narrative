@@ -360,9 +360,6 @@ export default function PhotoOrganizer() {
   );
 
   const filteredPhotos = React.useMemo(() => {
-    if (currentView === 'favorites') {
-      return photos.filter(photo => photo.favorite && !photo.archived);
-    }
     if (currentView === 'archive') {
       return photos.filter(photo => photo.archived);
     }
@@ -462,8 +459,16 @@ export default function PhotoOrganizer() {
     if (currentView !== 'folders' || selectedTreePath || projectTree.length === 0) {
       return;
     }
-    setSelectedTreePath(projectTree[0].relativePath);
-  }, [currentView, projectTree, selectedTreePath, setSelectedTreePath]);
+    const inboxFolder = projectSettings.folderStructure.inboxFolder || 'Inbox';
+    const inboxNode = projectTree.find(node => node.relativePath === inboxFolder);
+    setSelectedTreePath(inboxNode?.relativePath || projectTree[0].relativePath);
+  }, [
+    currentView,
+    projectSettings.folderStructure.inboxFolder,
+    projectTree,
+    selectedTreePath,
+    setSelectedTreePath,
+  ]);
 
   const assignBucket = useCallback(
     (photoIds: string | string[], bucket: string, dayNum: number | null = null) => {
@@ -486,14 +491,6 @@ export default function PhotoOrganizer() {
     (photoIds: string | string[]) => {
       const ids = Array.isArray(photoIds) ? photoIds : [photoIds];
       photoDispatch({ type: 'REMOVE_DAY_ASSIGNMENT', payload: { photoIds: ids } });
-    },
-    [photoDispatch],
-  );
-
-  const toggleFavorite = useCallback(
-    (photoIds: string | string[]) => {
-      const ids = Array.isArray(photoIds) ? photoIds : [photoIds];
-      photoDispatch({ type: 'TOGGLE_FAVORITE', payload: { photoIds: ids } });
     },
     [photoDispatch],
   );
@@ -578,7 +575,6 @@ export default function PhotoOrganizer() {
       hideAssigned,
       MECE_BUCKETS,
       onAssignBucket: assignBucket,
-      onToggleFavorite: toggleFavorite,
       onUndo: undo,
       onRedo: redo,
       onSetFocusedPhoto: setFocusedPhoto,
@@ -602,7 +598,6 @@ export default function PhotoOrganizer() {
       sorted: photos.filter(p => p.bucket && !p.archived).length,
       unsorted: photos.filter(p => !p.bucket && !p.archived).length,
       archived: photos.filter(p => p.archived).length,
-      favorites: photos.filter(p => p.favorite).length,
       root: photos.filter(p => !p.bucket && !p.archived).length,
     }),
     [photos],
@@ -718,6 +713,7 @@ export default function PhotoOrganizer() {
           onRenameFolder={handleRenameFolder}
           onDeleteFolder={handleDeleteFolder}
           projectMode={projectMode}
+          projectSettings={projectSettings}
           onConvertToMultiDay={projectMode === 'single_day' ? handleConvertToMultiDay : undefined}
         />
 
@@ -745,7 +741,6 @@ export default function PhotoOrganizer() {
               onOpenViewer={photoId => setGalleryViewPhoto(photoId)}
               onCloseViewer={() => setGalleryViewPhoto(null)}
               onNavigateViewer={photoId => setGalleryViewPhoto(photoId)}
-              onToggleFavorite={photoId => toggleFavorite(photoId)}
               onAssignBucket={(photoId, bucket) => assignBucket(photoId, bucket)}
               onAssignDay={(photoId, day) => {
                 photoDispatch({ type: 'ASSIGN_DAY', payload: { photoIds: [photoId], day } });
@@ -775,7 +770,6 @@ export default function PhotoOrganizer() {
             onSetSelectedPhotos={setSelectedPhotos}
             onRemoveDayAssignment={removeDayAssignment}
             onAssignBucket={assignBucket}
-            onToggleFavorite={toggleFavorite}
           />
         )}
       </div>

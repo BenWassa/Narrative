@@ -14,8 +14,6 @@ export default function ViewContextBar({
   const viewLabel =
     currentView === 'folders'
       ? 'Folders'
-      : currentView === 'favorites'
-      ? 'Favorites'
       : currentView === 'archive'
       ? 'Archive'
       : currentView === 'review'

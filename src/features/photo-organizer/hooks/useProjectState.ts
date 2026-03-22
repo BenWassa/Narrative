@@ -29,10 +29,9 @@ import { initialPhotoEngineState, photoReducer } from '../store/photoReducer';
 const DEFAULT_SETTINGS: ProjectSettings = {
   autoDay: true,
   folderStructure: {
+    inboxFolder: 'Inbox',
     daysFolder: '01_DAYS',
-    archiveFolder: '98_ARCHIVE',
-    favoritesFolder: 'FAV',
-    metaFolder: '_meta',
+    archiveFolder: 'X_Archive',
   },
 };
 const STATE_PREFIX = 'narrative:projectState:';

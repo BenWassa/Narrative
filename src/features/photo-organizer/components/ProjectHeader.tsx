@@ -6,7 +6,6 @@ interface ProjectStats {
   total: number;
   sorted: number;
   root: number;
-  favorites: number;
   archived: number;
 }
 
@@ -97,7 +96,7 @@ export default function ProjectHeader({
           <div>
             <h1 className="text-lg font-semibold text-gray-100">{projectName}</h1>
             <p className="text-xs text-gray-400">
-              {stats.sorted} sorted · {stats.root} root · {stats.favorites} favorites
+              {stats.sorted} sorted · {stats.root} root · {stats.archived} archived
             </p>
           </div>
         </div>
@@ -256,7 +255,6 @@ export default function ProjectHeader({
       <div className="flex gap-1 px-6 pb-2">
         {[
           { id: 'folders', label: 'Folders', count: stats.root },
-          { id: 'favorites', label: 'Favorites', count: stats.favorites },
           { id: 'archive', label: 'Archive', count: stats.archived },
           { id: 'review', label: 'Review', count: stats.sorted },
         ].map(view => (

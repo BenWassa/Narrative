@@ -325,9 +325,6 @@ export function useFolderModel({
         }
         rawFiltered = [];
         break;
-      case 'favorites':
-        rawFiltered = photos.filter(photo => photo.favorite && !photo.archived).filter(baseFilter);
-        break;
       case 'archive':
         rawFiltered = photos.filter(photo => photo.archived).filter(baseFilter);
         break;

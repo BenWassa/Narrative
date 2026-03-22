@@ -89,10 +89,9 @@ describe('Project file collection', () => {
   const settings = {
     autoDay: true,
     folderStructure: {
+      inboxFolder: 'Inbox',
       daysFolder: '01_DAYS',
-      archiveFolder: '98_ARCHIVE',
-      favoritesFolder: 'FAV',
-      metaFolder: '_meta',
+      archiveFolder: 'X_Archive',
     },
   };
 
@@ -154,7 +153,6 @@ describe('Project file collection', () => {
         ),
       }),
       misc: makeDirHandle('misc', {}),
-      _meta: makeDirHandle('_meta', {}),
     });
 
     const photos: ProjectPhoto[] = [
@@ -178,7 +176,6 @@ describe('Project file collection', () => {
 
     const tree = await buildProjectTree(root, 'single_day', settings, photos);
     expect(tree.map(node => [node.name, node.kind])).toEqual([
-      ['_meta', 'system'],
       ['A_Establishing', 'bucket'],
       ['misc', 'folder'],
     ]);
@@ -195,7 +192,8 @@ describe('Project file collection', () => {
           }),
         }),
       }),
-      '98_ARCHIVE': makeDirHandle('98_ARCHIVE', {}),
+      Inbox: makeDirHandle('Inbox', {}),
+      X_Archive: makeDirHandle('X_Archive', {}),
     });
 
     const photos: ProjectPhoto[] = [
@@ -221,6 +219,7 @@ describe('Project file collection', () => {
     expect(tree[0].name).toBe('Day 01');
     expect(tree[0].kind).toBe('day');
     expect(tree[0].children[0].kind).toBe('bucket');
-    expect(tree.some(node => node.name === '98_ARCHIVE' && node.kind === 'system')).toBe(true);
+    expect(tree.some(node => node.name === 'Inbox' && node.kind === 'system')).toBe(true);
+    expect(tree.some(node => node.name === 'X_Archive' && node.kind === 'system')).toBe(true);
   });
 });

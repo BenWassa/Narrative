@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { X, Heart, Loader, ChevronUp, ChevronDown, ChevronLeft, ChevronRight } from 'lucide-react';
+import { X, Loader, ChevronUp, ChevronDown, ChevronLeft, ChevronRight } from 'lucide-react';
 import { ProjectPhoto } from '../services/projectService';
 import { PhotoStrip } from './PhotoStrip';
 import { getPhotoIndex, navigatePhotos, type OrderingResult } from '../utils/photoOrdering';
@@ -10,7 +10,6 @@ interface PhotoViewerProps {
   orderingResult: OrderingResult;
   onClose: () => void;
   onNavigate: (photoId: string) => void;
-  onToggleFavorite: (photoId: string) => void;
   onAssignBucket: (photoId: string, bucket: string) => void;
   onAssignDay: (photoId: string, day: number | null) => void;
   selectedBucket?: string;
@@ -30,7 +29,6 @@ export const PhotoViewer: React.FC<PhotoViewerProps> = ({
   orderingResult,
   onClose,
   onNavigate,
-  onToggleFavorite,
   onAssignBucket,
   onAssignDay,
   selectedBucket,
@@ -197,9 +195,6 @@ export const PhotoViewer: React.FC<PhotoViewerProps> = ({
         } else {
           onShowToast?.('No more unassigned photos', 'info');
         }
-      } else if (e.key === 'f' || e.key === 'F') {
-        e.preventDefault();
-        onToggleFavorite(current.id);
       } else if (e.key.toLowerCase() === 'x') {
         e.preventDefault();
         onAssignBucket(current.id, 'X');
@@ -234,7 +229,6 @@ export const PhotoViewer: React.FC<PhotoViewerProps> = ({
       orderingResult,
       onClose,
       handleNavigate,
-      onToggleFavorite,
       onAssignBucket,
       remainingUnassigned,
       unassignedFilter,
@@ -339,14 +333,6 @@ export const PhotoViewer: React.FC<PhotoViewerProps> = ({
               </div>
             </div>
           )}
-
-          {/* Favorite Indicator */}
-          {currentPhoto.favorite && (
-            <div className="bg-yellow-500 text-white px-3 py-2 rounded-lg shadow-xl flex items-center gap-2">
-              <Heart className="w-4 h-4 fill-current" />
-              <span className="text-sm font-semibold">Favorite</span>
-            </div>
-          )}
         </div>
 
         {/* Quick Action Hints */}
@@ -371,10 +357,6 @@ export const PhotoViewer: React.FC<PhotoViewerProps> = ({
               <div className="flex items-center gap-2">
                 <kbd className="px-1.5 py-0.5 bg-gray-800 rounded text-[10px]">A-E,M,X</kbd>
                 <span>Assign</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <kbd className="px-1.5 py-0.5 bg-gray-800 rounded text-[10px]">F</kbd>
-                <span>Favorite</span>
               </div>
               <div className="flex items-center gap-2">
                 <kbd className="px-1.5 py-0.5 bg-gray-800 rounded text-[10px]">Esc</kbd>

@@ -1,5 +1,5 @@
 import { ChevronLeft, Pencil, Trash2, ArrowRightLeft } from 'lucide-react';
-import type { ProjectMode, ProjectTreeNode } from '../services/projectService';
+import type { ProjectMode, ProjectSettings, ProjectTreeNode } from '../services/projectService';
 
 interface LeftSidebarProps {
   currentView: string;
@@ -12,6 +12,7 @@ interface LeftSidebarProps {
   onRenameFolder: (path: string, newName: string) => void | Promise<void>;
   onDeleteFolder: (path: string) => void | Promise<void>;
   projectMode: ProjectMode;
+  projectSettings: ProjectSettings;
   onConvertToMultiDay?: () => void | Promise<void>;
 }
 
@@ -22,6 +23,7 @@ function TreeNodeRow({
   onSelectTreePath,
   onRenameFolder,
   onDeleteFolder,
+  inboxFolder,
 }: {
   node: ProjectTreeNode;
   selectedTreePath: string | null;
@@ -29,9 +31,18 @@ function TreeNodeRow({
   onSelectTreePath: (path: string | null) => void;
   onRenameFolder: (path: string, newName: string) => void | Promise<void>;
   onDeleteFolder: (path: string) => void | Promise<void>;
+  inboxFolder: string;
 }) {
   const isSelected = selectedTreePath === node.relativePath;
   const indent = 12 + depth * 14;
+  const isInbox = node.relativePath === inboxFolder;
+  const photoLabel = isInbox
+    ? node.photoCount === 1
+      ? '1 new photo'
+      : `${node.photoCount} new photos`
+    : `${node.photoCount} photos`;
+  const helperLabel = isInbox ? 'Drop new media here before assigning day and bucket.' : null;
+  const renameDeleteDisabled = node.kind === 'system';
 
   return (
     <div>
@@ -42,24 +53,31 @@ function TreeNodeRow({
         style={{ paddingLeft: indent }}
       >
         <button className="flex-1 text-left" onClick={() => onSelectTreePath(node.relativePath)}>
-          <div className="font-medium">{node.name}</div>
+          <div className="font-medium">{isInbox ? 'Inbox' : node.name}</div>
           <div className={`text-[11px] ${isSelected ? 'text-blue-100' : 'text-gray-500'}`}>
-            {node.photoCount} photos
+            {photoLabel}
           </div>
+          {helperLabel ? (
+            <div className={`text-[11px] ${isSelected ? 'text-blue-100' : 'text-amber-400'}`}>
+              {helperLabel}
+            </div>
+          ) : null}
         </button>
         <button
+          disabled={renameDeleteDisabled}
           onClick={() => {
             const nextName = window.prompt('Rename folder', node.name);
             if (!nextName || nextName === node.name) return;
             onRenameFolder(node.relativePath, nextName);
           }}
-          className="opacity-0 group-hover:opacity-100 p-1 hover:bg-black/20 rounded"
+          className="opacity-0 group-hover:opacity-100 p-1 hover:bg-black/20 rounded disabled:pointer-events-none disabled:opacity-0"
           aria-label={`Rename ${node.name}`}
           title="Rename folder"
         >
           <Pencil className="w-3.5 h-3.5" />
         </button>
         <button
+          disabled={renameDeleteDisabled}
           onClick={() => {
             const confirmed = window.confirm(
               `Delete folder "${node.relativePath}" and its contents?\n\nThis removes ${node.photoCount} indexed photos from the project and deletes the folder from disk.`,
@@ -67,7 +85,7 @@ function TreeNodeRow({
             if (!confirmed) return;
             onDeleteFolder(node.relativePath);
           }}
-          className="opacity-0 group-hover:opacity-100 p-1 hover:bg-black/20 rounded"
+          className="opacity-0 group-hover:opacity-100 p-1 hover:bg-black/20 rounded disabled:pointer-events-none disabled:opacity-0"
           aria-label={`Delete ${node.name}`}
           title="Delete folder"
         >
@@ -84,6 +102,7 @@ function TreeNodeRow({
           onSelectTreePath={onSelectTreePath}
           onRenameFolder={onRenameFolder}
           onDeleteFolder={onDeleteFolder}
+          inboxFolder={inboxFolder}
         />
       ))}
     </div>
@@ -101,8 +120,12 @@ export default function LeftSidebar({
   onRenameFolder,
   onDeleteFolder,
   projectMode,
+  projectSettings,
   onConvertToMultiDay,
 }: LeftSidebarProps) {
+  const inboxFolder = projectSettings.folderStructure.inboxFolder || 'Inbox';
+  const inboxNode = tree.find(node => node.relativePath === inboxFolder) || null;
+  const bucketNodes = tree.filter(node => node.relativePath !== inboxFolder);
   if (currentView !== 'folders') {
     return null;
   }
@@ -128,8 +151,8 @@ export default function LeftSidebar({
             <h3 className="text-xs font-semibold uppercase text-gray-400">Project Folders</h3>
             <p className="mt-1 text-[11px] text-gray-500">
               {projectMode === 'single_day'
-                ? 'Single-day mode uses root bucket folders.'
-                : 'Multi-day mode uses day folders.'}
+                ? 'Drop new media into Inbox. Processed photos move into root bucket folders.'
+                : 'Drop new media into Inbox. Processed photos move into day folders.'}
             </p>
           </div>
           <button
@@ -157,23 +180,50 @@ export default function LeftSidebar({
           </button>
         ) : null}
 
-        <div className="space-y-1">
+        <div className="space-y-4">
           {tree.length === 0 ? (
             <div className="rounded border border-dashed border-gray-700 px-3 py-4 text-sm text-gray-500">
               No folders available yet.
             </div>
           ) : (
-            tree.map(node => (
-              <TreeNodeRow
-                key={node.relativePath}
-                node={node}
-                selectedTreePath={selectedTreePath}
-                depth={0}
-                onSelectTreePath={onSelectTreePath}
-                onRenameFolder={onRenameFolder}
-                onDeleteFolder={onDeleteFolder}
-              />
-            ))
+            <>
+              {inboxNode ? (
+                <div className="space-y-1">
+                  <div className="px-2 text-[11px] font-semibold uppercase tracking-wide text-gray-500">
+                    Inbox
+                  </div>
+                  <TreeNodeRow
+                    key={inboxNode.relativePath}
+                    node={inboxNode}
+                    selectedTreePath={selectedTreePath}
+                    depth={0}
+                    onSelectTreePath={onSelectTreePath}
+                    onRenameFolder={onRenameFolder}
+                    onDeleteFolder={onDeleteFolder}
+                    inboxFolder={inboxFolder}
+                  />
+                </div>
+              ) : null}
+              {bucketNodes.length > 0 ? (
+                <div className="space-y-1">
+                  <div className="px-2 text-[11px] font-semibold uppercase tracking-wide text-gray-500">
+                    Buckets
+                  </div>
+                  {bucketNodes.map(node => (
+                    <TreeNodeRow
+                      key={node.relativePath}
+                      node={node}
+                      selectedTreePath={selectedTreePath}
+                      depth={0}
+                      onSelectTreePath={onSelectTreePath}
+                      onRenameFolder={onRenameFolder}
+                      onDeleteFolder={onDeleteFolder}
+                      inboxFolder={inboxFolder}
+                    />
+                  ))}
+                </div>
+              ) : null}
+            </>
           )}
         </div>
       </div>

@@ -52,10 +52,20 @@ export interface ProjectPhoto {
 export interface ProjectSettings {
   autoDay: boolean;
   folderStructure: {
+    inboxFolder: string;
     daysFolder: string;
     archiveFolder: string;
-    favoritesFolder: string;
-    metaFolder: string;
+  };
+}
+
+function mergeProjectSettings(settings?: Partial<ProjectSettings> | null): ProjectSettings {
+  return {
+    ...DEFAULT_SETTINGS,
+    ...settings,
+    folderStructure: {
+      ...DEFAULT_SETTINGS.folderStructure,
+      ...(settings?.folderStructure || {}),
+    },
   };
 }
 
@@ -142,10 +152,9 @@ const MANIFEST_FILENAME = '.narrative.json';
 const DEFAULT_SETTINGS: ProjectSettings = {
   autoDay: true,
   folderStructure: {
+    inboxFolder: 'Inbox',
     daysFolder: '01_DAYS',
-    archiveFolder: '98_ARCHIVE',
-    favoritesFolder: 'FAV',
-    metaFolder: '_meta',
+    archiveFolder: 'X_Archive',
   },
 };
 const DEBUG_LOGS =
@@ -981,11 +990,10 @@ export async function ensureProjectScaffolding(
   projectMode: ProjectMode,
   settings: ProjectSettings = DEFAULT_SETTINGS,
 ): Promise<void> {
-  const { daysFolder, archiveFolder, favoritesFolder, metaFolder } = settings.folderStructure;
+  const { inboxFolder, daysFolder, archiveFolder } = settings.folderStructure;
 
+  await ensureDirectoryPath(dirHandle, inboxFolder);
   await ensureDirectoryPath(dirHandle, archiveFolder);
-  await ensureDirectoryPath(dirHandle, favoritesFolder);
-  await ensureDirectoryPath(dirHandle, metaFolder);
 
   if (projectMode === 'single_day') {
     for (const bucketKey of ROOT_BUCKET_KEYS) {
@@ -1022,15 +1030,10 @@ function classifyTreeNode(
 ): Pick<ProjectTreeNode, 'kind' | 'isCanonical' | 'dayNumber'> {
   const normalizedPath = normalizeRelativePath(relativePath);
   const daysFolder = settings.folderStructure.daysFolder;
+  const inboxFolder = settings.folderStructure.inboxFolder;
   const archiveFolder = settings.folderStructure.archiveFolder;
-  const favoritesFolder = settings.folderStructure.favoritesFolder;
-  const metaFolder = settings.folderStructure.metaFolder;
 
-  if (
-    normalizedPath === archiveFolder ||
-    normalizedPath === favoritesFolder ||
-    normalizedPath === metaFolder
-  ) {
+  if (normalizedPath === inboxFolder || normalizedPath === archiveFolder) {
     return { kind: 'system', isCanonical: true, dayNumber: null };
   }
 
@@ -1435,7 +1438,7 @@ export async function getState(projectId: string): Promise<ProjectState> {
     });
   }
 
-  const settings = manifest?.settings || stored.settings || DEFAULT_SETTINGS;
+  const settings = mergeProjectSettings(manifest?.settings || stored.settings);
   const archivedPhotos = applyArchiveFolder(
     photos,
     settings.folderStructure?.archiveFolder || DEFAULT_SETTINGS.folderStructure.archiveFolder,
@@ -1449,6 +1452,14 @@ export async function getState(projectId: string): Promise<ProjectState> {
     manifest?.projectMode ||
     stored.projectMode ||
     inferProjectModeFromPhotos(dedupedPhotos, settings);
+
+  if (permission === 'granted') {
+    try {
+      await ensureProjectScaffolding(handle, projectMode, settings);
+    } catch (err) {
+      console.warn('Failed to ensure project scaffolding on load:', err);
+    }
+  }
 
   return {
     projectName: manifest?.projectName || stored.projectName || handle.name,
