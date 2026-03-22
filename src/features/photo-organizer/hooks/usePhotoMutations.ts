@@ -74,20 +74,8 @@ export function usePhotoMutations({
     [photos, saveToHistory],
   );
 
-  const toggleFavorite = useCallback(
-    (photoIds: string | string[]) => {
-      const ids = Array.isArray(photoIds) ? photoIds : [photoIds];
-      const newPhotos = photos.map(photo =>
-        ids.includes(photo.id) ? { ...photo, favorite: !photo.favorite } : photo,
-      );
-      saveToHistory(newPhotos);
-    },
-    [photos, saveToHistory],
-  );
-
   return {
     assignBucket,
     removeDayAssignment,
-    toggleFavorite,
   };
 }

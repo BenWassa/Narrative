@@ -48,7 +48,6 @@ export function useHistory({
         day: p.day,
         bucket: p.bucket,
         sequence: p.sequence,
-        favorite: p.favorite,
         rating: p.rating,
         archived: p.archived,
         currentName: p.currentName,

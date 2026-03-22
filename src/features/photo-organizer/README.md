@@ -9,7 +9,7 @@ The Photo Organizer allows users to:
 1. Select a folder containing travel photos
 2. Automatically detect day-based folder structure
 3. Assign photos to MECE story categories (A-E, M for Mood/Food)
-4. Toggle favorites and archive unwanted photos
+4. Archive unwanted photos
 5. Generate a safe export script that copies photos into organized folders
 
 ## Structure
@@ -85,7 +85,6 @@ Photos are organized into **Mutually Exclusive, Collectively Exhaustive** catego
 - **E**: Emotional reactions (candid moments, expressions)
 - **M**: Mood/Food (atmosphere, meals, local culture)
 - **X**: Archive (photos to exclude from final narrative)
-- **F**: Favorite (mark special photos regardless of category)
 
 ### Day-Based Organization
 

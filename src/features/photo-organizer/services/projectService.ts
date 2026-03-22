@@ -598,6 +598,50 @@ async function moveDirectory(
   await sourceParent.removeEntry(sourceName, { recursive: true });
 }
 
+async function relocateRootMediaToInbox(
+  rootHandle: FileSystemDirectoryHandle,
+  inboxFolder: string,
+): Promise<{ moved: string[]; skipped: string[] }> {
+  const inboxHandle = await ensureDirectoryPath(rootHandle, inboxFolder);
+  const moved: string[] = [];
+  const skipped: string[] = [];
+
+  // @ts-ignore entries() is supported in modern browsers
+  for await (const [name, entry] of rootHandle.entries()) {
+    if (entry.kind !== 'file') continue;
+    if (shouldSkipFile(name)) continue;
+    if (!isSupportedFile(name)) continue;
+
+    let destinationExists = false;
+    try {
+      await inboxHandle.getFileHandle(name);
+      destinationExists = true;
+    } catch (error: any) {
+      if (error?.name !== 'NotFoundError') {
+        throw error;
+      }
+    }
+
+    if (destinationExists) {
+      skipped.push(name);
+      continue;
+    }
+
+    const sourceFile = await (entry as FileSystemFileHandle).getFile();
+    const destinationFileHandle = await inboxHandle.getFileHandle(name, { create: true });
+    const writable = await destinationFileHandle.createWritable();
+    try {
+      await writable.write(sourceFile);
+    } finally {
+      await writable.close();
+    }
+    await rootHandle.removeEntry(name);
+    moved.push(name);
+  }
+
+  return { moved, skipped };
+}
+
 function replacePathPrefix(path: string | undefined, fromPrefix: string, toPrefix: string) {
   if (!path) return path;
   const normalizedPath = normalizeRelativePath(path);
@@ -1512,21 +1556,24 @@ export async function initProject(options: {
   onProgress?.(5, 'Scanning folder structure...');
   const projectId = generateId();
 
-  onProgress?.(10, 'Collecting image files...');
+  onProgress?.(10, 'Preparing project folders...');
+  await ensureProjectScaffolding(dirHandle, projectMode, DEFAULT_SETTINGS);
+
+  onProgress?.(20, 'Moving root media into Inbox...');
+  await relocateRootMediaToInbox(dirHandle, DEFAULT_SETTINGS.folderStructure.inboxFolder);
+
+  onProgress?.(25, 'Collecting image files...');
   const photos = applyArchiveFolder(
     await buildPhotosFromHandle(dirHandle, (progress, message) => {
-      // Map file processing progress (0-100) to 10-70 range
-      const mappedProgress = 10 + progress * 0.6;
+      // Map file processing progress (0-100) to 25-75 range
+      const mappedProgress = 25 + progress * 0.5;
       onProgress?.(mappedProgress, message);
     }),
     DEFAULT_SETTINGS.folderStructure.archiveFolder,
   );
 
-  onProgress?.(75, 'Analyzing photo timestamps...');
+  onProgress?.(80, 'Analyzing photo timestamps...');
   const suggestedDays = clusterPhotosByTime(photos);
-
-  onProgress?.(80, 'Preparing project folders...');
-  await ensureProjectScaffolding(dirHandle, projectMode, DEFAULT_SETTINGS);
 
   onProgress?.(85, 'Saving project data...');
   const state: ProjectState = {
@@ -1839,4 +1886,11 @@ export async function inspectProjectFolder(
   settings: ProjectSettings = DEFAULT_SETTINGS,
 ): Promise<ProjectFolderInspection> {
   return inspectProjectFolderState(dirHandle, settings);
+}
+
+export async function relocateRootMediaToInboxForTest(
+  rootHandle: FileSystemDirectoryHandle,
+  inboxFolder: string,
+): Promise<{ moved: string[]; skipped: string[] }> {
+  return relocateRootMediaToInbox(rootHandle, inboxFolder);
 }

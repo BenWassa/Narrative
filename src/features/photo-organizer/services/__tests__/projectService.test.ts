@@ -5,6 +5,7 @@ import {
   inspectProjectFolder,
   heicToBlob,
   planProjectScaffoldingPreview,
+  relocateRootMediaToInboxForTest,
   ensureProjectScaffolding,
   type ProjectPhoto,
 } from '../projectService';
@@ -99,6 +100,37 @@ describe('Project file collection', () => {
           return created;
         }
         throw new DOMException(`Directory "${entryName}" not found`, 'NotFoundError');
+      },
+      async getFileHandle(entryName: string, options?: { create?: boolean }) {
+        const existing = children[entryName];
+        if (existing?.kind === 'file') {
+          return existing;
+        }
+        if (options?.create) {
+          let writtenFile: File | null = null;
+          const created = {
+            kind: 'file',
+            name: entryName,
+            async getFile() {
+              return writtenFile || new File([''], entryName, { type: 'application/octet-stream' });
+            },
+            async createWritable() {
+              return {
+                async write(data: BlobPart) {
+                  if (data instanceof File) {
+                    writtenFile = data;
+                    return;
+                  }
+                  writtenFile = new File([data], entryName, { type: 'application/octet-stream' });
+                },
+                async close() {},
+              };
+            },
+          } as unknown as FileSystemFileHandle;
+          children[entryName] = created;
+          return created;
+        }
+        throw new DOMException(`File "${entryName}" not found`, 'NotFoundError');
       },
       async removeEntry(entryName: string) {
         if (!(entryName in children)) {
@@ -357,6 +389,49 @@ describe('Project file collection', () => {
     expect(root.children.X_ARCHIVE).toBeUndefined();
     expect(root.children.X_Archive).toBeDefined();
     expect(root.children.Inbox).toBeDefined();
+  });
+
+  test('relocates supported root media into Inbox', async () => {
+    const root = makeDirHandle('root', {
+      'IMG_0001.jpg': makeFileHandle(
+        new File(['a'], 'IMG_0001.jpg', { type: 'image/jpeg', lastModified: 1000 }),
+      ),
+      'MVI_0002.MP4': makeFileHandle(
+        new File(['b'], 'MVI_0002.MP4', { type: 'video/mp4', lastModified: 1000 }),
+      ),
+      notes: makeDirHandle('notes', {}),
+    }) as any;
+
+    const result = await relocateRootMediaToInboxForTest(root, 'Inbox');
+
+    expect(result.moved).toEqual(['IMG_0001.jpg', 'MVI_0002.MP4']);
+    expect(result.skipped).toEqual([]);
+    expect(root.children['IMG_0001.jpg']).toBeUndefined();
+    expect(root.children['MVI_0002.MP4']).toBeUndefined();
+    expect(root.children.Inbox).toBeDefined();
+    expect(root.children.Inbox.children['IMG_0001.jpg']).toBeDefined();
+    expect(root.children.Inbox.children['MVI_0002.MP4']).toBeDefined();
+    expect(root.children.notes).toBeDefined();
+  });
+
+  test('skips relocating root media when Inbox already has same file name', async () => {
+    const root = makeDirHandle('root', {
+      Inbox: makeDirHandle('Inbox', {
+        'IMG_0001.jpg': makeFileHandle(
+          new File(['existing'], 'IMG_0001.jpg', { type: 'image/jpeg', lastModified: 1000 }),
+        ),
+      }),
+      'IMG_0001.jpg': makeFileHandle(
+        new File(['new'], 'IMG_0001.jpg', { type: 'image/jpeg', lastModified: 1000 }),
+      ),
+    }) as any;
+
+    const result = await relocateRootMediaToInboxForTest(root, 'Inbox');
+
+    expect(result.moved).toEqual([]);
+    expect(result.skipped).toEqual(['IMG_0001.jpg']);
+    expect(root.children['IMG_0001.jpg']).toBeDefined();
+    expect(root.children.Inbox.children['IMG_0001.jpg']).toBeDefined();
   });
 
   test('inspects canonical single-day structure as importable existing project', async () => {

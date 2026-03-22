@@ -23,7 +23,6 @@ export type PhotoEngineAction =
     }
   | { type: 'REMOVE_DAY_ASSIGNMENT'; payload: { photoIds: string[] } }
   | { type: 'ASSIGN_DAY'; payload: { photoIds: string[]; day: number | null } }
-  | { type: 'TOGGLE_FAVORITE'; payload: { photoIds: string[] } }
   | { type: 'UNDO' }
   | { type: 'REDO' }
   | { type: 'CLEAR_HISTORY' };
@@ -151,15 +150,6 @@ export function photoReducer(state: PhotoEngineState, action: PhotoEngineAction)
       if (idSet.size === 0) return state;
       const nextPhotos = state.photos.map(photo =>
         idSet.has(photo.id) ? { ...photo, day: action.payload.day } : photo,
-      );
-      return commit(state, nextPhotos);
-    }
-
-    case 'TOGGLE_FAVORITE': {
-      const idSet = new Set(action.payload.photoIds);
-      if (idSet.size === 0) return state;
-      const nextPhotos = state.photos.map(photo =>
-        idSet.has(photo.id) ? { ...photo, favorite: !photo.favorite } : photo,
       );
       return commit(state, nextPhotos);
     }
