@@ -197,6 +197,15 @@ async function requestDirectoryPermission(
   return (dirHandle as any).requestPermission({ mode });
 }
 
+async function requestImportWritePermission(dirHandle: FileSystemDirectoryHandle) {
+  try {
+    return await requestDirectoryPermission(dirHandle, 'readwrite');
+  } catch (err) {
+    console.warn('Permission request failed:', err);
+    throw new Error('Unable to request folder access. Please try again.');
+  }
+}
+
 async function openHandleDb(): Promise<IDBDatabase> {
   if (!window.indexedDB) {
     throw new Error('IndexedDB is not available in this environment.');
@@ -640,6 +649,42 @@ async function relocateRootMediaToInbox(
   }
 
   return { moved, skipped };
+}
+
+function isWriteFailure(error: unknown) {
+  const message = error instanceof Error ? error.message : String(error);
+  const name = (error as any)?.name || '';
+  return (
+    name === 'NoModificationAllowedError' ||
+    name === 'NotAllowedError' ||
+    name === 'InvalidModificationError' ||
+    message.includes('could not be modified due to the state of the underlying filesystem') ||
+    message.toLowerCase().includes('read-only') ||
+    message.toLowerCase().includes('permission denied')
+  );
+}
+
+async function assertDirectoryWritable(dirHandle: FileSystemDirectoryHandle): Promise<void> {
+  const probeName = '.narrative-write-test';
+  let writable: FileSystemWritableFileStream | null = null;
+  try {
+    const fileHandle = await dirHandle.getFileHandle(probeName, { create: true });
+    writable = await fileHandle.createWritable();
+    await writable.write('');
+    await writable.close();
+    writable = null;
+    await dirHandle.removeEntry(probeName);
+  } catch (error) {
+    if (writable) {
+      try {
+        await writable.close();
+      } catch {}
+    }
+    try {
+      await dirHandle.removeEntry(probeName);
+    } catch {}
+    throw error;
+  }
 }
 
 function replacePathPrefix(path: string | undefined, fromPrefix: string, toPrefix: string) {
@@ -1538,42 +1583,49 @@ export async function initProject(options: {
 }): Promise<ProjectInitResponse> {
   const { dirHandle, projectName, rootLabel, projectMode = 'single_day', onProgress } = options;
 
-  // Check if File System Access API is supported
-  let permission;
-  try {
-    permission = await requestDirectoryPermission(dirHandle, 'readwrite');
-    if (permission !== 'granted') {
-      permission = await requestDirectoryPermission(dirHandle, 'read');
-    }
-  } catch (err) {
-    console.warn('Permission request failed:', err);
-    throw new Error('Unable to request folder access. Please try again.');
-  }
+  // Import requires write access; do not continue under read-only permission.
+  const permission = await requestImportWritePermission(dirHandle);
   if (permission !== 'granted') {
-    throw new Error('Folder access was not granted. Please allow access to create the project.');
+    throw new Error(
+      'Write access was not granted. Narrative needs permission to create folders, move media into Inbox, and save project metadata. Please try again and allow write access.',
+    );
   }
 
   onProgress?.(5, 'Scanning folder structure...');
   const projectId = generateId();
 
-  onProgress?.(10, 'Preparing project folders...');
-  await ensureProjectScaffolding(dirHandle, projectMode, DEFAULT_SETTINGS);
+  let photos: ProjectPhoto[];
+  let suggestedDays: Record<string, string[]>;
+  try {
+    onProgress?.(10, 'Checking folder write access...');
+    await assertDirectoryWritable(dirHandle);
 
-  onProgress?.(20, 'Moving root media into Inbox...');
-  await relocateRootMediaToInbox(dirHandle, DEFAULT_SETTINGS.folderStructure.inboxFolder);
+    onProgress?.(15, 'Preparing project folders...');
+    await ensureProjectScaffolding(dirHandle, projectMode, DEFAULT_SETTINGS);
 
-  onProgress?.(25, 'Collecting image files...');
-  const photos = applyArchiveFolder(
-    await buildPhotosFromHandle(dirHandle, (progress, message) => {
-      // Map file processing progress (0-100) to 25-75 range
-      const mappedProgress = 25 + progress * 0.5;
-      onProgress?.(mappedProgress, message);
-    }),
-    DEFAULT_SETTINGS.folderStructure.archiveFolder,
-  );
+    onProgress?.(25, 'Moving root media into Inbox...');
+    await relocateRootMediaToInbox(dirHandle, DEFAULT_SETTINGS.folderStructure.inboxFolder);
 
-  onProgress?.(80, 'Analyzing photo timestamps...');
-  const suggestedDays = clusterPhotosByTime(photos);
+    onProgress?.(30, 'Collecting image files...');
+    photos = applyArchiveFolder(
+      await buildPhotosFromHandle(dirHandle, (progress, message) => {
+        // Map file processing progress (0-100) to 30-75 range
+        const mappedProgress = 30 + progress * 0.45;
+        onProgress?.(mappedProgress, message);
+      }),
+      DEFAULT_SETTINGS.folderStructure.archiveFolder,
+    );
+
+    onProgress?.(80, 'Analyzing photo timestamps...');
+    suggestedDays = clusterPhotosByTime(photos);
+  } catch (error) {
+    if (isWriteFailure(error)) {
+      throw new Error(
+        `The selected folder is not writable. Narrative needs write access to create project folders, move root media into Inbox, and save project metadata. Check the folder permissions or choose a different folder.`,
+      );
+    }
+    throw error;
+  }
 
   onProgress?.(85, 'Saving project data...');
   const state: ProjectState = {
