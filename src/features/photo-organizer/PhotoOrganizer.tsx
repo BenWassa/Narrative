@@ -43,6 +43,8 @@ import FullscreenOverlay from './components/FullscreenOverlay';
 import DebugOverlay from './components/DebugOverlay';
 import { sortPhotos } from './utils/photoOrdering';
 
+const ROOT_MEDIA_PATH = '__ROOT_MEDIA__';
+
 export default function PhotoOrganizer() {
   const prevThumbnailsRef = useRef<string[]>([]);
   const [currentVersion, setCurrentVersion] = useState(versionManager.getDisplayVersion());
@@ -371,12 +373,29 @@ export default function PhotoOrganizer() {
     }
 
     const selectedPath = normalizePath(selectedTreePath);
+    if (selectedPath === ROOT_MEDIA_PATH) {
+      return photos.filter(photo => {
+        if (photo.archived) return false;
+        const photoPath = normalizePath(photo.filePath || '');
+        return Boolean(photoPath) && !photoPath.includes('/');
+      });
+    }
     return photos.filter(photo => {
       if (photo.archived) return false;
       const photoPath = normalizePath(photo.filePath || '');
       return photoPath === selectedPath || photoPath.startsWith(`${selectedPath}/`);
     });
   }, [currentView, normalizePath, photos, selectedTreePath]);
+
+  const rootMediaPhotoCount = React.useMemo(
+    () =>
+      photos.filter(photo => {
+        if (photo.archived) return false;
+        const photoPath = normalizePath(photo.filePath || '');
+        return Boolean(photoPath) && !photoPath.includes('/');
+      }).length,
+    [normalizePath, photos],
+  );
 
   const selectedDayForGrouping = React.useMemo(
     () =>
@@ -456,7 +475,14 @@ export default function PhotoOrganizer() {
   });
 
   useEffect(() => {
-    if (currentView !== 'folders' || selectedTreePath || projectTree.length === 0) {
+    if (currentView !== 'folders' || selectedTreePath) {
+      return;
+    }
+    if (rootMediaPhotoCount > 0) {
+      setSelectedTreePath(ROOT_MEDIA_PATH);
+      return;
+    }
+    if (projectTree.length === 0) {
       return;
     }
     const inboxFolder = projectSettings.folderStructure.inboxFolder || 'Inbox';
@@ -466,6 +492,7 @@ export default function PhotoOrganizer() {
     currentView,
     projectSettings.folderStructure.inboxFolder,
     projectTree,
+    rootMediaPhotoCount,
     selectedTreePath,
     setSelectedTreePath,
   ]);
@@ -714,6 +741,8 @@ export default function PhotoOrganizer() {
           onDeleteFolder={handleDeleteFolder}
           projectMode={projectMode}
           projectSettings={projectSettings}
+          rootMediaPhotoCount={rootMediaPhotoCount}
+          rootMediaPath={ROOT_MEDIA_PATH}
           onConvertToMultiDay={projectMode === 'single_day' ? handleConvertToMultiDay : undefined}
         />
 
@@ -721,6 +750,7 @@ export default function PhotoOrganizer() {
           <ViewContextBar
             currentView={currentView}
             selectedTreePath={selectedTreePath}
+            rootMediaPath={ROOT_MEDIA_PATH}
             projectMode={projectMode}
             hideAssigned={hideAssigned}
           />

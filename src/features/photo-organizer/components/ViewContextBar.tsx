@@ -1,6 +1,7 @@
 interface ViewContextBarProps {
   currentView: string;
   selectedTreePath: string | null;
+  rootMediaPath: string;
   projectMode: 'single_day' | 'multi_day';
   hideAssigned: boolean;
 }
@@ -8,6 +9,7 @@ interface ViewContextBarProps {
 export default function ViewContextBar({
   currentView,
   selectedTreePath,
+  rootMediaPath,
   projectMode,
   hideAssigned,
 }: ViewContextBarProps) {
@@ -33,7 +35,7 @@ export default function ViewContextBar({
 
       {selectedTreePath ? (
         <span className="rounded bg-indigo-900/50 px-2 py-1 text-indigo-200">
-          Folder: {selectedTreePath}
+          Folder: {selectedTreePath === rootMediaPath ? 'Unsorted Root Media' : selectedTreePath}
         </span>
       ) : null}
 
