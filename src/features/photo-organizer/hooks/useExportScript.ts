@@ -19,6 +19,7 @@ import {
   loadExportManifest,
   clearExportManifest,
 } from '../utils/exportManifest';
+import { buildOperationPlan, type OperationPlan } from '../utils/buildOperationPlan';
 
 export type ExportCopyStatus = 'idle' | 'copied' | 'failed';
 export type ExportStructureMode = 'auto' | 'single_day_flat' | 'multi_day_nested';
@@ -87,43 +88,27 @@ export function useExportScript(
       // Bucket name mapping for folder naming (from centralized definitions)
       const bucketNames: Record<string, string> = BUCKET_LABELS;
 
-      // Group photos by day and bucket - ONLY INCLUDE MODIFIED PHOTOS
-      // This ensures we only touch files that have been changed, not existing organized photos
+      // Build operation plan (single source of truth for file operations)
+      const plan: OperationPlan = buildOperationPlan({
+        photos,
+        dayLabels,
+        projectSettings,
+        ingested: isIngested,
+        sourceRoot: sourceRoot,
+        structureMode: selectedStructureMode,
+      });
+
+      const resolvedStructureMode = plan.resolvedStructureMode;
+      const useSingleDayFlat = resolvedStructureMode === 'single_day_flat';
+      const flatArchiveFolder = 'Z_ARCHIVE';
+
+      // Group operations by day and bucket for script generation
       const photosByDay: Record<number, Record<string, ProjectPhoto[]>> = {};
       const archivePhotos: ProjectPhoto[] = [];
       const rootPhotos: ProjectPhoto[] = [];
 
-      photos.forEach(p => {
-        // Determine if this photo has been modified/needs to be moved
-        const hasBeenRenamed = p.originalName !== p.currentName;
-        const hasUserAssignedBucket = p.bucket && !p.isPreOrganized;
-        const hasUserAssignedDay = p.day !== null && p.day !== p.detectedDay;
-        const wasArchived = p.archived && !p.filePath?.includes(archiveFolder);
-
-        // Calculate target path for organized photos
-        let needsToMove = false;
-        if (p.bucket && p.day !== null) {
-          const dayLabel = dayLabels[p.day] || `Day ${String(p.day).padStart(2, '0')}`;
-          const bucketLabel = bucketNames[p.bucket] || p.bucket;
-          const targetPath = `${daysFolder}/${dayLabel}/${p.bucket}_${bucketLabel}/${p.currentName}`;
-          needsToMove = p.filePath !== targetPath && !p.filePath?.includes(targetPath);
-        } else if (p.archived) {
-          const targetPath = `${archiveFolder}/${p.currentName}`;
-          needsToMove = p.filePath !== targetPath && !p.filePath?.includes(targetPath);
-        }
-
-        // Only include photos that have been modified or need to move
-        const shouldExport =
-          hasBeenRenamed ||
-          hasUserAssignedBucket ||
-          hasUserAssignedDay ||
-          wasArchived ||
-          needsToMove;
-
-        if (!shouldExport) {
-          return; // Skip this photo - it's already in the right place
-        }
-
+      for (const operation of plan.operations) {
+        const p = operation.photo;
         if (p.archived) {
           archivePhotos.push(p);
         } else if (p.bucket) {
@@ -138,19 +123,11 @@ export function useExportScript(
         } else {
           rootPhotos.push(p);
         }
-      });
+      }
 
       const activeDayKeys = Object.keys(photosByDay)
         .map(Number)
         .filter(day => !Number.isNaN(day));
-      const resolvedStructureMode: Exclude<ExportStructureMode, 'auto'> =
-        selectedStructureMode === 'auto'
-          ? activeDayKeys.length <= 1
-            ? 'single_day_flat'
-            : 'multi_day_nested'
-          : selectedStructureMode;
-      const useSingleDayFlat = resolvedStructureMode === 'single_day_flat';
-      const flatArchiveFolder = 'Z_ARCHIVE';
 
       const photosByBucket: Record<string, ProjectPhoto[]> = {};
       Object.values(photosByDay).forEach(dayBuckets => {
@@ -823,6 +800,14 @@ export function useExportScript(
     return lastExportManifest !== null;
   }, [lastExportManifest]);
 
+  // Refresh manifest from localStorage (called after direct processing completes)
+  const refreshManifest = useCallback(() => {
+    if (projectRootPath) {
+      const manifest = loadExportManifest(projectRootPath);
+      setLastExportManifest(manifest);
+    }
+  }, [projectRootPath]);
+
   return {
     showExportScript,
     exportScriptText,
@@ -845,5 +830,6 @@ export function useExportScript(
     downloadUndoScript,
     generateManifest,
     hasExportManifest,
+    refreshManifest,
   };
 }

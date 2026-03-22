@@ -18,6 +18,7 @@ import { useProjectState } from './hooks/useProjectState';
 import { useViewOptions } from './hooks/useViewOptions';
 import { useToast } from './hooks/useToast';
 import { useExportScript } from './hooks/useExportScript';
+import { useDirectProcessing } from './hooks/useDirectProcessing';
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
 import { useDayEditing } from './hooks/useDayEditing';
 import { useFolderModel } from './hooks/useFolderModel';
@@ -32,6 +33,7 @@ import RightSidebar from './components/RightSidebar';
 import ViewContextBar from './components/ViewContextBar';
 import HelpModal from './components/HelpModal';
 import ExportScriptModal from './components/ExportScriptModal';
+import DirectProcessingModal from './components/DirectProcessingModal';
 import UndoScriptModal from './components/UndoScriptModal';
 import Toast from './components/Toast';
 import FullscreenOverlay from './components/FullscreenOverlay';
@@ -126,7 +128,23 @@ export default function PhotoOrganizer() {
     closeUndoScriptModal,
     downloadUndoScript,
     hasExportManifest,
+    refreshManifest,
   } = useExportScript(photos, dayLabels, projectSettings, projectRootPath || undefined);
+
+  const {
+    showDirectProcessing,
+    directProcessingState,
+    plan: directPlan,
+    progress: directProgress,
+    result: directResult,
+    error: directProcessingError,
+    destinationLabel,
+    structureMode: directStructureMode,
+    openDirectProcessing,
+    confirmExecution,
+    closeDirectProcessing,
+    updateStructureMode: updateDirectStructureMode,
+  } = useDirectProcessing(photos, dayLabels, projectSettings, projectRootPath ?? null);
 
   const { setCoverForPhotoId } = useCoverPhoto({
     photos,
@@ -136,6 +154,13 @@ export default function PhotoOrganizer() {
     setRecentProjects,
     showToast,
   });
+
+  // Refresh manifest when direct processing completes
+  useEffect(() => {
+    if (directResult) {
+      refreshManifest();
+    }
+  }, [directResult, refreshManifest]);
 
   // Fetch current version on mount for robustness
   useEffect(() => {
@@ -424,6 +449,7 @@ export default function PhotoOrganizer() {
           setShowOnboarding(true);
         }}
         onExportScript={openExportScriptModal}
+        onDirectProcess={openDirectProcessing}
         onUndoExport={openUndoScriptModal}
         onShowHelp={() => setShowHelp(true)}
         onRetryPermission={retryProjectPermission}
@@ -550,6 +576,21 @@ export default function PhotoOrganizer() {
         onDownloadScript={downloadExportScript}
         onRegenerateScript={regenerateScript}
         onStructureModeChange={updateStructureMode}
+      />
+
+      {/* Direct Processing Modal (Beta) */}
+      <DirectProcessingModal
+        isOpen={showDirectProcessing}
+        state={directProcessingState}
+        plan={directPlan}
+        progress={directProgress}
+        result={directResult}
+        error={directProcessingError}
+        destinationLabel={destinationLabel}
+        structureMode={directStructureMode}
+        onClose={closeDirectProcessing}
+        onConfirm={confirmExecution}
+        onStructureModeChange={updateDirectStructureMode}
       />
 
       {/* Undo Script Modal */}

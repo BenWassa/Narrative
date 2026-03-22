@@ -1,9 +1,54 @@
 import type { ProjectPhoto, ExportManifest, ExportOperation } from '../services/projectService';
+import type { OperationPlan } from './buildOperationPlan';
 
 /**
  * Generates an export manifest tracking all copy operations.
  * This manifest can be used to undo/redo exports safely.
  */
+/**
+ * Generates an export manifest from an operation plan.
+ * This is the primary method for building manifests going forward.
+ */
+export async function generateExportManifestFromPlan(
+  plan: OperationPlan,
+  sourceRoot: string,
+  destinationRoot: string,
+  ingested: boolean,
+): Promise<ExportManifest> {
+  const operations: ExportOperation[] = [];
+
+  // Process each planned operation
+  for (const operation of plan.operations) {
+    const photo = operation.photo;
+
+    // Try to get file size (for validation during undo)
+    let fileSize = 0;
+    try {
+      if (photo.fileHandle) {
+        const file = await photo.fileHandle.getFile();
+        fileSize = file.size;
+      }
+    } catch (e) {
+      // File size unavailable
+    }
+
+    operations.push({
+      sourcePath: operation.sourceRelativePath,
+      destinationPath: `${destinationRoot}/${operation.destinationRelativePath}`,
+      fileSize,
+      operation: 'copy',
+    });
+  }
+
+  return {
+    timestamp: Date.now(),
+    operations,
+    sourceRoot,
+    destinationRoot,
+    ingested,
+  };
+}
+
 export async function generateExportManifest(
   photos: ProjectPhoto[],
   sourceRoot: string,

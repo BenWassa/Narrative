@@ -34,6 +34,7 @@ interface ProjectHeaderProps {
   onDeleteProject: () => void;
   onImportTrip: () => void;
   onExportScript: () => void;
+  onDirectProcess?: () => void;
   onUndoExport?: () => void;
   onShowHelp: () => void;
   onRetryPermission: () => void;
@@ -68,6 +69,7 @@ export default function ProjectHeader({
   onDeleteProject,
   onImportTrip,
   onExportScript,
+  onDirectProcess,
   onUndoExport,
   onShowHelp,
   onRetryPermission,
@@ -220,6 +222,16 @@ export default function ProjectHeader({
           >
             Export Script
           </button>
+          {onDirectProcess && (
+            <button
+              onClick={onDirectProcess}
+              className="px-3 py-1 bg-indigo-800 hover:bg-indigo-700 rounded text-sm font-medium"
+              title="Copy files directly in browser (Beta)"
+              disabled={stats.total === 0}
+            >
+              Process Directly (Beta)
+            </button>
+          )}
           {hasExportManifest && onUndoExport && (
             <button
               onClick={onUndoExport}
