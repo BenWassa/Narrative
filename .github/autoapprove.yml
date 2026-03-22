@@ -1,0 +1,4 @@
+autoapprove:
+  commands:
+    allowed_commands:
+      - ls

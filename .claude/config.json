@@ -1,0 +1,30 @@
+{
+  "autoapprove": {
+    "allowed_commands": [
+      "ls",
+      "cat",
+      "find",
+      "grep",
+      "pwd",
+      "echo",
+      "head",
+      "tail",
+      "wc",
+      "file",
+      "which",
+      "whoami",
+      "date",
+      "uname",
+
+      "less",
+      "sort",
+      "uniq",
+      "cut",
+      "tr",
+      "tree",
+      "du",
+      "df",
+      "man"
+    ]
+  }
+}
