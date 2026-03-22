@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useRef, useState } from 'react';
 import { FolderOpen, X } from 'lucide-react';
 import type { ProjectMode } from './services/projectService';
 import {
@@ -40,6 +40,11 @@ export default function OnboardingModal({
   recentProjects = [],
   onSelectRecent,
 }: OnboardingModalProps) {
+  const deriveProjectName = useCallback((path: string) => {
+    const parts = path.split(/[/\\]/).filter(Boolean);
+    return parts[parts.length - 1] || '';
+  }, []);
+
   const [step, setStep] = useState<'select' | 'preview'>('select');
   const [projectName, setProjectName] = useState('');
   const [rootPath, setRootPath] = useState('');
@@ -48,7 +53,27 @@ export default function OnboardingModal({
   const [mappings, setMappings] = useState<Array<FolderMapping & { skip?: boolean }>>([]);
   const [loading, setLoading] = useState(false);
   const [projectMode, setProjectMode] = useState<ProjectMode>('single_day');
-  const fileInputRef = React.useRef<HTMLInputElement | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const projectNameInputRef = useRef<HTMLInputElement | null>(null);
+  const lastAutoProjectNameRef = useRef('');
+
+  const syncProjectNameFromPath = useCallback(
+    (nextPath: string) => {
+      const guessedName = deriveProjectName(nextPath.trim());
+      setRootPath(nextPath);
+      setProjectName(currentName => {
+        const trimmedCurrent = currentName.trim();
+        const lastAuto = lastAutoProjectNameRef.current;
+        if (!trimmedCurrent || trimmedCurrent === lastAuto) {
+          lastAutoProjectNameRef.current = guessedName;
+          return guessedName;
+        }
+        return currentName;
+      });
+      return guessedName;
+    },
+    [deriveProjectName],
+  );
 
   const handleDetect = useCallback(async () => {
     if (!projectName.trim()) {
@@ -304,7 +329,7 @@ export default function OnboardingModal({
             </h2>
             <p className="text-sm text-gray-500 mt-1">
               {step === 'select'
-                ? 'Add a project name and choose the folder that contains your photos.'
+                ? 'Choose the folder first, then review or edit the suggested project name.'
                 : 'Confirm how your existing folders map to days.'}
             </p>
           </div>
@@ -353,23 +378,12 @@ export default function OnboardingModal({
           {step === 'select' && (
             <>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Project Name</label>
-                <input
-                  type="text"
-                  value={projectName}
-                  onChange={e => setProjectName(e.target.value)}
-                  placeholder="e.g., Mexico 2025"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder:text-gray-600 text-gray-900"
-                />
-              </div>
-
-              <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">Folder Path</label>
                 <div className="flex gap-2">
                   <input
                     type="text"
                     value={rootPath}
-                    onChange={e => setRootPath(e.target.value)}
+                    onChange={e => syncProjectNameFromPath(e.target.value)}
                     placeholder="/Users/you/trips/mexico"
                     className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder:text-gray-600 text-gray-900"
                   />
@@ -384,8 +398,9 @@ export default function OnboardingModal({
                       const first = files[0] as File & { webkitRelativePath?: string };
                       const rel = first.webkitRelativePath || first.name;
                       const folder = rel.split('/')[0];
-                      setRootPath(folder);
+                      syncProjectNameFromPath(folder);
                       setDirHandle(null);
+                      requestAnimationFrame(() => projectNameInputRef.current?.select());
                       e.currentTarget.value = '';
                     }}
                   />
@@ -395,7 +410,8 @@ export default function OnboardingModal({
                         // @ts-ignore
                         const handle = await (window as any).showDirectoryPicker();
                         setDirHandle(handle);
-                        setRootPath(handle?.name || '');
+                        syncProjectNameFromPath(handle?.name || '');
+                        requestAnimationFrame(() => projectNameInputRef.current?.select());
                         return;
                       }
                       fileInputRef.current?.click();
@@ -410,6 +426,19 @@ export default function OnboardingModal({
                   Use the folder picker to grant access. If the picker is unavailable, paste the
                   full path (the app will ask again on first open).
                 </p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Project Name</label>
+                <input
+                  ref={projectNameInputRef}
+                  type="text"
+                  value={projectName}
+                  onChange={e => setProjectName(e.target.value)}
+                  onFocus={e => e.currentTarget.select()}
+                  placeholder="Suggested from the final folder name"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder:text-gray-600 text-gray-900"
+                />
               </div>
 
               <div>
