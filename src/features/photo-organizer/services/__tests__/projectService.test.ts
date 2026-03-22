@@ -3,6 +3,8 @@ import {
   buildPhotosFromHandleForTest,
   buildProjectTree,
   heicToBlob,
+  planProjectScaffoldingForTest,
+  ensureProjectScaffolding,
   type ProjectPhoto,
 } from '../projectService';
 
@@ -79,10 +81,23 @@ describe('Project file collection', () => {
     ({
       kind: 'directory',
       name,
+      children,
       async *entries() {
         for (const [entryName, handle] of Object.entries(children)) {
           yield [entryName, handle];
         }
+      },
+      async getDirectoryHandle(entryName: string, options?: { create?: boolean }) {
+        const existing = children[entryName];
+        if (existing?.kind === 'directory') {
+          return existing;
+        }
+        if (options?.create) {
+          const created = makeDirHandle(entryName, {});
+          children[entryName] = created;
+          return created;
+        }
+        throw new DOMException(`Directory "${entryName}" not found`, 'NotFoundError');
       },
     } as unknown as FileSystemDirectoryHandle);
 
@@ -221,5 +236,83 @@ describe('Project file collection', () => {
     expect(tree[0].children[0].kind).toBe('bucket');
     expect(tree.some(node => node.name === 'Inbox' && node.kind === 'system')).toBe(true);
     expect(tree.some(node => node.name === 'X_Archive' && node.kind === 'system')).toBe(true);
+  });
+
+  test('plans minimal scaffolding for existing single-day folders without canonical structure', async () => {
+    const root = makeDirHandle('root', {
+      RAW: makeDirHandle('RAW', {
+        'IMG_0001.jpg': makeFileHandle(
+          new File(['a'], 'IMG_0001.jpg', { type: 'image/jpeg', lastModified: 1000 }),
+        ),
+      }),
+      edits: makeDirHandle('edits', {}),
+    });
+
+    const plan = await planProjectScaffoldingForTest(root, 'single_day', settings);
+
+    expect(plan.importDisposition).toBe('existing');
+    expect(plan.hasCanonicalStructure).toBe(false);
+    expect(plan.createPaths).toEqual(['Inbox', 'X_Archive']);
+  });
+
+  test('fills missing canonical bucket folders when single-day structure already exists', async () => {
+    const root = makeDirHandle('root', {
+      A_Establishing: makeDirHandle('A_Establishing', {}),
+      Inbox: makeDirHandle('Inbox', {}),
+    });
+
+    const plan = await planProjectScaffoldingForTest(root, 'single_day', settings);
+
+    expect(plan.importDisposition).toBe('existing');
+    expect(plan.hasCanonicalStructure).toBe(true);
+    expect(plan.createPaths).toEqual([
+      'X_Archive',
+      'B_People',
+      'C_Culture-Detail',
+      'D_Action-Moment',
+      'E_Transition',
+      'M_Mood-Food',
+    ]);
+  });
+
+  test('adds only missing support folders for existing multi-day roots', async () => {
+    const root = makeDirHandle('root', {
+      'Day 01': makeDirHandle('Day 01', {}),
+    });
+
+    const plan = await planProjectScaffoldingForTest(root, 'multi_day', settings);
+
+    expect(plan.importDisposition).toBe('existing');
+    expect(plan.createPaths).toEqual(['Inbox', 'X_Archive', '01_DAYS']);
+  });
+
+  test('creates full single-day scaffold for empty folders', async () => {
+    const root = makeDirHandle('root', {});
+
+    const plan = await planProjectScaffoldingForTest(root, 'single_day', settings);
+
+    expect(plan.importDisposition).toBe('new');
+    expect(plan.createPaths).toEqual([
+      'Inbox',
+      'X_Archive',
+      'A_Establishing',
+      'B_People',
+      'C_Culture-Detail',
+      'D_Action-Moment',
+      'E_Transition',
+      'M_Mood-Food',
+    ]);
+  });
+
+  test('ensureProjectScaffolding only creates planned directories for existing projects', async () => {
+    const root = makeDirHandle('root', {
+      RAW: makeDirHandle('RAW', {}),
+    }) as any;
+
+    await ensureProjectScaffolding(root, 'single_day', settings);
+
+    expect(Object.keys(root.children).sort()).toEqual(['Inbox', 'RAW', 'X_Archive']);
+    expect(root.children.A_Establishing).toBeUndefined();
+    expect(root.children.B_People).toBeUndefined();
   });
 });

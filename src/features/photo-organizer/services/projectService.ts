@@ -143,6 +143,13 @@ interface ProjectInitResponse {
   projectMode: ProjectMode;
 }
 
+interface ProjectScaffoldingPlan {
+  createPaths: string[];
+  importDisposition: 'new' | 'existing';
+  hasExistingContent: boolean;
+  hasCanonicalStructure: boolean;
+}
+
 const SUPPORTED_EXT = ['jpg', 'jpeg', 'png', 'heic', 'webp', 'mp4', 'mov', 'webm', 'avi', 'mkv'];
 const STATE_PREFIX = 'narrative:projectState:';
 const HANDLE_DB = 'narrative:handles';
@@ -342,6 +349,82 @@ async function ensureDirectoryPath(
     current = await current.getDirectoryHandle(segment, { create: true });
   }
   return current;
+}
+
+async function readTopLevelEntries(dirHandle: FileSystemDirectoryHandle) {
+  const entries: Array<{ name: string; kind: 'file' | 'directory' }> = [];
+  // @ts-ignore entries() is supported in modern browsers
+  for await (const [name, entry] of dirHandle.entries()) {
+    if (shouldSkipFile(name) || name === MANIFEST_FILENAME) {
+      continue;
+    }
+    entries.push({ name, kind: entry.kind });
+  }
+  return entries;
+}
+
+function hasDayLikeFolder(name: string) {
+  const normalized = name
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim();
+  return /^day\s*\d{1,2}$/.test(normalized) || /^d\s*\d{1,2}$/.test(normalized);
+}
+
+async function planProjectScaffolding(
+  dirHandle: FileSystemDirectoryHandle,
+  projectMode: ProjectMode,
+  settings: ProjectSettings = DEFAULT_SETTINGS,
+): Promise<ProjectScaffoldingPlan> {
+  const entries = await readTopLevelEntries(dirHandle);
+  const topLevelDirectories = entries
+    .filter(entry => entry.kind === 'directory')
+    .map(entry => entry.name);
+  const topLevelFiles = entries.filter(entry => entry.kind === 'file').map(entry => entry.name);
+  const { inboxFolder, daysFolder, archiveFolder } = settings.folderStructure;
+
+  const hasTopLevelFolder = (name: string) =>
+    topLevelDirectories.some(entry => normalizeRelativePath(entry) === normalizeRelativePath(name));
+  const hasBucketRoots = topLevelDirectories.some(name => isBucketFolderName(name));
+  const hasDayRoots = topLevelDirectories.some(name => hasDayLikeFolder(name));
+  const hasCanonicalStructure =
+    hasTopLevelFolder(inboxFolder) ||
+    hasTopLevelFolder(archiveFolder) ||
+    hasTopLevelFolder(daysFolder) ||
+    hasBucketRoots;
+  const hasExistingContent = topLevelDirectories.length > 0 || topLevelFiles.length > 0;
+  const importDisposition: 'new' | 'existing' =
+    hasExistingContent || hasCanonicalStructure ? 'existing' : 'new';
+
+  const createPaths: string[] = [];
+  if (!hasTopLevelFolder(inboxFolder)) {
+    createPaths.push(inboxFolder);
+  }
+  if (!hasTopLevelFolder(archiveFolder)) {
+    createPaths.push(archiveFolder);
+  }
+
+  if (projectMode === 'single_day') {
+    if (importDisposition === 'new' || hasBucketRoots) {
+      for (const bucketKey of ROOT_BUCKET_KEYS) {
+        const folderName = bucketFolderName(bucketKey);
+        if (!hasTopLevelFolder(folderName)) {
+          createPaths.push(folderName);
+        }
+      }
+    }
+  } else if (importDisposition === 'new' || hasTopLevelFolder(daysFolder) || hasDayRoots) {
+    if (!hasTopLevelFolder(daysFolder)) {
+      createPaths.push(daysFolder);
+    }
+  }
+
+  return {
+    createPaths,
+    importDisposition,
+    hasExistingContent,
+    hasCanonicalStructure,
+  };
 }
 
 async function getDirectoryHandleByPath(
@@ -990,19 +1073,10 @@ export async function ensureProjectScaffolding(
   projectMode: ProjectMode,
   settings: ProjectSettings = DEFAULT_SETTINGS,
 ): Promise<void> {
-  const { inboxFolder, daysFolder, archiveFolder } = settings.folderStructure;
-
-  await ensureDirectoryPath(dirHandle, inboxFolder);
-  await ensureDirectoryPath(dirHandle, archiveFolder);
-
-  if (projectMode === 'single_day') {
-    for (const bucketKey of ROOT_BUCKET_KEYS) {
-      await ensureDirectoryPath(dirHandle, bucketFolderName(bucketKey));
-    }
-    return;
+  const plan = await planProjectScaffolding(dirHandle, projectMode, settings);
+  for (const relativePath of plan.createPaths) {
+    await ensureDirectoryPath(dirHandle, relativePath);
   }
-
-  await ensureDirectoryPath(dirHandle, daysFolder);
 }
 
 function buildPhotoCountMap(photos: ProjectPhoto[]) {
@@ -1642,4 +1716,12 @@ export async function deleteProject(projectId: string): Promise<void> {
   } catch (e) {
     // ignore
   }
+}
+
+export async function planProjectScaffoldingForTest(
+  dirHandle: FileSystemDirectoryHandle,
+  projectMode: ProjectMode,
+  settings: ProjectSettings = DEFAULT_SETTINGS,
+): Promise<ProjectScaffoldingPlan> {
+  return planProjectScaffolding(dirHandle, projectMode, settings);
 }

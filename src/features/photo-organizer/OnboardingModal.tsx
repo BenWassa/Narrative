@@ -325,11 +325,11 @@ export default function OnboardingModal({
         <div className="sticky top-0 bg-white border-b border-gray-200 px-8 py-6 flex items-center justify-between">
           <div>
             <h2 className="text-2xl font-extrabold text-gray-900">
-              {step === 'select' ? 'Create Project' : 'Review Folder Structure'}
+              {step === 'select' ? 'Add Project' : 'Review Folder Structure'}
             </h2>
             <p className="text-sm text-gray-500 mt-1">
               {step === 'select'
-                ? 'Choose the folder first, then review or edit the suggested project name.'
+                ? 'Choose a folder to add safely. Existing folders stay in place; Narrative only adds missing support folders when needed.'
                 : 'Confirm how your existing folders map to days.'}
             </p>
           </div>
@@ -354,7 +354,7 @@ export default function OnboardingModal({
               <div>
                 <p className="text-sm font-medium text-gray-700">Recent Projects</p>
                 <p className="text-xs text-gray-500">
-                  Open a recent project instead of creating a new one.
+                  Open a recent project instead of adding the same folder twice.
                 </p>
               </div>
               <div className="space-y-2">
@@ -425,6 +425,10 @@ export default function OnboardingModal({
                 <p className="text-xs text-gray-500 mt-2">
                   Use the folder picker to grant access. If the picker is unavailable, paste the
                   full path (the app will ask again on first open).
+                </p>
+                <p className="text-xs text-gray-500 mt-1">
+                  Existing folders are recognized as-is. Missing support folders like `Inbox` or
+                  `X_Archive` may be added, but existing folder trees are not rewritten.
                 </p>
               </div>
 
@@ -582,7 +586,11 @@ export default function OnboardingModal({
                 aria-disabled={!projectName.trim() || !dirHandle || loading}
                 className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium disabled:bg-gray-200 disabled:text-gray-500 disabled:cursor-not-allowed"
               >
-                {loading ? 'Preparing…' : projectMode === 'single_day' ? 'Create Project' : 'Next'}
+                {loading
+                  ? 'Preparing…'
+                  : projectMode === 'single_day'
+                  ? 'Import Existing Project'
+                  : 'Next'}
               </button>
             </>
           ) : (
@@ -597,7 +605,7 @@ export default function OnboardingModal({
                 onClick={handleCreate}
                 className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium"
               >
-                Create Project
+                Import Existing Project
               </button>
             </>
           )}

@@ -95,7 +95,7 @@ export default function StartScreen({
           {/* Title section */}
           <div className="mb-8">
             <h2 className="text-2xl font-bold mb-2">Projects</h2>
-            <p className="text-gray-400 text-sm">Create a new project or open a recent one</p>
+            <p className="text-gray-400 text-sm">Add a folder safely or open a recent project</p>
           </div>
 
           {/* Error message */}
@@ -112,7 +112,7 @@ export default function StartScreen({
               <button
                 onClick={() => setShowOnboarding(true)}
                 className="w-full block text-left"
-                aria-label="Create new project"
+                aria-label="Add project"
               >
                 <div className="aspect-video overflow-hidden bg-gray-900 relative">
                   <div className="w-full h-full bg-gradient-to-br from-gray-800 to-gray-900 flex items-center justify-center group-hover:from-gray-700 group-hover:to-gray-800 transition-colors">
@@ -124,8 +124,8 @@ export default function StartScreen({
               </button>
 
               <div className="p-3 space-y-1">
-                <div className="text-sm font-semibold text-gray-200">New Project</div>
-                <div className="text-xs text-gray-500">Start organizing photos</div>
+                <div className="text-sm font-semibold text-gray-200">Add Project</div>
+                <div className="text-xs text-gray-500">Import an existing folder safely</div>
               </div>
             </div>
 
@@ -138,7 +138,7 @@ export default function StartScreen({
           {/* Empty state */}
           {recentProjects.length === 0 && (
             <div className="text-center py-12 text-gray-500">
-              <p className="text-sm">No recent projects. Create one to get started.</p>
+              <p className="text-sm">No recent projects. Add a folder to get started.</p>
             </div>
           )}
         </div>
