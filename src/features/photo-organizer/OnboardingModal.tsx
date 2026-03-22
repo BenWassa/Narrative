@@ -1,6 +1,10 @@
 import React, { useCallback, useRef, useState } from 'react';
 import { FolderOpen, X } from 'lucide-react';
-import type { ProjectMode } from './services/projectService';
+import {
+  inspectProjectFolder,
+  type ProjectFolderInspection,
+  type ProjectMode,
+} from './services/projectService';
 import {
   detectBucketsInFolder,
   detectFolderStructure,
@@ -45,7 +49,7 @@ export default function OnboardingModal({
     return parts[parts.length - 1] || '';
   }, []);
 
-  const [step, setStep] = useState<'select' | 'preview'>('select');
+  const [step, setStep] = useState<'folder' | 'details' | 'preview'>('folder');
   const [projectName, setProjectName] = useState('');
   const [rootPath, setRootPath] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -53,9 +57,27 @@ export default function OnboardingModal({
   const [mappings, setMappings] = useState<Array<FolderMapping & { skip?: boolean }>>([]);
   const [loading, setLoading] = useState(false);
   const [projectMode, setProjectMode] = useState<ProjectMode>('single_day');
+  const [folderInspection, setFolderInspection] = useState<ProjectFolderInspection | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const projectNameInputRef = useRef<HTMLInputElement | null>(null);
   const lastAutoProjectNameRef = useRef('');
+
+  const primaryActionLabel =
+    folderInspection?.recommendedAction === 'import' ? 'Import Existing Project' : 'Create Project';
+  const stepTitle =
+    step === 'folder'
+      ? 'Choose Project Folder'
+      : step === 'details'
+      ? 'Review Project Details'
+      : 'Review Folder Structure';
+  const stepDescription =
+    step === 'folder'
+      ? 'Choose the project folder first. Narrative will inspect it and suggest the safest next step.'
+      : step === 'details'
+      ? folderInspection?.recommendedAction === 'import'
+        ? 'This folder already looks like a project. Narrative will import it and only add missing support folders when needed.'
+        : 'Review the inferred details before creating a new project from this folder.'
+      : 'Confirm how your existing folders map to days.';
 
   const syncProjectNameFromPath = useCallback(
     (nextPath: string) => {
@@ -75,6 +97,32 @@ export default function OnboardingModal({
     [deriveProjectName],
   );
 
+  const inspectSelectedFolder = useCallback(async (handle: FileSystemDirectoryHandle) => {
+    const inspection = await inspectProjectFolder(handle);
+    setFolderInspection(inspection);
+    if (inspection.inferredProjectMode) {
+      setProjectMode(inspection.inferredProjectMode);
+    }
+  }, []);
+
+  const handleFolderNext = useCallback(async () => {
+    if (!dirHandle) {
+      setError('Please choose a folder');
+      return;
+    }
+
+    setError(null);
+    setLoading(true);
+    try {
+      await inspectSelectedFolder(dirHandle);
+      setStep('details');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to inspect selected folder');
+    } finally {
+      setLoading(false);
+    }
+  }, [dirHandle, inspectSelectedFolder]);
+
   const handleDetect = useCallback(async () => {
     if (!projectName.trim()) {
       setError('Please enter a project name');
@@ -88,7 +136,7 @@ export default function OnboardingModal({
     setLoading(true);
 
     try {
-      if (projectMode === 'single_day') {
+      if (projectMode === 'single_day' && folderInspection?.inferredProjectMode !== 'multi_day') {
         const folderPath = rootPath.trim() || dirHandle.name;
         const duplicateProject = recentProjects.find(
           p => p.rootPath.toLowerCase() === folderPath.toLowerCase(),
@@ -254,7 +302,16 @@ export default function OnboardingModal({
     } finally {
       setLoading(false);
     }
-  }, [dirHandle, onClose, onComplete, projectMode, projectName, recentProjects, rootPath]);
+  }, [
+    dirHandle,
+    folderInspection?.inferredProjectMode,
+    onClose,
+    onComplete,
+    projectMode,
+    projectName,
+    recentProjects,
+    rootPath,
+  ]);
 
   const handleMappingChange = useCallback(
     (index: number, field: keyof FolderMapping | 'skip', value: any) => {
@@ -324,14 +381,8 @@ export default function OnboardingModal({
       <div className="bg-white rounded-xl shadow-2xl max-w-3xl w-full mx-6 max-h-[88vh] overflow-y-auto">
         <div className="sticky top-0 bg-white border-b border-gray-200 px-8 py-6 flex items-center justify-between">
           <div>
-            <h2 className="text-2xl font-extrabold text-gray-900">
-              {step === 'select' ? 'Add Project' : 'Review Folder Structure'}
-            </h2>
-            <p className="text-sm text-gray-500 mt-1">
-              {step === 'select'
-                ? 'Choose a folder to add safely. Existing folders stay in place; Narrative only adds missing support folders when needed.'
-                : 'Confirm how your existing folders map to days.'}
-            </p>
+            <h2 className="text-2xl font-extrabold text-gray-900">{stepTitle}</h2>
+            <p className="text-sm text-gray-500 mt-1">{stepDescription}</p>
           </div>
           <button
             onClick={onClose}
@@ -349,7 +400,7 @@ export default function OnboardingModal({
             </div>
           )}
 
-          {step === 'select' && recentProjects.length > 0 && (
+          {step === 'folder' && recentProjects.length > 0 && (
             <div className="space-y-3 rounded-lg border border-gray-200 bg-gray-50 p-4">
               <div>
                 <p className="text-sm font-medium text-gray-700">Recent Projects</p>
@@ -375,7 +426,7 @@ export default function OnboardingModal({
             </div>
           )}
 
-          {step === 'select' && (
+          {step === 'folder' && (
             <>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">Folder Path</label>
@@ -400,6 +451,8 @@ export default function OnboardingModal({
                       const folder = rel.split('/')[0];
                       syncProjectNameFromPath(folder);
                       setDirHandle(null);
+                      setFolderInspection(null);
+                      setStep('folder');
                       requestAnimationFrame(() => projectNameInputRef.current?.select());
                       e.currentTarget.value = '';
                     }}
@@ -411,7 +464,7 @@ export default function OnboardingModal({
                         const handle = await (window as any).showDirectoryPicker();
                         setDirHandle(handle);
                         syncProjectNameFromPath(handle?.name || '');
-                        requestAnimationFrame(() => projectNameInputRef.current?.select());
+                        setFolderInspection(null);
                         return;
                       }
                       fileInputRef.current?.click();
@@ -430,8 +483,21 @@ export default function OnboardingModal({
                   Existing folders are recognized as-is. Missing support folders like `Inbox` or
                   `X_Archive` may be added, but existing folder trees are not rewritten.
                 </p>
+                {folderInspection?.inferredProjectMode && (
+                  <p className="text-xs text-blue-700 mt-1">
+                    Detected existing{' '}
+                    {folderInspection.inferredProjectMode === 'multi_day'
+                      ? 'multi-day'
+                      : 'single-day'}{' '}
+                    structure.
+                  </p>
+                )}
               </div>
+            </>
+          )}
 
+          {step === 'details' && (
+            <>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">Project Name</label>
                 <input
@@ -443,6 +509,27 @@ export default function OnboardingModal({
                   placeholder="Suggested from the final folder name"
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder:text-gray-600 text-gray-900"
                 />
+              </div>
+
+              <div className="rounded-lg border border-gray-200 bg-gray-50 px-4 py-3">
+                <div className="text-sm font-medium text-gray-900">Selected Folder</div>
+                <div className="mt-1 text-sm text-gray-600 break-all">
+                  {rootPath || dirHandle?.name || 'No folder selected'}
+                </div>
+                {folderInspection?.inferredProjectMode && (
+                  <div className="mt-2 text-xs text-blue-700">
+                    Inferred structure:{' '}
+                    {folderInspection.inferredProjectMode === 'multi_day'
+                      ? 'Multi Day'
+                      : 'Single Day'}
+                  </div>
+                )}
+                {!folderInspection?.hasCanonicalStructure &&
+                  folderInspection?.hasExistingContent && (
+                    <div className="mt-2 text-xs text-gray-600">
+                      This folder has content but does not yet look like a Narrative project.
+                    </div>
+                  )}
               </div>
 
               <div>
@@ -572,13 +659,30 @@ export default function OnboardingModal({
         </div>
 
         <div className="sticky bottom-0 bg-white border-t border-gray-200 px-6 py-4 flex justify-between gap-3">
-          {step === 'select' ? (
+          {step === 'folder' ? (
             <>
               <button
                 onClick={onClose}
                 className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 font-medium"
               >
                 Cancel
+              </button>
+              <button
+                onClick={handleFolderNext}
+                disabled={!dirHandle || loading}
+                aria-disabled={!dirHandle || loading}
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium disabled:bg-gray-200 disabled:text-gray-500 disabled:cursor-not-allowed"
+              >
+                {loading ? 'Inspecting…' : 'Next'}
+              </button>
+            </>
+          ) : step === 'details' ? (
+            <>
+              <button
+                onClick={() => setStep('folder')}
+                className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 font-medium"
+              >
+                Back
               </button>
               <button
                 onClick={handleDetect}
@@ -588,15 +692,16 @@ export default function OnboardingModal({
               >
                 {loading
                   ? 'Preparing…'
-                  : projectMode === 'single_day'
-                  ? 'Import Existing Project'
+                  : projectMode === 'single_day' &&
+                    folderInspection?.inferredProjectMode !== 'multi_day'
+                  ? primaryActionLabel
                   : 'Next'}
               </button>
             </>
           ) : (
             <>
               <button
-                onClick={() => setStep('select')}
+                onClick={() => setStep('details')}
                 className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 font-medium"
               >
                 Back
@@ -605,7 +710,7 @@ export default function OnboardingModal({
                 onClick={handleCreate}
                 className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium"
               >
-                Import Existing Project
+                {primaryActionLabel}
               </button>
             </>
           )}

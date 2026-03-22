@@ -2,6 +2,7 @@ import { describe, test, expect, vi, beforeEach } from 'vitest';
 import {
   buildPhotosFromHandleForTest,
   buildProjectTree,
+  inspectProjectFolder,
   heicToBlob,
   planProjectScaffoldingForTest,
   ensureProjectScaffolding,
@@ -314,5 +315,44 @@ describe('Project file collection', () => {
     expect(Object.keys(root.children).sort()).toEqual(['Inbox', 'RAW', 'X_Archive']);
     expect(root.children.A_Establishing).toBeUndefined();
     expect(root.children.B_People).toBeUndefined();
+  });
+
+  test('inspects canonical single-day structure as importable existing project', async () => {
+    const root = makeDirHandle('root', {
+      A_Establishing: makeDirHandle('A_Establishing', {}),
+      Inbox: makeDirHandle('Inbox', {}),
+    });
+
+    const inspection = await inspectProjectFolder(root, settings);
+
+    expect(inspection.recommendedAction).toBe('import');
+    expect(inspection.inferredProjectMode).toBe('single_day');
+    expect(inspection.hasCanonicalStructure).toBe(true);
+  });
+
+  test('inspects canonical multi-day structure as importable existing project', async () => {
+    const root = makeDirHandle('root', {
+      'Day 01': makeDirHandle('Day 01', {}),
+    });
+
+    const inspection = await inspectProjectFolder(root, settings);
+
+    expect(inspection.recommendedAction).toBe('import');
+    expect(inspection.inferredProjectMode).toBe('multi_day');
+    expect(inspection.hasCanonicalStructure).toBe(true);
+  });
+
+  test('inspects non-canonical folders as new project creation flow', async () => {
+    const root = makeDirHandle('root', {
+      RAW: makeDirHandle('RAW', {}),
+      selects: makeDirHandle('selects', {}),
+    });
+
+    const inspection = await inspectProjectFolder(root, settings);
+
+    expect(inspection.recommendedAction).toBe('create');
+    expect(inspection.inferredProjectMode).toBeNull();
+    expect(inspection.hasCanonicalStructure).toBe(false);
+    expect(inspection.hasExistingContent).toBe(true);
   });
 });

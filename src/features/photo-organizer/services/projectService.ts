@@ -150,6 +150,13 @@ interface ProjectScaffoldingPlan {
   hasCanonicalStructure: boolean;
 }
 
+export interface ProjectFolderInspection {
+  hasExistingContent: boolean;
+  hasCanonicalStructure: boolean;
+  inferredProjectMode: ProjectMode | null;
+  recommendedAction: 'create' | 'import';
+}
+
 const SUPPORTED_EXT = ['jpg', 'jpeg', 'png', 'heic', 'webp', 'mp4', 'mov', 'webm', 'avi', 'mkv'];
 const STATE_PREFIX = 'narrative:projectState:';
 const HANDLE_DB = 'narrative:handles';
@@ -391,7 +398,8 @@ async function planProjectScaffolding(
     hasTopLevelFolder(inboxFolder) ||
     hasTopLevelFolder(archiveFolder) ||
     hasTopLevelFolder(daysFolder) ||
-    hasBucketRoots;
+    hasBucketRoots ||
+    hasDayRoots;
   const hasExistingContent = topLevelDirectories.length > 0 || topLevelFiles.length > 0;
   const importDisposition: 'new' | 'existing' =
     hasExistingContent || hasCanonicalStructure ? 'existing' : 'new';
@@ -424,6 +432,44 @@ async function planProjectScaffolding(
     importDisposition,
     hasExistingContent,
     hasCanonicalStructure,
+  };
+}
+
+async function inspectProjectFolderState(
+  dirHandle: FileSystemDirectoryHandle,
+  settings: ProjectSettings = DEFAULT_SETTINGS,
+): Promise<ProjectFolderInspection> {
+  const entries = await readTopLevelEntries(dirHandle);
+  const topLevelDirectories = entries
+    .filter(entry => entry.kind === 'directory')
+    .map(entry => entry.name);
+  const topLevelFiles = entries.filter(entry => entry.kind === 'file').map(entry => entry.name);
+  const { inboxFolder, daysFolder, archiveFolder } = settings.folderStructure;
+
+  const hasTopLevelFolder = (name: string) =>
+    topLevelDirectories.some(entry => normalizeRelativePath(entry) === normalizeRelativePath(name));
+  const hasBucketRoots = topLevelDirectories.some(name => isBucketFolderName(name));
+  const hasDayRoots = topLevelDirectories.some(name => hasDayLikeFolder(name));
+  const hasCanonicalStructure =
+    hasTopLevelFolder(inboxFolder) ||
+    hasTopLevelFolder(archiveFolder) ||
+    hasTopLevelFolder(daysFolder) ||
+    hasBucketRoots ||
+    hasDayRoots;
+  const hasExistingContent = topLevelDirectories.length > 0 || topLevelFiles.length > 0;
+
+  let inferredProjectMode: ProjectMode | null = null;
+  if (hasTopLevelFolder(daysFolder) || hasDayRoots) {
+    inferredProjectMode = 'multi_day';
+  } else if (hasBucketRoots) {
+    inferredProjectMode = 'single_day';
+  }
+
+  return {
+    hasExistingContent,
+    hasCanonicalStructure,
+    inferredProjectMode,
+    recommendedAction: hasCanonicalStructure ? 'import' : 'create',
   };
 }
 
@@ -1724,4 +1770,11 @@ export async function planProjectScaffoldingForTest(
   settings: ProjectSettings = DEFAULT_SETTINGS,
 ): Promise<ProjectScaffoldingPlan> {
   return planProjectScaffolding(dirHandle, projectMode, settings);
+}
+
+export async function inspectProjectFolder(
+  dirHandle: FileSystemDirectoryHandle,
+  settings: ProjectSettings = DEFAULT_SETTINGS,
+): Promise<ProjectFolderInspection> {
+  return inspectProjectFolderState(dirHandle, settings);
 }
