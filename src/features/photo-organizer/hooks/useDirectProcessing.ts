@@ -1,10 +1,19 @@
 import { useCallback, useState } from 'react';
 import type { ProjectPhoto, ProjectSettings } from '../services/projectService';
-import { getHandle } from '../services/projectService';
+import {
+  getExportDestinationHandle,
+  getHandle,
+  removeExportDestinationHandle,
+  saveExportDestinationHandle,
+} from '../services/projectService';
 import type { ExportStructureMode } from './useExportScript';
 import { buildOperationPlan, type OperationPlan } from '../utils/buildOperationPlan';
 import { executePlan, type ExecutionProgress, type ExecutionResult } from '../utils/executePlan';
-import { saveExportManifest } from '../utils/exportManifest';
+import {
+  clearExportManifest,
+  loadExportManifest,
+  saveExportManifest,
+} from '../utils/exportManifest';
 
 export type DirectProcessingState =
   | 'idle'
@@ -32,6 +41,22 @@ export function useDirectProcessing(
   );
   const [destinationLabel, setDestinationLabel] = useState<string>('');
   const [structureMode, setStructureMode] = useState<ExportStructureMode>('auto');
+  const [existingDestinationPaths, setExistingDestinationPaths] = useState<Set<string>>(new Set());
+
+  const scanDestinationPaths = useCallback(async (handle: FileSystemDirectoryHandle, prefix = '') => {
+    const paths = new Set<string>();
+    // @ts-ignore entries() is supported in modern browsers
+    for await (const [name, entry] of handle.entries()) {
+      const relativePath = prefix ? `${prefix}/${name}` : name;
+      if (entry.kind === 'directory') {
+        const nested = await scanDestinationPaths(entry as FileSystemDirectoryHandle, relativePath);
+        nested.forEach(path => paths.add(path));
+      } else {
+        paths.add(relativePath);
+      }
+    }
+    return paths;
+  }, []);
 
   const openDirectProcessing = useCallback(async () => {
     setState('planning');
@@ -51,6 +76,8 @@ export function useDirectProcessing(
 
       setDestinationHandle(handle);
       setDestinationLabel(handle.name);
+      const existingPaths = await scanDestinationPaths(handle);
+      setExistingDestinationPaths(existingPaths);
 
       // Build operation plan
       const newPlan = buildOperationPlan({
@@ -60,6 +87,7 @@ export function useDirectProcessing(
         ingested,
         sourceRoot,
         structureMode,
+        existingDestinationPaths: existingPaths,
       });
 
       setPlan(newPlan);
@@ -74,7 +102,7 @@ export function useDirectProcessing(
         setState('error');
       }
     }
-  }, [photos, dayLabels, projectSettings, ingested, sourceRoot, structureMode]);
+  }, [photos, dayLabels, projectSettings, ingested, sourceRoot, structureMode, scanDestinationPaths]);
 
   const confirmExecution = useCallback(async () => {
     if (!plan || !destinationHandle || state !== 'ready') {
@@ -118,6 +146,7 @@ export function useDirectProcessing(
       // Save manifest to localStorage so "Undo Export" button appears
       if (projectId) {
         saveExportManifest(projectId, executionResult.manifest);
+        await saveExportDestinationHandle(projectId, destinationHandle);
       }
 
       setState('complete');
@@ -135,6 +164,7 @@ export function useDirectProcessing(
     setError(null);
     setDestinationHandle(null);
     setDestinationLabel('');
+    setExistingDestinationPaths(new Set());
     setStructureMode('auto');
   }, []);
 
@@ -150,12 +180,107 @@ export function useDirectProcessing(
           ingested,
           sourceRoot,
           structureMode: mode,
+          existingDestinationPaths,
         });
         setPlan(newPlan);
       }
     },
-    [state, photos, dayLabels, projectSettings, ingested, sourceRoot],
+    [state, photos, dayLabels, projectSettings, ingested, sourceRoot, existingDestinationPaths],
   );
+
+  const canUndoDirectProcess = useCallback(() => {
+    if (!projectId) return false;
+    const manifest = loadExportManifest(projectId);
+    return manifest?.source === 'direct';
+  }, [projectId]);
+
+  const removeEmptyDirectories = useCallback(
+    async (rootHandle: FileSystemDirectoryHandle, relativePath: string) => {
+      const segments = relativePath.split('/').filter(Boolean);
+      segments.pop();
+
+      while (segments.length > 0) {
+        const pathSegments = [...segments];
+        const dirName = pathSegments.pop()!;
+        let parent = rootHandle;
+        for (const segment of pathSegments) {
+          parent = await parent.getDirectoryHandle(segment);
+        }
+
+        const dirHandle = await parent.getDirectoryHandle(dirName);
+        let hasEntries = false;
+        // @ts-ignore entries() is supported in modern browsers
+        for await (const _entry of dirHandle.entries()) {
+          hasEntries = true;
+          break;
+        }
+
+        if (hasEntries) break;
+        await parent.removeEntry(dirName);
+        segments.pop();
+      }
+    },
+    [],
+  );
+
+  const undoLastDirectProcess = useCallback(async () => {
+    if (!projectId) {
+      throw new Error('Project ID not available');
+    }
+
+    const manifest = loadExportManifest(projectId);
+    if (!manifest || manifest.source !== 'direct') {
+      throw new Error('No direct-processing undo information is available.');
+    }
+
+    const destination = await getExportDestinationHandle(projectId);
+    if (!destination) {
+      throw new Error('The last direct-processing destination is no longer available.');
+    }
+
+    const permission = await destination.requestPermission({ mode: 'readwrite' });
+    if (permission !== 'granted') {
+      throw new Error('Write permission denied for the last direct-processing destination.');
+    }
+
+    for (const operation of [...manifest.operations].reverse()) {
+      const relativePath =
+        operation.destinationRelativePath ||
+        operation.destinationPath.replace(`${manifest.destinationRoot}/`, '');
+      const parts = relativePath.split('/').filter(Boolean);
+      const fileName = parts.pop();
+      if (!fileName) continue;
+
+      let current = destination;
+      let missing = false;
+
+      try {
+        for (const segment of parts) {
+          current = await current.getDirectoryHandle(segment);
+        }
+      } catch (error) {
+        missing = true;
+      }
+      if (missing) continue;
+
+      try {
+        const fileHandle = await current.getFileHandle(fileName);
+        const file = await fileHandle.getFile();
+        if (operation.fileSize > 0 && file.size !== operation.fileSize) {
+          continue;
+        }
+        await current.removeEntry(fileName);
+        await removeEmptyDirectories(destination, relativePath);
+      } catch (error: any) {
+        if (error?.name !== 'NotFoundError') {
+          throw error;
+        }
+      }
+    }
+
+    clearExportManifest(projectId);
+    await removeExportDestinationHandle(projectId);
+  }, [projectId, removeEmptyDirectories]);
 
   return {
     showDirectProcessing: state !== 'idle',
@@ -170,5 +295,7 @@ export function useDirectProcessing(
     confirmExecution,
     closeDirectProcessing,
     updateStructureMode,
+    canUndoDirectProcess,
+    undoLastDirectProcess,
   };
 }

@@ -17,6 +17,8 @@ interface DirectProcessingModalProps {
   onClose: () => void;
   onConfirm: () => void;
   onStructureModeChange: (mode: ExportStructureMode) => void;
+  canUndoDirectProcess?: boolean;
+  onUndoDirectProcess?: () => void;
 }
 
 function DirectProcessingModal({
@@ -31,6 +33,8 @@ function DirectProcessingModal({
   onClose,
   onConfirm,
   onStructureModeChange,
+  canUndoDirectProcess,
+  onUndoDirectProcess,
 }: DirectProcessingModalProps) {
   if (!isOpen) return null;
 
@@ -102,6 +106,12 @@ function DirectProcessingModal({
                   {plan.summary.skippedCount > 0 && (
                     <div className="text-blue-300 mt-1">
                       <strong>{plan.summary.skippedCount}</strong> files with missing paths
+                    </div>
+                  )}
+                  {plan.summary.preexistingSkipCount > 0 && (
+                    <div className="text-blue-300 mt-1">
+                      <strong>{plan.summary.preexistingSkipCount}</strong> files already organized
+                      at the destination
                     </div>
                   )}
                 </div>
@@ -292,13 +302,20 @@ function DirectProcessingModal({
 
                 {/* Undo note */}
                 <div className="p-4 bg-blue-900 bg-opacity-30 rounded border border-blue-700 text-sm text-blue-200">
-                  ✓ You can now undo this export using the <strong>Undo Export</strong> button in
-                  the header.
+                  ✓ You can now undo this direct process from the header or below.
                 </div>
               </div>
 
               {/* Close button */}
-              <div className="mt-6 flex justify-end">
+              <div className="mt-6 flex justify-end gap-3">
+                {canUndoDirectProcess && onUndoDirectProcess && (
+                  <button
+                    onClick={onUndoDirectProcess}
+                    className="px-4 py-2 bg-yellow-700 hover:bg-yellow-600 rounded text-sm font-medium text-white"
+                  >
+                    Undo Direct Process
+                  </button>
+                )}
                 <button
                   onClick={onClose}
                   className="px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded text-sm font-medium text-white"

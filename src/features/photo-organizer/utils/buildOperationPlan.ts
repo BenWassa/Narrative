@@ -30,12 +30,21 @@ export type PlanBlocker = {
   conflictingPhotos: ProjectPhoto[];
 };
 
+export type PlanPreexistingSkip = {
+  kind: 'destination_exists';
+  destinationRelativePath: string;
+  photoId: string;
+  currentName: string;
+};
+
 export type OperationPlan = {
   operations: PlannedOperation[];
+  preexistingSkips: PlanPreexistingSkip[];
   summary: {
     total: number;
     copyCount: number;
     skippedCount: number;
+    preexistingSkipCount: number;
   };
   warnings: PlanWarning[];
   blockers: PlanBlocker[];
@@ -56,16 +65,38 @@ export function buildOperationPlan(params: {
   ingested?: boolean; // defaults true (backward compat)
   sourceRoot?: string;
   structureMode: ExportStructureMode;
+  existingDestinationPaths?: Iterable<string>;
 }): OperationPlan {
-  const { photos, dayLabels, projectSettings, ingested = true, structureMode } = params;
+  const {
+    photos,
+    dayLabels,
+    projectSettings,
+    ingested = true,
+    structureMode,
+    existingDestinationPaths,
+  } = params;
 
   const daysFolder = projectSettings.folderStructure.daysFolder;
   const archiveFolder = projectSettings.folderStructure.archiveFolder;
   const bucketNames: Record<string, string> = BUCKET_LABELS;
 
   const operations: PlannedOperation[] = [];
+  const preexistingSkips: PlanPreexistingSkip[] = [];
   const warnings: PlanWarning[] = [];
   const destinationPathMap = new Map<string, ProjectPhoto[]>();
+  const existingDestinationSet = new Set(existingDestinationPaths ?? []);
+
+  const activeDays = new Set(
+    photos
+      .filter(photo => photo.bucket && photo.day !== null)
+      .map(photo => photo.day as number),
+  );
+  const resolvedStructureMode: 'single_day_flat' | 'multi_day_nested' =
+    structureMode === 'auto'
+      ? activeDays.size === 1
+        ? 'single_day_flat'
+        : 'multi_day_nested'
+      : (structureMode as 'single_day_flat' | 'multi_day_nested');
 
   // Determine if each photo should be exported and compute its destination
   for (const photo of photos) {
@@ -122,7 +153,7 @@ export function buildOperationPlan(params: {
       const dayLabel = dayLabels[photo.day] || `Day ${String(photo.day).padStart(2, '0')}`;
       const bucketLabel = bucketNames[photo.bucket] || photo.bucket;
 
-      if (structureMode === 'single_day_flat') {
+      if (resolvedStructureMode === 'single_day_flat') {
         // Single-day flat: buckets at root level
         destinationRelativePath = `${photo.bucket}_${bucketLabel}/${photo.currentName}`;
       } else {
@@ -139,6 +170,16 @@ export function buildOperationPlan(params: {
       destinationPathMap.set(destinationRelativePath, []);
     }
     destinationPathMap.get(destinationRelativePath)!.push(photo);
+
+    if (existingDestinationSet.has(destinationRelativePath)) {
+      preexistingSkips.push({
+        kind: 'destination_exists',
+        destinationRelativePath,
+        photoId: photo.id,
+        currentName: photo.currentName,
+      });
+      continue;
+    }
 
     operations.push({
       type: 'copy',
@@ -162,24 +203,14 @@ export function buildOperationPlan(params: {
     }
   }
 
-  // Resolve structure mode
-  // Auto mode: if ≤1 active days, use flat; otherwise nested
-  let resolvedStructureMode: 'single_day_flat' | 'multi_day_nested' =
-    structureMode === 'auto'
-      ? operations
-          .filter(op => op.photo.day !== null)
-          .every(op => op.photo.day === operations[0].photo.day) &&
-        operations.filter(op => op.photo.day !== null).length <= 1
-        ? 'single_day_flat'
-        : 'multi_day_nested'
-      : (structureMode as 'single_day_flat' | 'multi_day_nested');
-
   return {
     operations,
+    preexistingSkips,
     summary: {
-      total: operations.length,
+      total: operations.length + preexistingSkips.length,
       copyCount: operations.length,
       skippedCount: warnings.length,
+      preexistingSkipCount: preexistingSkips.length,
     },
     warnings,
     blockers,

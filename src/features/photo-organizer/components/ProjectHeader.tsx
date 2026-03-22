@@ -25,6 +25,7 @@ interface ProjectHeaderProps {
   permissionRetryProjectId: string | null;
   loadingProject: boolean;
   hasExportManifest?: boolean;
+  hasDirectProcessingUndo?: boolean;
   onMainMenu: () => void;
   onStartCoverSelection: () => void;
   onUseCoverSelection: () => void;
@@ -60,6 +61,7 @@ export default function ProjectHeader({
   permissionRetryProjectId,
   loadingProject,
   hasExportManifest,
+  hasDirectProcessingUndo,
   onMainMenu,
   onStartCoverSelection,
   onUseCoverSelection,
@@ -232,13 +234,13 @@ export default function ProjectHeader({
               Process Directly (Beta)
             </button>
           )}
-          {hasExportManifest && onUndoExport && (
+          {(hasExportManifest || hasDirectProcessingUndo) && onUndoExport && (
             <button
               onClick={onUndoExport}
               className="px-3 py-1 bg-yellow-800 hover:bg-yellow-700 rounded text-sm font-medium"
-              title="Undo last export"
+              title={hasDirectProcessingUndo ? 'Undo last direct process' : 'Undo last export'}
             >
-              Undo Export
+              {hasDirectProcessingUndo ? 'Undo Direct Process' : 'Undo Export'}
             </button>
           )}
           <button

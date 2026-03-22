@@ -8,6 +8,7 @@ import {
   deleteProject as deleteProjectService,
   ProjectPhoto,
   type ProjectState,
+  saveState,
   saveHandle,
   getHandle,
 } from './services/projectService';
@@ -84,6 +85,8 @@ export default function PhotoOrganizer() {
     setProjectRootPath,
     projectFolderLabel,
     projectSettings,
+    ingested,
+    sourceRoot,
     recentProjects,
     setRecentProjects,
     showOnboarding,
@@ -129,7 +132,14 @@ export default function PhotoOrganizer() {
     downloadUndoScript,
     hasExportManifest,
     refreshManifest,
-  } = useExportScript(photos, dayLabels, projectSettings, projectRootPath || undefined);
+  } = useExportScript(
+    photos,
+    dayLabels,
+    projectSettings,
+    projectRootPath || undefined,
+    ingested,
+    sourceRoot,
+  );
 
   const {
     showDirectProcessing,
@@ -144,7 +154,16 @@ export default function PhotoOrganizer() {
     confirmExecution,
     closeDirectProcessing,
     updateStructureMode: updateDirectStructureMode,
-  } = useDirectProcessing(photos, dayLabels, projectSettings, projectRootPath ?? null);
+    canUndoDirectProcess,
+    undoLastDirectProcess,
+  } = useDirectProcessing(
+    photos,
+    dayLabels,
+    projectSettings,
+    projectRootPath ?? null,
+    ingested,
+    sourceRoot,
+  );
 
   const { setCoverForPhotoId } = useCoverPhoto({
     photos,
@@ -155,12 +174,111 @@ export default function PhotoOrganizer() {
     showToast,
   });
 
-  // Refresh manifest when direct processing completes
+  const lastDirectSyncRef = useRef<number | null>(null);
+
+  // Refresh manifest and persist canonical file paths when direct processing completes
   useEffect(() => {
-    if (directResult) {
-      refreshManifest();
+    if (!directResult || !directPlan || !projectRootPath) {
+      return;
     }
-  }, [directResult, refreshManifest]);
+
+    if (lastDirectSyncRef.current === directResult.manifest.timestamp) {
+      return;
+    }
+    lastDirectSyncRef.current = directResult.manifest.timestamp;
+
+    const syncDirectProcessing = async () => {
+      const copiedBySourcePath = new Map(
+        directPlan.operations
+          .filter(operation =>
+            directResult.executionLog.operations.some(
+              log =>
+                log.status === 'copied' && log.sourcePath === operation.sourceRelativePath,
+            ),
+          )
+          .map(operation => [operation.sourceRelativePath, operation]),
+      );
+
+      refreshManifest();
+
+      if (copiedBySourcePath.size === 0) {
+        return;
+      }
+
+      const nextPhotos = photos.map(photo => {
+        if (!photo.filePath) return photo;
+        const operation = copiedBySourcePath.get(photo.filePath);
+        if (!operation) return photo;
+
+        return {
+          ...photo,
+          filePath: operation.destinationRelativePath,
+          currentName: operation.currentName,
+          detectedDay: operation.photo.day,
+          detectedBucket: operation.photo.bucket,
+          isPreOrganized: true,
+          organizationConfidence: 'high' as const,
+        };
+      });
+
+      const nextState: ProjectState = {
+        projectName,
+        rootPath: projectFolderLabel || projectRootPath,
+        photos: nextPhotos,
+        settings: projectSettings,
+        dayLabels: dayLabels as any,
+        dayContainers: dayContainers || [],
+        lastModified: Date.now(),
+        ingested,
+        sourceRoot,
+      };
+
+      setPhotos(nextPhotos);
+      await saveState(projectRootPath, nextState);
+      await loadProject(projectRootPath, { addRecent: false });
+    };
+
+    syncDirectProcessing().catch(error => {
+      console.warn('Failed to sync project after direct processing:', error);
+    });
+  }, [
+    directResult,
+    directPlan,
+    projectRootPath,
+    refreshManifest,
+    photos,
+    projectName,
+    projectFolderLabel,
+    projectSettings,
+    dayLabels,
+    dayContainers,
+    ingested,
+    sourceRoot,
+    setPhotos,
+    loadProject,
+  ]);
+
+  const handleUndoProcessing = useCallback(async () => {
+    if (canUndoDirectProcess()) {
+      await undoLastDirectProcess();
+      refreshManifest();
+      if (projectRootPath) {
+        await loadProject(projectRootPath, { addRecent: false });
+      }
+      showToast('Direct processing was undone.', 'info');
+      return;
+    }
+
+    openUndoScriptModal();
+  }, [
+    canUndoDirectProcess,
+    undoLastDirectProcess,
+    refreshManifest,
+    projectRootPath,
+    loadProject,
+    showToast,
+    openUndoScriptModal,
+  ]);
 
   // Fetch current version on mount for robustness
   useEffect(() => {
@@ -387,6 +505,7 @@ export default function PhotoOrganizer() {
         permissionRetryProjectId={permissionRetryProjectId}
         loadingProject={loadingProject}
         hasExportManifest={hasExportManifest()}
+        hasDirectProcessingUndo={canUndoDirectProcess()}
         onMainMenu={() => {
           setShowOnboarding(false);
           setProjectError(null);
@@ -450,7 +569,7 @@ export default function PhotoOrganizer() {
         }}
         onExportScript={openExportScriptModal}
         onDirectProcess={openDirectProcessing}
-        onUndoExport={openUndoScriptModal}
+        onUndoExport={handleUndoProcessing}
         onShowHelp={() => setShowHelp(true)}
         onRetryPermission={retryProjectPermission}
         onChangeView={viewId => setCurrentView(viewId)}
@@ -591,6 +710,8 @@ export default function PhotoOrganizer() {
         onClose={closeDirectProcessing}
         onConfirm={confirmExecution}
         onStructureModeChange={updateDirectStructureMode}
+        canUndoDirectProcess={canUndoDirectProcess()}
+        onUndoDirectProcess={handleUndoProcessing}
       />
 
       {/* Undo Script Modal */}

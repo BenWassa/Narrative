@@ -56,6 +56,8 @@ export function useProjectState({
   const [projectRootPath, setProjectRootPath] = useState<string | null>(null);
   const [projectFolderLabel, setProjectFolderLabel] = useState<string | null>(null);
   const [projectSettings, setProjectSettings] = useState<ProjectSettings>(DEFAULT_SETTINGS);
+  const [ingested, setIngested] = useState<boolean>(true);
+  const [sourceRoot, setSourceRoot] = useState<string | undefined>(undefined);
   const [recentProjects, setRecentProjects] = useState<RecentProject[]>([]);
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [showWelcome, setShowWelcome] = useState(() => !safeLocalStorage.get(ACTIVE_PROJECT_KEY));
@@ -146,6 +148,8 @@ export function useProjectState({
       setProjectName(state.projectName || 'No Project');
       setProjectFolderLabel(state.rootPath || null);
       setProjectSettings(state.settings || DEFAULT_SETTINGS);
+      setIngested(state.ingested ?? true);
+      setSourceRoot(state.sourceRoot);
       setDayLabels((state as any).dayLabels || {});
       setDayContainers((state as any).dayContainers || []);
     },
@@ -581,6 +585,8 @@ export function useProjectState({
             dayContainers: existingState.dayContainers || selectedDayContainers,
             dayLabels: existingState.dayLabels,
             lastModified: Date.now(),
+            ingested: existingState.ingested ?? true,
+            sourceRoot: existingState.sourceRoot,
           };
         } else {
           nextProjectId = initResult.projectId;
@@ -590,6 +596,7 @@ export function useProjectState({
             photos: hydratedPhotos,
             settings: DEFAULT_SETTINGS,
             dayContainers: selectedDayContainers,
+            ingested: true,
           };
         }
 
@@ -599,7 +606,9 @@ export function useProjectState({
         setProjectName(nextProjectName);
         setProjectRootPath(nextProjectId);
         setProjectFolderLabel(state.rootPath || state.dirHandle.name);
-        setProjectSettings(DEFAULT_SETTINGS);
+        setProjectSettings(nextState.settings || DEFAULT_SETTINGS);
+        setIngested(nextState.ingested ?? true);
+        setSourceRoot(nextState.sourceRoot);
         setShowOnboarding(false);
         setShowWelcome(false);
         safeLocalStorage.set(ACTIVE_PROJECT_KEY, nextProjectId);
@@ -731,6 +740,8 @@ export function useProjectState({
         dayLabels: (dayLabels as any) || {},
         dayContainers: dayContainers || [],
         lastModified: Date.now(),
+        ingested,
+        sourceRoot,
       };
 
       saveState(projectRootPath, state).catch(err => {
@@ -752,6 +763,8 @@ export function useProjectState({
     photos,
     dayLabels,
     dayContainers,
+    ingested,
+    sourceRoot,
     loadingProject,
     showWelcome,
   ]);
@@ -767,6 +780,8 @@ export function useProjectState({
         dayLabels: dayLabels as any,
         dayContainers: dayContainers || [],
         lastModified: Date.now(),
+        ingested,
+        sourceRoot,
       };
       saveState(projectRootPath, nextState).catch(() => {});
     },
@@ -778,6 +793,8 @@ export function useProjectState({
       projectSettings,
       dayLabels,
       dayContainers,
+      ingested,
+      sourceRoot,
     ],
   );
 
@@ -800,6 +817,10 @@ export function useProjectState({
     setProjectFolderLabel,
     projectSettings,
     setProjectSettings,
+    ingested,
+    setIngested,
+    sourceRoot,
+    setSourceRoot,
     recentProjects,
     setRecentProjects,
     showOnboarding,

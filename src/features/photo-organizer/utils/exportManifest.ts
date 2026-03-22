@@ -14,6 +14,7 @@ export async function generateExportManifestFromPlan(
   sourceRoot: string,
   destinationRoot: string,
   ingested: boolean,
+  source: 'script' | 'direct' = 'script',
 ): Promise<ExportManifest> {
   const operations: ExportOperation[] = [];
 
@@ -35,6 +36,7 @@ export async function generateExportManifestFromPlan(
     operations.push({
       sourcePath: operation.sourceRelativePath,
       destinationPath: `${destinationRoot}/${operation.destinationRelativePath}`,
+      destinationRelativePath: operation.destinationRelativePath,
       fileSize,
       operation: 'copy',
     });
@@ -46,6 +48,7 @@ export async function generateExportManifestFromPlan(
     sourceRoot,
     destinationRoot,
     ingested,
+    source,
   };
 }
 
@@ -56,6 +59,7 @@ export async function generateExportManifest(
   ingested: boolean,
   dayLabels: Record<number, string>,
   settings: any,
+  source: 'script' | 'direct' = 'script',
 ): Promise<ExportManifest> {
   const operations: ExportOperation[] = [];
   const daysFolder = settings.folderStructure.daysFolder;
@@ -118,6 +122,9 @@ export async function generateExportManifest(
     operations.push({
       sourcePath: photo.filePath,
       destinationPath,
+      destinationRelativePath: destinationPath.startsWith(`${destinationRoot}/`)
+        ? destinationPath.slice(destinationRoot.length + 1)
+        : destinationPath,
       fileSize,
       operation: 'copy',
     });
@@ -129,6 +136,7 @@ export async function generateExportManifest(
     sourceRoot,
     destinationRoot,
     ingested,
+    source,
   };
 }
 

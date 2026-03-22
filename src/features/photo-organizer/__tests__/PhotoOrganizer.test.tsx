@@ -39,6 +39,8 @@ const samplePhotos = Array.from({ length: 6 }, (_, index) => {
     originalName: `IMG_${1000 + index}.jpg`,
     currentName: `IMG_${1000 + index}.jpg`,
     timestamp: Date.now() + index * 1000,
+    fileModifiedTimestamp: Date.now() + index * 1000,
+    timestampSource: 'filesystem' as const,
     day: index < 2 ? null : index < 4 ? 1 : 2, // first 2 are loose (root), next 2 Day 1, rest Day 2
     bucket: null,
     sequence: null,
@@ -65,6 +67,7 @@ const sampleState = {
       metaFolder: '_meta',
     },
   },
+  ingested: true,
 };
 
 beforeEach(() => {

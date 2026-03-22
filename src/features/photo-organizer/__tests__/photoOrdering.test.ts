@@ -9,6 +9,8 @@ function createPhoto(overrides: Partial<ProjectPhoto>): ProjectPhoto {
     originalName: 'test.jpg',
     currentName: 'test.jpg',
     timestamp: Date.now(),
+    fileModifiedTimestamp: Date.now(),
+    timestampSource: 'filesystem',
     thumbnail: '',
     archived: false,
     favorite: false,

@@ -127,5 +127,7 @@ describe('Project file collection', () => {
       }),
     );
     expect(new Set(fingerprints).size).toBe(photos.length);
+    expect(photos.every(photo => photo.fileModifiedTimestamp > 0)).toBe(true);
+    expect(photos.every(photo => photo.timestampSource === 'filesystem')).toBe(true);
   });
 });

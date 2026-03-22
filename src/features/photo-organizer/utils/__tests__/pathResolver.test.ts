@@ -18,6 +18,24 @@ describe('pathResolver', () => {
     },
   };
 
+  const createPhoto = (overrides: Partial<ProjectPhoto> = {}): ProjectPhoto =>
+    ({
+      id: 'photo',
+      originalName: 'photo.jpg',
+      currentName: 'photo.jpg',
+      timestamp: 0,
+      fileModifiedTimestamp: 0,
+      timestampSource: 'filesystem',
+      day: null,
+      bucket: null,
+      sequence: null,
+      favorite: false,
+      rating: 0,
+      archived: false,
+      thumbnail: '',
+      ...overrides,
+    }) as ProjectPhoto;
+
   describe('resolveSourceRoot', () => {
     it('should return explicit sourceRoot if set', () => {
       const state: Partial<ProjectState> = {
@@ -51,34 +69,8 @@ describe('pathResolver', () => {
         settings: mockSettings,
       };
       const photos: ProjectPhoto[] = [
-        {
-          id: '1',
-          filePath: '/photos/trip/IMG_001.jpg',
-          originalName: 'IMG_001.jpg',
-          currentName: 'IMG_001.jpg',
-          timestamp: 0,
-          day: null,
-          bucket: null,
-          sequence: null,
-          favorite: false,
-          rating: 0,
-          archived: false,
-          thumbnail: '',
-        },
-        {
-          id: '2',
-          filePath: '/photos/trip/IMG_002.jpg',
-          originalName: 'IMG_002.jpg',
-          currentName: 'IMG_002.jpg',
-          timestamp: 0,
-          day: null,
-          bucket: null,
-          sequence: null,
-          favorite: false,
-          rating: 0,
-          archived: false,
-          thumbnail: '',
-        },
+        createPhoto({ id: '1', filePath: '/photos/trip/IMG_001.jpg', originalName: 'IMG_001.jpg', currentName: 'IMG_001.jpg' }),
+        createPhoto({ id: '2', filePath: '/photos/trip/IMG_002.jpg', originalName: 'IMG_002.jpg', currentName: 'IMG_002.jpg' }),
       ];
 
       const result = resolveSourceRoot(state as ProjectState, photos);
@@ -106,20 +98,7 @@ describe('pathResolver', () => {
         settings: mockSettings,
       };
       const photos: ProjectPhoto[] = [
-        {
-          id: '1',
-          filePath: '/photos/trip/IMG_001.jpg',
-          originalName: 'IMG_001.jpg',
-          currentName: 'IMG_001.jpg',
-          timestamp: 0,
-          day: null,
-          bucket: null,
-          sequence: null,
-          favorite: false,
-          rating: 0,
-          archived: false,
-          thumbnail: '',
-        },
+        createPhoto({ id: '1', filePath: '/photos/trip/IMG_001.jpg', originalName: 'IMG_001.jpg', currentName: 'IMG_001.jpg' }),
       ];
 
       const result = resolveDestinationRoot(state as ProjectState, photos);
@@ -130,36 +109,24 @@ describe('pathResolver', () => {
   describe('autoDetectIngestState', () => {
     it('should detect ingested state when photos are in 01_DAYS folder', () => {
       const photos: ProjectPhoto[] = [
-        {
+        createPhoto({
           id: '1',
           folderHierarchy: ['01_DAYS', 'Day 01', 'A_Establishing'],
           filePath: '/project/01_DAYS/Day 01/A_Establishing/photo.jpg',
-          originalName: 'photo.jpg',
-          currentName: 'photo.jpg',
-          timestamp: 0,
           day: 1,
           bucket: 'A',
           sequence: 1,
-          favorite: false,
-          rating: 0,
-          archived: false,
-          thumbnail: '',
-        },
-        {
+        }),
+        createPhoto({
           id: '2',
           folderHierarchy: ['01_DAYS', 'Day 01', 'B_People'],
           filePath: '/project/01_DAYS/Day 01/B_People/photo2.jpg',
           originalName: 'photo2.jpg',
           currentName: 'photo2.jpg',
-          timestamp: 0,
           day: 1,
           bucket: 'B',
           sequence: 2,
-          favorite: false,
-          rating: 0,
-          archived: false,
-          thumbnail: '',
-        },
+        }),
       ];
 
       const result = autoDetectIngestState(photos, mockSettings);
@@ -168,21 +135,11 @@ describe('pathResolver', () => {
 
     it('should detect non-ingested state when photos are not in 01_DAYS folder', () => {
       const photos: ProjectPhoto[] = [
-        {
+        createPhoto({
           id: '1',
           folderHierarchy: ['Raw Photos', 'Day 1'],
           filePath: '/source/Raw Photos/Day 1/photo.jpg',
-          originalName: 'photo.jpg',
-          currentName: 'photo.jpg',
-          timestamp: 0,
-          day: null,
-          bucket: null,
-          sequence: null,
-          favorite: false,
-          rating: 0,
-          archived: false,
-          thumbnail: '',
-        },
+        }),
       ];
 
       const result = autoDetectIngestState(photos, mockSettings);
@@ -211,20 +168,13 @@ describe('pathResolver', () => {
         settings: mockSettings,
       };
       const photos: ProjectPhoto[] = [
-        {
+        createPhoto({
           id: '1',
           filePath: '/photos/trip/IMG_001.jpg',
           originalName: 'IMG_001.jpg',
           currentName: 'IMG_001.jpg',
-          timestamp: 0,
           day: 1,
-          bucket: null,
-          sequence: null,
-          favorite: false,
-          rating: 0,
-          archived: false,
-          thumbnail: '',
-        },
+        }),
       ];
 
       const result = resolveMeceBucketPath(state as ProjectState, photos, 1, 'A', 'Establishing');

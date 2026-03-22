@@ -243,6 +243,7 @@ export async function executePlan(
     sourceRootLabel,
     destinationRootLabel,
     ingested,
+    'direct',
   );
 
   onProgress({ phase: 'complete', processed: total, total });

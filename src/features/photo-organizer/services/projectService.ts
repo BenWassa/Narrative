@@ -7,6 +7,8 @@ export interface ProjectPhoto {
   originalName: string;
   currentName: string;
   timestamp: number;
+  fileModifiedTimestamp: number;
+  timestampSource: 'exif' | 'filesystem';
   fileSize?: number;
   day: number | null;
   bucket: string | null;
@@ -45,6 +47,7 @@ export interface ProjectSettings {
 export interface ExportOperation {
   sourcePath: string;
   destinationPath: string;
+  destinationRelativePath?: string;
   fileSize: number;
   checksum?: string;
   operation: 'copy' | 'move';
@@ -56,6 +59,7 @@ export interface ExportManifest {
   sourceRoot: string;
   destinationRoot: string;
   ingested: boolean;
+  source?: 'script' | 'direct';
 }
 
 export interface ProjectState {
@@ -80,6 +84,8 @@ interface ProjectManifestPhoto {
   originalName: string;
   currentName: string;
   timestamp: number;
+  fileModifiedTimestamp: number;
+  timestampSource: 'exif' | 'filesystem';
   fileSize?: number;
   day: number | null;
   bucket: string | null;
@@ -113,6 +119,7 @@ const SUPPORTED_EXT = ['jpg', 'jpeg', 'png', 'heic', 'webp', 'mp4', 'mov', 'webm
 const STATE_PREFIX = 'narrative:projectState:';
 const HANDLE_DB = 'narrative:handles';
 const HANDLE_STORE = 'projects';
+const EXPORT_DESTINATION_STORE = 'export-destinations';
 const MANIFEST_FILENAME = '.narrative.json';
 const DEFAULT_SETTINGS: ProjectSettings = {
   autoDay: true,
@@ -159,11 +166,14 @@ async function openHandleDb(): Promise<IDBDatabase> {
       finish(() => reject(new Error('IndexedDB open timed out.')));
     }, OPEN_DB_TIMEOUT_MS);
 
-    const req = indexedDB.open(HANDLE_DB, 1);
+    const req = indexedDB.open(HANDLE_DB, 2);
     req.onupgradeneeded = () => {
       const db = req.result;
       if (!db.objectStoreNames.contains(HANDLE_STORE)) {
         db.createObjectStore(HANDLE_STORE);
+      }
+      if (!db.objectStoreNames.contains(EXPORT_DESTINATION_STORE)) {
+        db.createObjectStore(EXPORT_DESTINATION_STORE);
       }
     };
     req.onsuccess = () => {
@@ -202,6 +212,41 @@ export async function getHandle(projectId: string): Promise<FileSystemDirectoryH
     const req = tx.objectStore(HANDLE_STORE).get(projectId);
     req.onsuccess = () => resolve((req.result as FileSystemDirectoryHandle) || null);
     req.onerror = () => reject(req.error);
+  });
+}
+
+export async function saveExportDestinationHandle(
+  projectId: string,
+  handle: FileSystemDirectoryHandle,
+): Promise<void> {
+  const db = await openHandleDb();
+  return new Promise<void>((resolve, reject) => {
+    const tx = db.transaction(EXPORT_DESTINATION_STORE, 'readwrite');
+    tx.objectStore(EXPORT_DESTINATION_STORE).put(handle, projectId);
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  });
+}
+
+export async function getExportDestinationHandle(
+  projectId: string,
+): Promise<FileSystemDirectoryHandle | null> {
+  const db = await openHandleDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(EXPORT_DESTINATION_STORE, 'readonly');
+    const req = tx.objectStore(EXPORT_DESTINATION_STORE).get(projectId);
+    req.onsuccess = () => resolve((req.result as FileSystemDirectoryHandle) || null);
+    req.onerror = () => reject(req.error);
+  });
+}
+
+export async function removeExportDestinationHandle(projectId: string): Promise<void> {
+  const db = await openHandleDb();
+  return new Promise<void>((resolve, reject) => {
+    const tx = db.transaction(EXPORT_DESTINATION_STORE, 'readwrite');
+    tx.objectStore(EXPORT_DESTINATION_STORE).delete(projectId);
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
   });
 }
 
@@ -283,6 +328,146 @@ async function writeManifest(
   } finally {
     await writable.close();
   }
+}
+
+function parseExifDateString(value: string): number | null {
+  const match = value.match(
+    /^(\d{4}):(\d{2}):(\d{2})[ T](\d{2}):(\d{2}):(\d{2})(?:\.\d+)?$/,
+  );
+  if (!match) return null;
+  const [, year, month, day, hour, minute, second] = match;
+  const timestamp = new Date(
+    Number(year),
+    Number(month) - 1,
+    Number(day),
+    Number(hour),
+    Number(minute),
+    Number(second),
+  ).getTime();
+  return Number.isNaN(timestamp) ? null : timestamp;
+}
+
+function readAscii(view: DataView, offset: number, length: number): string {
+  let result = '';
+  for (let i = 0; i < length; i += 1) {
+    const charCode = view.getUint8(offset + i);
+    if (charCode === 0) break;
+    result += String.fromCharCode(charCode);
+  }
+  return result;
+}
+
+function extractExifTimestampFromJpegBuffer(buffer: ArrayBuffer): number | null {
+  const view = new DataView(buffer);
+  if (view.byteLength < 4 || view.getUint16(0, false) !== 0xffd8) {
+    return null;
+  }
+
+  let offset = 2;
+  while (offset + 4 <= view.byteLength) {
+    const marker = view.getUint16(offset, false);
+    offset += 2;
+
+    if (marker === 0xffda || marker === 0xffd9) break;
+    if ((marker & 0xff00) !== 0xff00 || offset + 2 > view.byteLength) break;
+
+    const segmentLength = view.getUint16(offset, false);
+    if (segmentLength < 2 || offset + segmentLength > view.byteLength) break;
+
+    if (marker === 0xffe1 && segmentLength >= 10) {
+      const exifHeader = readAscii(view, offset + 2, 6);
+      if (exifHeader === 'Exif') {
+        const tiffOffset = offset + 8;
+        const littleEndian = readAscii(view, tiffOffset, 2) === 'II';
+        const getUint16 = (pos: number) => view.getUint16(pos, littleEndian);
+        const getUint32 = (pos: number) => view.getUint32(pos, littleEndian);
+        const firstIfdOffset = getUint32(tiffOffset + 4);
+        const dateTags = new Set([0x9003, 0x0132]);
+
+        const readIfd = (ifdOffset: number): number | null => {
+          if (ifdOffset <= 0 || tiffOffset + ifdOffset + 2 > view.byteLength) return null;
+          const absoluteIfdOffset = tiffOffset + ifdOffset;
+          const entryCount = getUint16(absoluteIfdOffset);
+
+          for (let i = 0; i < entryCount; i += 1) {
+            const entryOffset = absoluteIfdOffset + 2 + i * 12;
+            if (entryOffset + 12 > view.byteLength) return null;
+
+            const tag = getUint16(entryOffset);
+            const type = getUint16(entryOffset + 2);
+            const count = getUint32(entryOffset + 4);
+            const valueOffset = getUint32(entryOffset + 8);
+
+            if (tag === 0x8769) {
+              const nested = readIfd(valueOffset);
+              if (nested !== null) return nested;
+            }
+
+            if (!dateTags.has(tag) || type !== 2 || count <= 0) {
+              continue;
+            }
+
+            const stringOffset =
+              count <= 4 ? entryOffset + 8 : tiffOffset + valueOffset;
+            if (stringOffset + count > view.byteLength) continue;
+
+            const parsed = parseExifDateString(readAscii(view, stringOffset, count));
+            if (parsed !== null) return parsed;
+          }
+
+          return null;
+        };
+
+        return readIfd(firstIfdOffset);
+      }
+    }
+
+    offset += segmentLength;
+  }
+
+  return null;
+}
+
+async function extractCaptureTimestamp(file: File): Promise<number | null> {
+  const mimeType = file.type.toLowerCase();
+  const ext = file.name.split('.').pop()?.toLowerCase() || '';
+  const isJpeg = mimeType === 'image/jpeg' || mimeType === 'image/jpg' || ext === 'jpg' || ext === 'jpeg';
+  if (!isJpeg) return null;
+
+  try {
+    const chunk = file.slice(0, 256 * 1024) as Blob & { arrayBuffer?: () => Promise<ArrayBuffer> };
+    if (typeof chunk.arrayBuffer !== 'function') {
+      return null;
+    }
+    const buffer = await chunk.arrayBuffer();
+    return extractExifTimestampFromJpegBuffer(buffer);
+  } catch (error) {
+    console.warn(`Failed to read EXIF timestamp for ${file.name}:`, error);
+    return null;
+  }
+}
+
+async function resolvePhotoTimestamp(file: File): Promise<{
+  timestamp: number;
+  fileModifiedTimestamp: number;
+  timestampSource: 'exif' | 'filesystem';
+}> {
+  const fileModifiedTimestamp = file.lastModified;
+  const captureTimestamp = await extractCaptureTimestamp(file);
+
+  if (captureTimestamp !== null) {
+    return {
+      timestamp: captureTimestamp,
+      fileModifiedTimestamp,
+      timestampSource: 'exif',
+    };
+  }
+
+  return {
+    timestamp: fileModifiedTimestamp,
+    fileModifiedTimestamp,
+    timestampSource: 'filesystem',
+  };
 }
 
 export async function heicToBlob(file: File): Promise<Blob> {
@@ -522,7 +707,7 @@ export async function buildPhotosFromHandle(
     onProgress?.(progress, `Processing ${entry.handle.name}...`);
 
     const file = await entry.handle.getFile();
-    const timestamp = file.lastModified;
+    const { timestamp, fileModifiedTimestamp, timestampSource } = await resolvePhotoTimestamp(file);
     const originalName = file.name;
     const fileSize = file.size;
 
@@ -594,6 +779,8 @@ export async function buildPhotosFromHandle(
       originalName,
       currentName: originalName,
       timestamp,
+      fileModifiedTimestamp,
+      timestampSource,
       fileSize,
       day,
       bucket,
@@ -628,6 +815,12 @@ function clusterPhotosByTime(photos: ProjectPhoto[]) {
   const days: Record<string, string[]> = {};
   if (photos.length === 0) return days;
 
+  const hasOnlyExifTimestamps = photos.every(photo => photo.timestampSource === 'exif');
+  if (!hasOnlyExifTimestamps) {
+    days[1] = photos.map(photo => photo.id);
+    return days;
+  }
+
   let currentDay = 1;
   let lastTime = photos[0].timestamp;
   const gapThreshold = 6 * 60 * 60 * 1000;
@@ -647,6 +840,7 @@ function clusterPhotosByTime(photos: ProjectPhoto[]) {
 function serializeState(state: ProjectState) {
   const edits = state.photos.map(photo => ({
     filePath: photo.filePath,
+    originalName: photo.originalName,
     day: photo.day,
     bucket: photo.bucket,
     sequence: photo.sequence,
@@ -654,6 +848,9 @@ function serializeState(state: ProjectState) {
     rating: photo.rating,
     archived: photo.archived,
     currentName: photo.currentName,
+    timestamp: photo.timestamp,
+    fileModifiedTimestamp: photo.fileModifiedTimestamp,
+    timestampSource: photo.timestampSource,
     sourceFolder: photo.sourceFolder,
     folderHierarchy: photo.folderHierarchy,
     detectedDay: photo.detectedDay,
@@ -671,6 +868,8 @@ function serializeState(state: ProjectState) {
     dayLabels: state.dayLabels || {},
     dayContainers: state.dayContainers || [],
     lastModified: state.lastModified ?? Date.now(),
+    ingested: state.ingested,
+    sourceRoot: state.sourceRoot,
     edits,
   };
 }
@@ -705,16 +904,60 @@ function applyManifestEdits(photos: ProjectPhoto[], edits: ProjectManifestPhoto[
     if (!edit) return photo;
     return {
       ...photo,
+      originalName: edit.originalName,
+      currentName: edit.currentName,
+      timestamp: edit.timestamp,
+      fileModifiedTimestamp: edit.fileModifiedTimestamp,
+      timestampSource: edit.timestampSource,
+      fileSize: edit.fileSize,
       day: edit.day,
       bucket: edit.bucket,
       sequence: edit.sequence,
       favorite: edit.favorite,
       rating: edit.rating,
       archived: edit.archived,
-      currentName: edit.currentName,
       subfolderOverride: edit.subfolderOverride,
     };
   });
+}
+
+function dedupeLogicalPhotos(
+  photos: ProjectPhoto[],
+  settings: ProjectSettings,
+  preferredPaths = new Set<string>(),
+) {
+  const groups = new Map<string, ProjectPhoto[]>();
+
+  photos.forEach(photo => {
+    const key = `${photo.originalName}|${photo.timestamp}|${photo.fileSize ?? '0'}`;
+    if (!groups.has(key)) {
+      groups.set(key, []);
+    }
+    groups.get(key)!.push(photo);
+  });
+
+  const scorePhoto = (photo: ProjectPhoto) => {
+    let score = 0;
+    if (photo.filePath && preferredPaths.has(photo.filePath)) score += 100;
+    if (photo.currentName !== photo.originalName) score += 25;
+    if (photo.isPreOrganized) score += 20;
+    if (photo.filePath?.includes(`${settings.folderStructure.daysFolder}/`)) score += 10;
+    if (photo.filePath?.includes(`${settings.folderStructure.archiveFolder}/`)) score += 10;
+    if (photo.bucket && photo.day !== null) score += 5;
+    return score;
+  };
+
+  return Array.from(groups.values())
+    .map(group =>
+      group
+        .slice()
+        .sort((a, b) => {
+          const scoreDiff = scorePhoto(b) - scorePhoto(a);
+          if (scoreDiff !== 0) return scoreDiff;
+          return (a.filePath || '').localeCompare(b.filePath || '');
+        })[0],
+    )
+    .sort((a, b) => a.timestamp - b.timestamp);
 }
 
 function buildManifest(state: ProjectState): ProjectManifest {
@@ -723,6 +966,8 @@ function buildManifest(state: ProjectState): ProjectManifest {
     originalName: photo.originalName,
     currentName: photo.currentName,
     timestamp: photo.timestamp,
+    fileModifiedTimestamp: photo.fileModifiedTimestamp,
+    timestampSource: photo.timestampSource,
     fileSize: photo.fileSize,
     day: photo.day,
     bucket: photo.bucket,
@@ -905,17 +1150,22 @@ export async function getState(projectId: string): Promise<ProjectState> {
     photos,
     settings.folderStructure?.archiveFolder || DEFAULT_SETTINGS.folderStructure.archiveFolder,
   );
+  const dedupedPhotos = dedupeLogicalPhotos(
+    archivedPhotos,
+    settings,
+    new Set((manifest?.photos || []).map(photo => photo.filePath).filter(Boolean) as string[]),
+  );
 
   return {
     projectName: manifest?.projectName || stored.projectName || handle.name,
     rootPath: manifest?.rootPath || stored.rootPath || handle.name,
-    photos: archivedPhotos,
+    photos: dedupedPhotos,
     settings,
     dayLabels: manifest?.dayLabels || stored.dayLabels || {},
     dayContainers: manifest?.dayContainers || stored.dayContainers || [],
     lastModified: manifest?.lastModified || stored.lastModified,
-    ingested: manifest?.ingested,
-    sourceRoot: manifest?.sourceRoot,
+    ingested: manifest?.ingested ?? stored.ingested ?? true,
+    sourceRoot: manifest?.sourceRoot ?? stored.sourceRoot,
   };
 }
 
@@ -948,6 +1198,12 @@ export async function deleteProject(projectId: string): Promise<void> {
       tx.oncomplete = () => resolve();
       tx.onerror = () => reject(tx.error);
     });
+  } catch (e) {
+    // ignore
+  }
+
+  try {
+    await removeExportDestinationHandle(projectId);
   } catch (e) {
     // ignore
   }

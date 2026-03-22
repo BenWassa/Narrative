@@ -31,6 +31,8 @@ const makeSampleState = () => {
       originalName: `IMG_${1000 + index}.jpg`,
       currentName: `IMG_${1000 + index}.jpg`,
       timestamp: Date.now() + index * 1000,
+      fileModifiedTimestamp: Date.now() + index * 1000,
+      timestampSource: 'filesystem' as const,
       day: null,
       bucket: null,
       sequence: null,
@@ -57,6 +59,7 @@ const makeSampleState = () => {
         metaFolder: '_meta',
       },
     },
+    ingested: true,
   };
 };
 

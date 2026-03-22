@@ -7,6 +7,8 @@ const createMockPhoto = (overrides: Partial<ProjectPhoto> = {}): ProjectPhoto =>
   originalName: 'IMG_1234.jpg',
   currentName: 'IMG_1234.jpg',
   timestamp: 1000000,
+  fileModifiedTimestamp: 1000000,
+  timestampSource: 'filesystem',
   fileSize: 5000000,
   day: null,
   bucket: null,
@@ -82,7 +84,7 @@ describe('buildOperationPlan', () => {
     expect(plan.operations[0].reason).toBe('renamed');
   });
 
-  it('should generate correct multi-day nested paths', () => {
+  it('should resolve auto mode to single-day flat for one active day', () => {
     const photo = createMockPhoto({
       id: 'photo-1',
       originalName: 'IMG_1234.jpg',
@@ -100,9 +102,9 @@ describe('buildOperationPlan', () => {
     });
 
     expect(plan.operations[0].destinationRelativePath).toBe(
-      '01_DAYS/Day 01 – Reykjavik/A_Establishing/D01_A_001__IMG_1234.jpg',
+      'A_Establishing/D01_A_001__IMG_1234.jpg',
     );
-    expect(plan.resolvedStructureMode).toBe('single_day_flat'); // single day
+    expect(plan.resolvedStructureMode).toBe('single_day_flat');
   });
 
   it('should generate correct single-day flat paths', () => {
@@ -284,5 +286,26 @@ describe('buildOperationPlan', () => {
     });
 
     expect(plan.conflictPolicy).toBe('skip_on_existing');
+  });
+
+  it('should skip already-existing destination files during direct processing planning', () => {
+    const photo = createMockPhoto({
+      id: 'photo-1',
+      currentName: 'D01_A_001__IMG_1234.jpg',
+      bucket: 'A',
+      day: 1,
+    });
+
+    const plan = buildOperationPlan({
+      photos: [photo],
+      dayLabels,
+      projectSettings: mockSettings,
+      structureMode: 'single_day_flat',
+      existingDestinationPaths: ['A_Establishing/D01_A_001__IMG_1234.jpg'],
+    });
+
+    expect(plan.operations).toHaveLength(0);
+    expect(plan.preexistingSkips).toHaveLength(1);
+    expect(plan.summary.preexistingSkipCount).toBe(1);
   });
 });
