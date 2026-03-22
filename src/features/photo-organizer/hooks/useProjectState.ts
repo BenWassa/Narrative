@@ -14,6 +14,7 @@ import {
   getHandle,
   getState,
   initProject,
+  type ProjectMode,
   ProjectPhoto,
   ProjectSettings,
   ProjectState,
@@ -56,6 +57,7 @@ export function useProjectState({
   const [projectRootPath, setProjectRootPath] = useState<string | null>(null);
   const [projectFolderLabel, setProjectFolderLabel] = useState<string | null>(null);
   const [projectSettings, setProjectSettings] = useState<ProjectSettings>(DEFAULT_SETTINGS);
+  const [projectMode, setProjectMode] = useState<ProjectMode>('single_day');
   const [ingested, setIngested] = useState<boolean>(true);
   const [sourceRoot, setSourceRoot] = useState<string | undefined>(undefined);
   const [recentProjects, setRecentProjects] = useState<RecentProject[]>([]);
@@ -148,6 +150,7 @@ export function useProjectState({
       setProjectName(state.projectName || 'No Project');
       setProjectFolderLabel(state.rootPath || null);
       setProjectSettings(state.settings || DEFAULT_SETTINGS);
+      setProjectMode(state.projectMode || 'single_day');
       setIngested(state.ingested ?? true);
       setSourceRoot(state.sourceRoot);
       setDayLabels((state as any).dayLabels || {});
@@ -458,6 +461,7 @@ export function useProjectState({
           dirHandle: state.dirHandle,
           projectName: state.projectName,
           rootLabel: state.rootPath,
+          projectMode: state.projectMode,
           onProgress: (progress, message) => {
             const mappedProgress = 5 + progress * 0.789;
             setLoadingProgress(mappedProgress);
@@ -469,7 +473,9 @@ export function useProjectState({
         setLoadingMessage('Processing photo organization...');
         const hydratedPhotos = state.mappings?.length
           ? applyFolderMappings(initResult.photos, state.mappings)
-          : applySuggestedDays(initResult.photos, initResult.suggestedDays);
+          : state.projectMode === 'multi_day'
+          ? applySuggestedDays(initResult.photos, initResult.suggestedDays)
+          : initResult.photos;
 
         if (debugEnabled) {
           console.group('🎯 FINAL PHOTO ORGANIZATION');
@@ -582,6 +588,7 @@ export function useProjectState({
             rootPath: state.rootPath || state.dirHandle.name,
             photos: freshWithEdits,
             settings: existingState.settings || DEFAULT_SETTINGS,
+            projectMode: existingState.projectMode || state.projectMode || 'single_day',
             dayContainers: existingState.dayContainers || selectedDayContainers,
             dayLabels: existingState.dayLabels,
             lastModified: Date.now(),
@@ -595,6 +602,7 @@ export function useProjectState({
             rootPath: state.rootPath || state.dirHandle.name,
             photos: hydratedPhotos,
             settings: DEFAULT_SETTINGS,
+            projectMode: state.projectMode,
             dayContainers: selectedDayContainers,
             ingested: true,
           };
@@ -607,6 +615,7 @@ export function useProjectState({
         setProjectRootPath(nextProjectId);
         setProjectFolderLabel(state.rootPath || state.dirHandle.name);
         setProjectSettings(nextState.settings || DEFAULT_SETTINGS);
+        setProjectMode(nextState.projectMode || 'single_day');
         setIngested(nextState.ingested ?? true);
         setSourceRoot(nextState.sourceRoot);
         setShowOnboarding(false);
@@ -737,6 +746,7 @@ export function useProjectState({
         rootPath: projectFolderLabel || projectName || 'Unknown location',
         photos,
         settings: projectSettings,
+        projectMode,
         dayLabels: (dayLabels as any) || {},
         dayContainers: dayContainers || [],
         lastModified: Date.now(),
@@ -765,6 +775,7 @@ export function useProjectState({
     dayContainers,
     ingested,
     sourceRoot,
+    projectMode,
     loadingProject,
     showWelcome,
   ]);
@@ -777,6 +788,7 @@ export function useProjectState({
         rootPath: projectFolderLabel || projectRootPath,
         photos: newPhotos ?? photos,
         settings: projectSettings,
+        projectMode,
         dayLabels: dayLabels as any,
         dayContainers: dayContainers || [],
         lastModified: Date.now(),
@@ -795,6 +807,7 @@ export function useProjectState({
       dayContainers,
       ingested,
       sourceRoot,
+      projectMode,
     ],
   );
 
@@ -817,6 +830,8 @@ export function useProjectState({
     setProjectFolderLabel,
     projectSettings,
     setProjectSettings,
+    projectMode,
+    setProjectMode,
     ingested,
     setIngested,
     sourceRoot,

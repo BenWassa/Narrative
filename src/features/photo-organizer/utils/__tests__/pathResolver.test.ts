@@ -34,7 +34,7 @@ describe('pathResolver', () => {
       archived: false,
       thumbnail: '',
       ...overrides,
-    }) as ProjectPhoto;
+    } as ProjectPhoto);
 
   describe('resolveSourceRoot', () => {
     it('should return explicit sourceRoot if set', () => {
@@ -69,8 +69,18 @@ describe('pathResolver', () => {
         settings: mockSettings,
       };
       const photos: ProjectPhoto[] = [
-        createPhoto({ id: '1', filePath: '/photos/trip/IMG_001.jpg', originalName: 'IMG_001.jpg', currentName: 'IMG_001.jpg' }),
-        createPhoto({ id: '2', filePath: '/photos/trip/IMG_002.jpg', originalName: 'IMG_002.jpg', currentName: 'IMG_002.jpg' }),
+        createPhoto({
+          id: '1',
+          filePath: '/photos/trip/IMG_001.jpg',
+          originalName: 'IMG_001.jpg',
+          currentName: 'IMG_001.jpg',
+        }),
+        createPhoto({
+          id: '2',
+          filePath: '/photos/trip/IMG_002.jpg',
+          originalName: 'IMG_002.jpg',
+          currentName: 'IMG_002.jpg',
+        }),
       ];
 
       const result = resolveSourceRoot(state as ProjectState, photos);
@@ -98,7 +108,12 @@ describe('pathResolver', () => {
         settings: mockSettings,
       };
       const photos: ProjectPhoto[] = [
-        createPhoto({ id: '1', filePath: '/photos/trip/IMG_001.jpg', originalName: 'IMG_001.jpg', currentName: 'IMG_001.jpg' }),
+        createPhoto({
+          id: '1',
+          filePath: '/photos/trip/IMG_001.jpg',
+          originalName: 'IMG_001.jpg',
+          currentName: 'IMG_001.jpg',
+        }),
       ];
 
       const result = resolveDestinationRoot(state as ProjectState, photos);

@@ -9,8 +9,7 @@ interface UseOnboardingHandlersOptions {
   ) => Promise<boolean>;
   clearPhotoHistory: () => void;
   resetSelection: () => void;
-  setSelectedDay: (day: number | null) => void;
-  setSelectedRootFolder: (folder: string | null) => void;
+  setSelectedTreePath: (path: string | null) => void;
   setCurrentView: (view: string) => void;
 }
 
@@ -18,8 +17,7 @@ export function useOnboardingHandlers({
   handleOnboardingCompleteInternal,
   clearPhotoHistory,
   resetSelection,
-  setSelectedDay,
-  setSelectedRootFolder,
+  setSelectedTreePath,
   setCurrentView,
 }: UseOnboardingHandlersOptions) {
   const handleOnboardingComplete = useCallback(
@@ -31,8 +29,7 @@ export function useOnboardingHandlers({
 
       clearPhotoHistory();
       resetSelection();
-      setSelectedDay(null);
-      setSelectedRootFolder(null);
+      setSelectedTreePath(null);
       setCurrentView('folders');
     },
     [
@@ -40,8 +37,7 @@ export function useOnboardingHandlers({
       handleOnboardingCompleteInternal,
       resetSelection,
       setCurrentView,
-      setSelectedDay,
-      setSelectedRootFolder,
+      setSelectedTreePath,
     ],
   );
 

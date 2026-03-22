@@ -1,5 +1,6 @@
 import React, { useCallback, useState } from 'react';
 import { FolderOpen, X } from 'lucide-react';
+import type { ProjectMode } from './services/projectService';
 import {
   detectBucketsInFolder,
   detectFolderStructure,
@@ -10,6 +11,7 @@ export interface OnboardingState {
   projectName: string;
   rootPath: string;
   dirHandle: FileSystemDirectoryHandle;
+  projectMode: ProjectMode;
   mappings: Array<FolderMapping & { skip?: boolean }>;
 }
 
@@ -45,6 +47,7 @@ export default function OnboardingModal({
   const [dirHandle, setDirHandle] = useState<FileSystemDirectoryHandle | null>(null);
   const [mappings, setMappings] = useState<Array<FolderMapping & { skip?: boolean }>>([]);
   const [loading, setLoading] = useState(false);
+  const [projectMode, setProjectMode] = useState<ProjectMode>('single_day');
   const fileInputRef = React.useRef<HTMLInputElement | null>(null);
 
   const handleDetect = useCallback(async () => {
@@ -60,6 +63,29 @@ export default function OnboardingModal({
     setLoading(true);
 
     try {
+      if (projectMode === 'single_day') {
+        const folderPath = rootPath.trim() || dirHandle.name;
+        const duplicateProject = recentProjects.find(
+          p => p.rootPath.toLowerCase() === folderPath.toLowerCase(),
+        );
+
+        if (duplicateProject) {
+          setError(
+            `This folder is already being used by project "${duplicateProject.projectName}". Opening the same folder twice could cause conflicts. Open the existing project instead or choose a different folder.`,
+          );
+          return;
+        }
+
+        onComplete({
+          projectName: projectName.trim(),
+          rootPath: folderPath,
+          dirHandle,
+          projectMode,
+          mappings: [],
+        });
+        onClose();
+        return;
+      }
       const supportedExt = [
         'jpg',
         'jpeg',
@@ -203,7 +229,7 @@ export default function OnboardingModal({
     } finally {
       setLoading(false);
     }
-  }, [dirHandle, projectName]);
+  }, [dirHandle, onClose, onComplete, projectMode, projectName, recentProjects, rootPath]);
 
   const handleMappingChange = useCallback(
     (index: number, field: keyof FolderMapping | 'skip', value: any) => {
@@ -251,10 +277,20 @@ export default function OnboardingModal({
       projectName: projectName.trim(),
       rootPath: folderPath,
       dirHandle,
+      projectMode,
       mappings,
     });
     onClose();
-  }, [dirHandle, mappings, onClose, onComplete, projectName, rootPath, recentProjects]);
+  }, [
+    dirHandle,
+    mappings,
+    onClose,
+    onComplete,
+    projectMode,
+    projectName,
+    rootPath,
+    recentProjects,
+  ]);
 
   if (!isOpen) return null;
 
@@ -340,11 +376,7 @@ export default function OnboardingModal({
                   <input
                     ref={fileInputRef}
                     type="file"
-                    webkitdirectory="true"
-                    as
-                    any
-                    directory="true"
-                    mozdirectory="true"
+                    {...({ webkitdirectory: '', directory: '', mozdirectory: '' } as any)}
                     className="hidden"
                     onChange={e => {
                       const files = e.currentTarget.files;
@@ -378,6 +410,43 @@ export default function OnboardingModal({
                   Use the folder picker to grant access. If the picker is unavailable, paste the
                   full path (the app will ask again on first open).
                 </p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Project Topology
+                </label>
+                <div className="grid grid-cols-2 gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setProjectMode('single_day')}
+                    className={`rounded-lg border px-4 py-3 text-left ${
+                      projectMode === 'single_day'
+                        ? 'border-blue-500 bg-blue-50'
+                        : 'border-gray-200 bg-white'
+                    }`}
+                  >
+                    <div className="text-sm font-semibold text-gray-900">Single Day</div>
+                    <div className="mt-1 text-xs text-gray-600">
+                      Use root bucket folders only. This project will not create day folders unless
+                      you explicitly convert it later.
+                    </div>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setProjectMode('multi_day')}
+                    className={`rounded-lg border px-4 py-3 text-left ${
+                      projectMode === 'multi_day'
+                        ? 'border-blue-500 bg-blue-50'
+                        : 'border-gray-200 bg-white'
+                    }`}
+                  >
+                    <div className="text-sm font-semibold text-gray-900">Multi Day</div>
+                    <div className="mt-1 text-xs text-gray-600">
+                      Use a day-based structure with bucket folders nested under day folders.
+                    </div>
+                  </button>
+                </div>
               </div>
             </>
           )}
@@ -484,7 +553,7 @@ export default function OnboardingModal({
                 aria-disabled={!projectName.trim() || !dirHandle || loading}
                 className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium disabled:bg-gray-200 disabled:text-gray-500 disabled:cursor-not-allowed"
               >
-                {loading ? 'Detecting…' : 'Next'}
+                {loading ? 'Preparing…' : projectMode === 'single_day' ? 'Create Project' : 'Next'}
               </button>
             </>
           ) : (

@@ -130,6 +130,38 @@ describe('buildOperationPlan', () => {
     expect(plan.resolvedStructureMode).toBe('single_day_flat');
   });
 
+  it('should let projectMode force single-day flat even when multiple days are assigned', () => {
+    const photo1 = createMockPhoto({
+      id: 'photo-1',
+      currentName: 'D01_A_001__IMG_1234.jpg',
+      filePath: 'source/IMG_1234.jpg',
+      bucket: 'A',
+      day: 1,
+    });
+    const photo2 = createMockPhoto({
+      id: 'photo-2',
+      originalName: 'IMG_5678.jpg',
+      currentName: 'D02_B_001__IMG_5678.jpg',
+      filePath: 'source/IMG_5678.jpg',
+      bucket: 'B',
+      day: 2,
+    });
+
+    const plan = buildOperationPlan({
+      photos: [photo1, photo2],
+      dayLabels,
+      projectSettings: mockSettings,
+      projectMode: 'single_day',
+      structureMode: 'auto',
+    });
+
+    expect(plan.resolvedStructureMode).toBe('single_day_flat');
+    expect(plan.operations.map(operation => operation.destinationRelativePath)).toEqual([
+      'A_Establishing/D01_A_001__IMG_1234.jpg',
+      'B_People/D02_B_001__IMG_5678.jpg',
+    ]);
+  });
+
   it('should route archive photos correctly', () => {
     const photo = createMockPhoto({
       id: 'photo-1',

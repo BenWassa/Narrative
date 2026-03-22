@@ -7,13 +7,11 @@ export function useViewOptions() {
   const [showHelp, setShowHelp] = useState(false);
   const [galleryViewPhoto, setGalleryViewPhoto] = useState<string | null>(null);
   const [fullscreenPhoto, setFullscreenPhoto] = useState<string | null>(null);
-  const [selectedDay, setSelectedDay] = useState<number | null>(null);
-  const [selectedRootFolder, setSelectedRootFolder] = useState<string | null>(null);
+  const [selectedTreePath, setSelectedTreePath] = useState<string | null>(null);
 
   const foldersViewStateRef = useRef<{
-    selectedRootFolder: string | null;
-    selectedDay: number | null;
-  }>({ selectedRootFolder: null, selectedDay: null });
+    selectedTreePath: string | null;
+  }>({ selectedTreePath: null });
 
   return {
     currentView,
@@ -28,10 +26,8 @@ export function useViewOptions() {
     setGalleryViewPhoto,
     fullscreenPhoto,
     setFullscreenPhoto,
-    selectedDay,
-    setSelectedDay,
-    selectedRootFolder,
-    setSelectedRootFolder,
+    selectedTreePath,
+    setSelectedTreePath,
     foldersViewStateRef,
   };
 }

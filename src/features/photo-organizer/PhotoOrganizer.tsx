@@ -5,9 +5,14 @@ import StartScreen from './StartScreen';
 import LoadingModal from './ui/LoadingModal';
 import { versionManager } from '../../lib/versionManager';
 import {
+  buildProjectTree,
+  convertProjectToMultiDay,
   deleteProject as deleteProjectService,
+  deleteProjectFolder,
   ProjectPhoto,
+  ProjectTreeNode,
   type ProjectState,
+  renameProjectFolder,
   saveState,
   saveHandle,
   getHandle,
@@ -21,10 +26,7 @@ import { useToast } from './hooks/useToast';
 import { useExportScript } from './hooks/useExportScript';
 import { useDirectProcessing } from './hooks/useDirectProcessing';
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
-import { useDayEditing } from './hooks/useDayEditing';
-import { useFolderModel } from './hooks/useFolderModel';
 import { useCoverPhoto } from './hooks/useCoverPhoto';
-import { useAutoSelection } from './hooks/useAutoSelection';
 import { useCoverSelection } from './hooks/useCoverSelection';
 import { useOnboardingHandlers } from './hooks/useOnboardingHandlers';
 import ProjectHeader from './components/ProjectHeader';
@@ -63,10 +65,8 @@ export default function PhotoOrganizer() {
     setGalleryViewPhoto,
     fullscreenPhoto,
     setFullscreenPhoto,
-    selectedDay,
-    setSelectedDay,
-    selectedRootFolder,
-    setSelectedRootFolder,
+    selectedTreePath,
+    setSelectedTreePath,
     foldersViewStateRef,
   } = useViewOptions();
 
@@ -85,6 +85,7 @@ export default function PhotoOrganizer() {
     setProjectRootPath,
     projectFolderLabel,
     projectSettings,
+    projectMode,
     ingested,
     sourceRoot,
     recentProjects,
@@ -137,6 +138,7 @@ export default function PhotoOrganizer() {
     dayLabels,
     projectSettings,
     projectRootPath || undefined,
+    projectMode,
     ingested,
     sourceRoot,
   );
@@ -161,6 +163,7 @@ export default function PhotoOrganizer() {
     dayLabels,
     projectSettings,
     projectRootPath ?? null,
+    projectMode,
     ingested,
     sourceRoot,
   );
@@ -192,8 +195,7 @@ export default function PhotoOrganizer() {
         directPlan.operations
           .filter(operation =>
             directResult.executionLog.operations.some(
-              log =>
-                log.status === 'copied' && log.sourcePath === operation.sourceRelativePath,
+              log => log.status === 'copied' && log.sourcePath === operation.sourceRelativePath,
             ),
           )
           .map(operation => [operation.sourceRelativePath, operation]),
@@ -226,6 +228,7 @@ export default function PhotoOrganizer() {
         rootPath: projectFolderLabel || projectRootPath,
         photos: nextPhotos,
         settings: projectSettings,
+        projectMode,
         dayLabels: dayLabels as any,
         dayContainers: dayContainers || [],
         lastModified: Date.now(),
@@ -250,6 +253,7 @@ export default function PhotoOrganizer() {
     projectName,
     projectFolderLabel,
     projectSettings,
+    projectMode,
     dayLabels,
     dayContainers,
     ingested,
@@ -296,28 +300,117 @@ export default function PhotoOrganizer() {
 
     fetchVersion();
   }, [debugEnabled]);
+  const [projectTree, setProjectTree] = useState<ProjectTreeNode[]>([]);
 
-  const {
-    days,
-    visibleDays,
-    normalizePath,
-    sortFolders,
-    getDerivedSubfolderGroup,
-    getSubfolderGroup,
-    rootGroups,
-    displayRootGroups,
-    filteredPhotos,
-  } = useFolderModel({
-    photos,
-    dayLabels,
-    dayContainers,
-    projectSettings,
-    debugEnabled,
-    currentView,
-    selectedDay,
-    selectedRootFolder,
-    hideAssigned,
-  });
+  const refreshProjectTree = useCallback(async () => {
+    if (!projectRootPath) {
+      setProjectTree([]);
+      return;
+    }
+    const handle = await getHandle(projectRootPath);
+    if (!handle) {
+      setProjectTree([]);
+      return;
+    }
+    const nextTree = await buildProjectTree(handle, projectMode, projectSettings, photos);
+    setProjectTree(nextTree);
+  }, [projectRootPath, projectMode, projectSettings, photos]);
+
+  useEffect(() => {
+    refreshProjectTree().catch(error => {
+      console.warn('Failed to refresh project tree:', error);
+    });
+  }, [refreshProjectTree]);
+
+  const findTreeNode = useCallback(
+    (nodes: ProjectTreeNode[], targetPath: string | null): ProjectTreeNode | null => {
+      if (!targetPath) return null;
+      for (const node of nodes) {
+        if (node.relativePath === targetPath) return node;
+        const found = findTreeNode(node.children, targetPath);
+        if (found) return found;
+      }
+      return null;
+    },
+    [],
+  );
+
+  const selectedTreeNode = React.useMemo(
+    () => findTreeNode(projectTree, selectedTreePath),
+    [findTreeNode, projectTree, selectedTreePath],
+  );
+
+  const normalizePath = useCallback(
+    (value: string) => value.split(/[\\/]/).filter(Boolean).join('/'),
+    [],
+  );
+
+  const days = React.useMemo(
+    () =>
+      Array.from(
+        photos.reduce((map, photo) => {
+          if (photo.day != null && !photo.archived) {
+            if (!map.has(photo.day)) map.set(photo.day, []);
+            map.get(photo.day)!.push(photo);
+          }
+          return map;
+        }, new Map<number, ProjectPhoto[]>()),
+      ).sort((a, b) => a[0] - b[0]),
+    [photos],
+  );
+
+  const filteredPhotos = React.useMemo(() => {
+    if (currentView === 'favorites') {
+      return photos.filter(photo => photo.favorite && !photo.archived);
+    }
+    if (currentView === 'archive') {
+      return photos.filter(photo => photo.archived);
+    }
+    if (currentView === 'review') {
+      return photos.filter(photo => Boolean(photo.bucket) && !photo.archived);
+    }
+    if (currentView !== 'folders' || !selectedTreePath) {
+      return [];
+    }
+
+    const selectedPath = normalizePath(selectedTreePath);
+    return photos.filter(photo => {
+      if (photo.archived) return false;
+      const photoPath = normalizePath(photo.filePath || '');
+      return photoPath === selectedPath || photoPath.startsWith(`${selectedPath}/`);
+    });
+  }, [currentView, normalizePath, photos, selectedTreePath]);
+
+  const selectedDayForGrouping = React.useMemo(
+    () =>
+      selectedTreeNode?.kind === 'day'
+        ? filteredPhotos.find(photo => photo.day != null)?.day ?? null
+        : null,
+    [filteredPhotos, selectedTreeNode],
+  );
+
+  const getDerivedSubfolderGroup = useCallback(
+    (photo: ProjectPhoto, dayNumber: number | null) => {
+      if (dayNumber == null || !photo.filePath) return 'Day Root';
+      const dayLabel = dayLabels[dayNumber] || `Day ${String(dayNumber).padStart(2, '0')}`;
+      const parts = normalizePath(photo.filePath).split('/');
+      const dayIndex = parts.findIndex(part => part === dayLabel);
+      if (dayIndex === -1) return 'Day Root';
+      const nextPart = parts[dayIndex + 1];
+      if (!nextPart || /^[A-Z]_/.test(nextPart)) return 'Day Root';
+      return nextPart;
+    },
+    [dayLabels, normalizePath],
+  );
+
+  const getSubfolderGroup = useCallback(
+    (photo: ProjectPhoto, dayNumber: number | null) => {
+      if (photo.subfolderOverride === null) return 'Day Root';
+      if (typeof photo.subfolderOverride === 'string') return photo.subfolderOverride;
+      return getDerivedSubfolderGroup(photo, dayNumber);
+    },
+    [getDerivedSubfolderGroup],
+  );
 
   const isVideoPhoto = useCallback((photo: ProjectPhoto) => {
     if (photo.mimeType?.startsWith('video/')) return true;
@@ -326,43 +419,14 @@ export default function PhotoOrganizer() {
   }, []);
 
   const orderingResult = React.useMemo(() => {
-    const rootPhotosForOrdering =
-      currentView === 'folders' && selectedRootFolder
-        ? (rootGroups.find(group => group[0] === selectedRootFolder)?.[1] || []).filter(
-            photo => !photo.archived,
-          )
-        : null;
-    const displayPhotosForOrdering = rootPhotosForOrdering ?? filteredPhotos;
-
-    return sortPhotos(displayPhotosForOrdering, {
-      groupBy: selectedDay !== null ? 'subfolder' : null,
+    return sortPhotos(filteredPhotos, {
+      groupBy: selectedDayForGrouping !== null ? 'subfolder' : null,
       separateVideos: true,
-      selectedDay,
+      selectedDay: selectedDayForGrouping,
       getSubfolderGroup,
       isVideo: isVideoPhoto,
     });
-  }, [
-    currentView,
-    selectedRootFolder,
-    rootGroups,
-    filteredPhotos,
-    selectedDay,
-    getSubfolderGroup,
-    isVideoPhoto,
-  ]);
-
-  const {
-    editingDay,
-    editingDayName,
-    setEditingDayName,
-    startEditingDay,
-    saveDayName,
-    cancelEditingDay,
-  } = useDayEditing({
-    photos,
-    persistState,
-    setDayLabels,
-  });
+  }, [filteredPhotos, selectedDayForGrouping, getSubfolderGroup, isVideoPhoto]);
 
   const {
     selectedPhotos,
@@ -390,37 +454,32 @@ export default function PhotoOrganizer() {
     handleOnboardingCompleteInternal,
     clearPhotoHistory,
     resetSelection,
-    setSelectedDay,
-    setSelectedRootFolder,
+    setSelectedTreePath,
     setCurrentView,
   });
 
-  const clearSelectedDay = useCallback(() => {
-    setSelectedDay(null);
-    setSelectedRootFolder(null);
-  }, [setSelectedDay, setSelectedRootFolder]);
-
-  useAutoSelection({
-    projectRootPath,
-    photosLength: photos.length,
-    selectedRootFolder,
-    selectedDay,
-    currentView,
-    days,
-    rootGroups,
-    setSelectedDay,
-    setSelectedRootFolder,
-  });
+  useEffect(() => {
+    if (currentView !== 'folders' || selectedTreePath || projectTree.length === 0) {
+      return;
+    }
+    setSelectedTreePath(projectTree[0].relativePath);
+  }, [currentView, projectTree, selectedTreePath, setSelectedTreePath]);
 
   const assignBucket = useCallback(
     (photoIds: string | string[], bucket: string, dayNum: number | null = null) => {
       const ids = Array.isArray(photoIds) ? photoIds : [photoIds];
       photoDispatch({
         type: 'ASSIGN_BUCKET',
-        payload: { photoIds: ids, bucket, selectedDay, dayNum },
+        payload: {
+          photoIds: ids,
+          bucket,
+          selectedDay: selectedDayForGrouping,
+          projectMode,
+          dayNum,
+        },
       });
     },
-    [photoDispatch, selectedDay],
+    [photoDispatch, selectedDayForGrouping, projectMode],
   );
 
   const removeDayAssignment = useCallback(
@@ -438,6 +497,67 @@ export default function PhotoOrganizer() {
     },
     [photoDispatch],
   );
+
+  const currentProjectState = React.useMemo<ProjectState>(
+    () => ({
+      projectName,
+      rootPath: projectFolderLabel || projectRootPath || projectName,
+      photos,
+      settings: projectSettings,
+      projectMode,
+      dayLabels: dayLabels as any,
+      dayContainers: dayContainers || [],
+      lastModified: Date.now(),
+      ingested,
+      sourceRoot,
+    }),
+    [
+      dayContainers,
+      dayLabels,
+      ingested,
+      photos,
+      projectFolderLabel,
+      projectMode,
+      projectName,
+      projectRootPath,
+      projectSettings,
+      sourceRoot,
+    ],
+  );
+
+  const handleRenameFolder = useCallback(
+    async (path: string, newName: string) => {
+      if (!projectRootPath) return;
+      await renameProjectFolder(projectRootPath, currentProjectState, path, newName);
+      setSelectedTreePath(null);
+      await loadProject(projectRootPath, { addRecent: false });
+      showToast(`Renamed ${path}.`, 'info');
+    },
+    [currentProjectState, loadProject, projectRootPath, setSelectedTreePath, showToast],
+  );
+
+  const handleDeleteFolder = useCallback(
+    async (path: string) => {
+      if (!projectRootPath) return;
+      await deleteProjectFolder(projectRootPath, currentProjectState, path);
+      setSelectedTreePath(null);
+      await loadProject(projectRootPath, { addRecent: false });
+      showToast(`Deleted ${path}.`, 'info');
+    },
+    [currentProjectState, loadProject, projectRootPath, setSelectedTreePath, showToast],
+  );
+
+  const handleConvertToMultiDay = useCallback(async () => {
+    if (!projectRootPath) return;
+    const confirmed = window.confirm(
+      'Convert this single-day project to multi-day? Root bucket folders will be moved into Day 01.',
+    );
+    if (!confirmed) return;
+    await convertProjectToMultiDay(projectRootPath, currentProjectState);
+    setSelectedTreePath(null);
+    await loadProject(projectRootPath, { addRecent: false });
+    showToast('Project converted to multi-day.', 'info');
+  }, [currentProjectState, loadProject, projectRootPath, setSelectedTreePath, showToast]);
 
   const isViewerOpen = galleryViewPhoto !== null;
 
@@ -483,7 +603,7 @@ export default function PhotoOrganizer() {
       unsorted: photos.filter(p => !p.bucket && !p.archived).length,
       archived: photos.filter(p => p.archived).length,
       favorites: photos.filter(p => p.favorite).length,
-      root: photos.filter(p => p.day === null && !p.archived).length,
+      root: photos.filter(p => !p.bucket && !p.archived).length,
     }),
     [photos],
   );
@@ -575,14 +695,13 @@ export default function PhotoOrganizer() {
         onChangeView={viewId => setCurrentView(viewId)}
         onToggleHideAssigned={() => setHideAssigned(prev => !prev)}
         onRememberFoldersViewState={() => {
-          foldersViewStateRef.current = { selectedRootFolder, selectedDay };
+          foldersViewStateRef.current = { selectedTreePath };
         }}
         onRestoreFoldersViewState={() => {
-          setSelectedRootFolder(foldersViewStateRef.current.selectedRootFolder);
-          setSelectedDay(foldersViewStateRef.current.selectedDay);
+          setSelectedTreePath(foldersViewStateRef.current.selectedTreePath);
         }}
         onClearDaySelection={() => {
-          setSelectedDay(null);
+          setSelectedTreePath(null);
         }}
       />
 
@@ -593,46 +712,30 @@ export default function PhotoOrganizer() {
           sidebarCollapsed={sidebarCollapsed}
           onCollapseSidebar={() => setSidebarCollapsed(true)}
           onExpandSidebar={() => setSidebarCollapsed(false)}
-          visibleDays={visibleDays}
-          selectedDay={selectedDay}
-          selectedRootFolder={selectedRootFolder}
-          onSelectDay={setSelectedDay}
-          onSelectRootFolder={setSelectedRootFolder}
-          editingDay={editingDay}
-          editingDayName={editingDayName}
-          onChangeEditingDayName={setEditingDayName}
-          onStartEditingDay={startEditingDay}
-          onSaveDayName={saveDayName}
-          onCancelEditingDay={cancelEditingDay}
-          onClearSelectedDay={clearSelectedDay}
-          days={days}
-          dayLabels={dayLabels}
-          dayContainers={dayContainers}
-          photos={photos}
-          normalizePath={normalizePath}
-          rootGroups={rootGroups}
-          displayRootGroups={displayRootGroups}
-          sortFolders={sortFolders}
-          projectSettings={projectSettings}
-          debugEnabled={debugEnabled}
+          tree={projectTree}
+          selectedTreePath={selectedTreePath}
+          onSelectTreePath={setSelectedTreePath}
+          onRenameFolder={handleRenameFolder}
+          onDeleteFolder={handleDeleteFolder}
+          projectMode={projectMode}
+          onConvertToMultiDay={projectMode === 'single_day' ? handleConvertToMultiDay : undefined}
         />
 
         <main className="flex-1 overflow-y-auto">
           <ViewContextBar
             currentView={currentView}
-            selectedDay={selectedDay}
-            selectedRootFolder={selectedRootFolder}
+            selectedTreePath={selectedTreePath}
+            projectMode={projectMode}
             hideAssigned={hideAssigned}
-            dayLabels={dayLabels}
           />
           <div className="p-6">
             <PhotoGrid
               loadingProject={loadingProject}
               currentView={currentView}
-              selectedDay={selectedDay}
-              selectedRootFolder={selectedRootFolder}
+              selectedTreePath={selectedTreePath}
+              selectedDayForGrouping={selectedDayForGrouping}
+              selectedNodeKind={selectedTreeNode?.kind ?? null}
               photos={photos}
-              rootGroups={rootGroups}
               filteredPhotos={filteredPhotos}
               selectedPhotos={selectedPhotos}
               galleryViewPhoto={galleryViewPhoto}
@@ -661,12 +764,13 @@ export default function PhotoOrganizer() {
           <RightSidebar
             selectedPhotos={selectedPhotos}
             photos={photos}
+            projectMode={projectMode}
             days={days}
             buckets={MECE_BUCKETS}
             onSaveToHistory={commitPhotos}
             onPersistState={persistState}
             onSetDayLabels={setDayLabels}
-            onSetSelectedDay={setSelectedDay}
+            onSetSelectedDay={() => {}}
             onSetCurrentView={setCurrentView}
             onSetSelectedPhotos={setSelectedPhotos}
             onRemoveDayAssignment={removeDayAssignment}

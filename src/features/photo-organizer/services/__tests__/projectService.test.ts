@@ -1,5 +1,10 @@
 import { describe, test, expect, vi, beforeEach } from 'vitest';
-import { heicToBlob, buildPhotosFromHandleForTest } from '../projectService';
+import {
+  buildPhotosFromHandleForTest,
+  buildProjectTree,
+  heicToBlob,
+  type ProjectPhoto,
+} from '../projectService';
 
 // Note: we'll import the function directly and stub global APIs where needed.
 
@@ -81,6 +86,16 @@ describe('Project file collection', () => {
       },
     } as unknown as FileSystemDirectoryHandle);
 
+  const settings = {
+    autoDay: true,
+    folderStructure: {
+      daysFolder: '01_DAYS',
+      archiveFolder: '98_ARCHIVE',
+      favoritesFolder: 'FAV',
+      metaFolder: '_meta',
+    },
+  };
+
   test('collects supported files, skips duplicates and system files', async () => {
     const img1 = new File(['aaa'], 'IMG_0001.jpg', { type: 'image/jpeg', lastModified: 1000 });
     const img1Dup = new File(['aaa'], 'IMG_0001.jpg', { type: 'image/jpeg', lastModified: 1000 });
@@ -129,5 +144,83 @@ describe('Project file collection', () => {
     expect(new Set(fingerprints).size).toBe(photos.length);
     expect(photos.every(photo => photo.fileModifiedTimestamp > 0)).toBe(true);
     expect(photos.every(photo => photo.timestampSource === 'filesystem')).toBe(true);
+  });
+
+  test('buildProjectTree exposes root bucket folders for single-day projects', async () => {
+    const root = makeDirHandle('root', {
+      A_Establishing: makeDirHandle('A_Establishing', {
+        'IMG_0001.jpg': makeFileHandle(
+          new File(['a'], 'IMG_0001.jpg', { type: 'image/jpeg', lastModified: 1000 }),
+        ),
+      }),
+      misc: makeDirHandle('misc', {}),
+      _meta: makeDirHandle('_meta', {}),
+    });
+
+    const photos: ProjectPhoto[] = [
+      {
+        id: 'photo-1',
+        originalName: 'IMG_0001.jpg',
+        currentName: 'IMG_0001.jpg',
+        timestamp: 1000,
+        fileModifiedTimestamp: 1000,
+        timestampSource: 'filesystem',
+        day: 1,
+        bucket: 'A',
+        sequence: 1,
+        favorite: false,
+        rating: 0,
+        archived: false,
+        thumbnail: '',
+        filePath: 'A_Establishing/IMG_0001.jpg',
+      },
+    ];
+
+    const tree = await buildProjectTree(root, 'single_day', settings, photos);
+    expect(tree.map(node => [node.name, node.kind])).toEqual([
+      ['_meta', 'system'],
+      ['A_Establishing', 'bucket'],
+      ['misc', 'folder'],
+    ]);
+  });
+
+  test('buildProjectTree promotes day folders for multi-day projects', async () => {
+    const root = makeDirHandle('root', {
+      '01_DAYS': makeDirHandle('01_DAYS', {
+        'Day 01': makeDirHandle('Day 01', {
+          A_Establishing: makeDirHandle('A_Establishing', {
+            'IMG_0001.jpg': makeFileHandle(
+              new File(['a'], 'IMG_0001.jpg', { type: 'image/jpeg', lastModified: 1000 }),
+            ),
+          }),
+        }),
+      }),
+      '98_ARCHIVE': makeDirHandle('98_ARCHIVE', {}),
+    });
+
+    const photos: ProjectPhoto[] = [
+      {
+        id: 'photo-1',
+        originalName: 'IMG_0001.jpg',
+        currentName: 'IMG_0001.jpg',
+        timestamp: 1000,
+        fileModifiedTimestamp: 1000,
+        timestampSource: 'filesystem',
+        day: 1,
+        bucket: 'A',
+        sequence: 1,
+        favorite: false,
+        rating: 0,
+        archived: false,
+        thumbnail: '',
+        filePath: '01_DAYS/Day 01/A_Establishing/IMG_0001.jpg',
+      },
+    ];
+
+    const tree = await buildProjectTree(root, 'multi_day', settings, photos);
+    expect(tree[0].name).toBe('Day 01');
+    expect(tree[0].kind).toBe('day');
+    expect(tree[0].children[0].kind).toBe('bucket');
+    expect(tree.some(node => node.name === '98_ARCHIVE' && node.kind === 'system')).toBe(true);
   });
 });

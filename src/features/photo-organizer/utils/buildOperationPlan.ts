@@ -1,4 +1,4 @@
-import type { ProjectPhoto, ProjectSettings } from '../services/projectService';
+import type { ProjectMode, ProjectPhoto, ProjectSettings } from '../services/projectService';
 import type { ExportStructureMode } from '../hooks/useExportScript';
 import { BUCKET_LABELS } from '../constants/meceBuckets';
 
@@ -62,6 +62,7 @@ export function buildOperationPlan(params: {
   photos: ProjectPhoto[];
   dayLabels: Record<number, string>;
   projectSettings: ProjectSettings;
+  projectMode?: ProjectMode;
   ingested?: boolean; // defaults true (backward compat)
   sourceRoot?: string;
   structureMode: ExportStructureMode;
@@ -71,6 +72,7 @@ export function buildOperationPlan(params: {
     photos,
     dayLabels,
     projectSettings,
+    projectMode,
     ingested = true,
     structureMode,
     existingDestinationPaths,
@@ -87,12 +89,14 @@ export function buildOperationPlan(params: {
   const existingDestinationSet = new Set(existingDestinationPaths ?? []);
 
   const activeDays = new Set(
-    photos
-      .filter(photo => photo.bucket && photo.day !== null)
-      .map(photo => photo.day as number),
+    photos.filter(photo => photo.bucket && photo.day !== null).map(photo => photo.day as number),
   );
   const resolvedStructureMode: 'single_day_flat' | 'multi_day_nested' =
-    structureMode === 'auto'
+    projectMode === 'single_day'
+      ? 'single_day_flat'
+      : projectMode === 'multi_day'
+      ? 'multi_day_nested'
+      : structureMode === 'auto'
       ? activeDays.size === 1
         ? 'single_day_flat'
         : 'multi_day_nested'

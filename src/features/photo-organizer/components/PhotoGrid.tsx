@@ -1,4 +1,4 @@
-import { Calendar, FolderOpen, Heart, Loader } from 'lucide-react';
+import { FolderOpen, Heart, Loader } from 'lucide-react';
 import { useRef } from 'react';
 import { PhotoViewer } from '../ui/PhotoViewer';
 import type { ProjectPhoto } from '../services/projectService';
@@ -6,7 +6,7 @@ import { navigatePhotos, sortPhotos } from '../utils/photoOrdering';
 import VirtualPhotoGrid from './VirtualPhotoGrid';
 
 const VIRTUAL_GRID_THRESHOLD = 600;
-const DOUBLE_CLICK_DELAY = 300; // milliseconds to wait for double-click detection
+const DOUBLE_CLICK_DELAY = 300;
 
 interface Bucket {
   key: string;
@@ -18,10 +18,10 @@ interface Bucket {
 interface PhotoGridProps {
   loadingProject: boolean;
   currentView: string;
-  selectedDay: number | null;
-  selectedRootFolder: string | null;
+  selectedTreePath: string | null;
+  selectedDayForGrouping: number | null;
+  selectedNodeKind?: 'folder' | 'bucket' | 'day' | 'system' | null;
   photos: ProjectPhoto[];
-  rootGroups: [string, ProjectPhoto[]][];
   filteredPhotos: ProjectPhoto[];
   selectedPhotos: Set<string>;
   galleryViewPhoto: string | null;
@@ -49,10 +49,10 @@ interface PhotoGridProps {
 export default function PhotoGrid({
   loadingProject,
   currentView,
-  selectedDay,
-  selectedRootFolder,
+  selectedTreePath,
+  selectedDayForGrouping,
+  selectedNodeKind,
   photos,
-  rootGroups,
   filteredPhotos,
   selectedPhotos,
   galleryViewPhoto,
@@ -74,33 +74,27 @@ export default function PhotoGrid({
 }: PhotoGridProps) {
   const clickTimerRef = useRef<Record<string, NodeJS.Timeout>>({});
 
-  const handlePhotoClick = (photoId: string, e: React.MouseEvent) => {
-    e.stopPropagation();
-
-    // If we already have a pending click timer, this is the double-click
+  const handlePhotoClick = (photoId: string, event: React.MouseEvent) => {
+    event.stopPropagation();
     if (clickTimerRef.current[photoId]) {
       clearTimeout(clickTimerRef.current[photoId]);
       delete clickTimerRef.current[photoId];
       onOpenViewer(photoId);
-    } else {
-      // Single click - set timer to select after delay
-      clickTimerRef.current[photoId] = setTimeout(() => {
-        delete clickTimerRef.current[photoId];
-        onSelectPhoto(photoId);
-      }, DOUBLE_CLICK_DELAY);
+      return;
     }
+
+    clickTimerRef.current[photoId] = setTimeout(() => {
+      delete clickTimerRef.current[photoId];
+      onSelectPhoto(photoId);
+    }, DOUBLE_CLICK_DELAY);
   };
 
-  const renderPhotoGrid = (
-    photosList: ProjectPhoto[],
-    orderedList: ProjectPhoto[],
-    indexMap?: Map<string, number>,
-  ) => (
+  const renderPhotoGrid = (photosList: ProjectPhoto[]) => (
     <div className="grid grid-cols-5 gap-3">
       {photosList.map(photo => (
         <div
           key={photo.id}
-          onClick={e => handlePhotoClick(photo.id, e)}
+          onClick={event => handlePhotoClick(photo.id, event)}
           data-testid={`photo-${photo.id}`}
           className={`relative group cursor-pointer rounded-lg overflow-hidden border-2 border-transparent transition-all shadow-lg hover:shadow-xl hover:border-blue-500 ${
             selectedPhotos.has(photo.id) ? 'ring-2 ring-blue-500' : ''
@@ -133,66 +127,18 @@ export default function PhotoGrid({
             )}
           </div>
 
-          {photo.mimeType?.startsWith('video/') && (
-            <div className="absolute top-2 left-2 bg-black/70 backdrop-blur-sm rounded-full p-1.5">
-              <svg className="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 20 20">
-                <path d="M6.3 2.84A1.5 1.5 0 004 4.11v11.78a1.5 1.5 0 002.3 1.27l9.344-5.891a1.5 1.5 0 000-2.538L6.3 2.841z" />
-              </svg>
+          {photo.bucket ? (
+            <div className="absolute bottom-2 left-2 rounded px-2 py-1 text-xs font-bold text-white shadow-lg z-10 bg-black/70">
+              <div className="flex items-center gap-1">
+                <span>{photo.bucket}</span>
+                {photo.favorite ? <Heart className="w-3 h-3 fill-current" /> : null}
+              </div>
             </div>
-          )}
-
-          <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/75 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity">
-            <div className="absolute bottom-0 left-0 right-0 p-2">
-              <p className="text-xs font-medium text-white truncate">{photo.currentName}</p>
-            </div>
-          </div>
-
-          {photo.isPreOrganized && (
-            <div className="absolute top-2 right-2 z-10">
-              <span
-                className="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-blue-600 text-white shadow-lg"
-                title={`Auto-assigned: Day ${photo.detectedDay ?? '—'}, Bucket ${
-                  photo.detectedBucket ?? '—'
-                }`}
-              >
-                Organized
-              </span>
-            </div>
-          )}
-
-          {photo.bucket &&
-            (() => {
-              const bucketDef = buckets.find(b => b.key === photo.bucket);
-              const bucketColor = bucketDef?.color || 'bg-gray-500';
-              const colorMap: Record<string, string> = {
-                'bg-blue-500': 'rgb(59, 130, 246)',
-                'bg-purple-500': 'rgb(168, 85, 247)',
-                'bg-green-500': 'rgb(34, 197, 94)',
-                'bg-orange-500': 'rgb(249, 115, 22)',
-                'bg-yellow-500': 'rgb(234, 179, 8)',
-                'bg-indigo-500': 'rgb(99, 102, 241)',
-                'bg-gray-500': 'rgb(107, 114, 128)',
-              };
-              const bgColor = colorMap[bucketColor];
-              return (
-                <div
-                  className="absolute bottom-2 left-2 px-2 py-1 rounded text-xs font-bold text-white shadow-lg z-10"
-                  style={{ backgroundColor: bgColor || 'rgb(107, 114, 128)' }}
-                  title={`Bucket: ${photo.bucket}${bucketDef ? ` (${bucketDef.label})` : ''}`}
-                >
-                  <div className="flex items-center gap-1">
-                    <span>{photo.bucket}</span>
-                    {photo.favorite && <Heart className="w-3 h-3 fill-current" />}
-                  </div>
-                </div>
-              );
-            })()}
-
-          {!photo.bucket && photo.favorite && (
+          ) : photo.favorite ? (
             <div className="absolute bottom-2 left-2 bg-yellow-500 text-white rounded-full p-1.5 shadow-lg z-10">
               <Heart className="w-3.5 h-3.5 fill-current" />
             </div>
-          )}
+          ) : null}
         </div>
       ))}
     </div>
@@ -209,18 +155,7 @@ export default function PhotoGrid({
     );
   }
 
-  if (currentView === 'days' && selectedDay === null) {
-    return (
-      <div className="flex items-center justify-center h-96 text-gray-500">
-        <div className="text-center">
-          <Calendar className="w-12 h-12 mx-auto mb-4 opacity-50" />
-          <p>Select a day to view photos</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (currentView === 'folders' && selectedRootFolder === null && selectedDay === null) {
+  if (currentView === 'folders' && !selectedTreePath) {
     return (
       <div className="flex items-center justify-center h-96 text-gray-500">
         <div className="text-center">
@@ -231,23 +166,7 @@ export default function PhotoGrid({
     );
   }
 
-  const rootPhotos =
-    currentView === 'folders' && selectedRootFolder
-      ? (rootGroups.find(r => r[0] === selectedRootFolder)?.[1] || []).filter(p => !p.archived)
-      : null;
-  const displayPhotos = rootPhotos !== null ? rootPhotos : filteredPhotos;
-  const orderingResult = sortPhotos(displayPhotos, {
-    groupBy: selectedDay !== null ? 'subfolder' : null,
-    separateVideos: true,
-    selectedDay,
-    getSubfolderGroup,
-    isVideo: isVideoPhoto,
-  });
-  const orderedDisplayPhotos = orderingResult.photos;
-  const orderedIndex = orderingResult.indexMap;
-  const sortedGroups = selectedDay !== null ? orderingResult.groups ?? null : null;
-
-  if (displayPhotos.length === 0) {
+  if (filteredPhotos.length === 0) {
     return (
       <div className="flex items-center justify-center h-96 text-gray-500">
         <div className="text-center">
@@ -258,49 +177,45 @@ export default function PhotoGrid({
     );
   }
 
+  const orderingResult = sortPhotos(filteredPhotos, {
+    groupBy: selectedNodeKind === 'day' && selectedDayForGrouping !== null ? 'subfolder' : null,
+    separateVideos: true,
+    selectedDay: selectedDayForGrouping,
+    getSubfolderGroup,
+    isVideo: isVideoPhoto,
+  });
+
+  const orderedPhotos = orderingResult.photos;
+  const sortedGroups =
+    selectedNodeKind === 'day' && selectedDayForGrouping !== null
+      ? orderingResult.groups ?? null
+      : null;
+
   if (galleryViewPhoto) {
-    const photoData = orderedDisplayPhotos.find(p => p.id === galleryViewPhoto);
+    const photoData = orderedPhotos.find(photo => photo.id === galleryViewPhoto);
     if (photoData) {
       return (
         <PhotoViewer
           photo={photoData}
-          filteredPhotos={orderedDisplayPhotos}
+          filteredPhotos={orderedPhotos}
           orderingResult={orderingResult}
           onClose={onCloseViewer}
           onNavigate={onNavigateViewer}
-          onToggleFavorite={photoId => onToggleFavorite(photoId)}
+          onToggleFavorite={onToggleFavorite}
           onAssignBucket={(photoId, bucket) => {
             onAssignBucket(photoId, bucket);
-            // Fast workflow: after assigning a bucket, advance to next unassigned
-            if (bucket) {
-              const unassignedFilter = (p: ProjectPhoto) => !p.bucket && !p.archived;
-              const nextUnassigned = navigatePhotos(
-                photoId,
-                'next',
-                orderingResult,
-                unassignedFilter,
-              );
-
-              if (nextUnassigned) {
-                onNavigateViewer(nextUnassigned.id);
-                return;
-              }
-
-              // No more unassigned, try regular next/prev
-              const next = navigatePhotos(photoId, 'next', orderingResult);
-              if (next) {
-                onNavigateViewer(next.id);
-                return;
-              }
-              const prev = navigatePhotos(photoId, 'prev', orderingResult);
-              if (prev) {
-                onNavigateViewer(prev.id);
-                return;
-              }
-              onCloseViewer();
+            if (!bucket) return;
+            const nextUnassigned = navigatePhotos(
+              photoId,
+              'next',
+              orderingResult,
+              candidate => !candidate.bucket && !candidate.archived,
+            );
+            if (nextUnassigned) {
+              onNavigateViewer(nextUnassigned.id);
             }
           }}
-          onAssignDay={(photoId, day) => onAssignDay(photoId, day)}
+          onAssignDay={onAssignDay}
           selectedBucket={photoData.bucket || undefined}
           selectedDay={photoData.day}
           buckets={buckets}
@@ -311,124 +226,57 @@ export default function PhotoGrid({
     }
   }
 
-  if (selectedDay !== null && sortedGroups) {
+  if (sortedGroups && selectedDayForGrouping !== null) {
     return (
       <div className="space-y-8">
         {sortedGroups.map(group => {
-          const groupSorted = group.photos;
-          const videos = groupSorted.filter(isVideoPhoto);
-          const stills = groupSorted.filter(photo => !isVideoPhoto(photo));
-          const hasSplit = videos.length > 0 && stills.length > 0;
-          // Use group.photos directly - they're already correctly grouped by sortPhotos
-          const groupPhotos = group.photos.filter(p => p.day === selectedDay);
-          const hasExplicitOverride = groupPhotos.some(p => p.subfolderOverride !== undefined);
-          const isIngested = groupPhotos.some(p => p.subfolderOverride === null);
+          const groupPhotos = group.photos.filter(photo => photo.day === selectedDayForGrouping);
+          const hasExplicitOverride = groupPhotos.some(
+            photo => photo.subfolderOverride !== undefined,
+          );
+          const isIngestedGroup = groupPhotos.some(photo => photo.subfolderOverride === null);
           const isDayRootGroup = group.label === 'Day Root';
           const isMeceGroup = isMeceBucketLabel(group.label);
-          // Show undo button for Day Root if photos were explicitly ingested
-          const showUndoIngest = isDayRootGroup && isIngested;
-          const showIngestActions = !isDayRootGroup && !isMeceGroup;
 
           return (
             <div key={group.label}>
-              <div className="flex items-center justify-between mb-3">
+              <div className="mb-3 flex items-center justify-between">
                 <h3 className="text-sm font-semibold text-gray-200">{group.label}</h3>
-                <div className="flex items-center gap-3 text-xs text-gray-400">
-                  <span>{group.photos.length} items</span>
-                  {showUndoIngest && (
-                    <button
-                      className="text-xs text-red-300 hover:text-red-200"
-                      title="Revert photos back to subfolder"
-                      onClick={() => {
-                        const updated = photos.map(p => {
-                          if (p.day !== selectedDay) return p;
-                          if (groupPhotos.find(dp => dp.id === p.id)) {
-                            return { ...p, subfolderOverride: undefined };
-                          }
-                          return p;
-                        });
-                        onSaveToHistory(updated);
-                        onShowToast(`Photos reverted to subfolder.`, 'info');
-                      }}
-                    >
-                      Undo Ingest
-                    </button>
-                  )}
-                  {showIngestActions && (
-                    <div className="flex items-center gap-2">
-                      {!isIngested && (
-                        <>
-                          <button
-                            className="text-xs text-blue-300 hover:text-blue-200"
-                            title="Move photos in this subfolder to the day root"
-                            onClick={() => {
-                              const updated = photos.map(p => {
-                                if (p.day !== selectedDay) return p;
-                                const derived = getDerivedSubfolderGroup(p, selectedDay);
-                                if (derived !== group.label) return p;
-                                return { ...p, subfolderOverride: null };
-                              });
-                              onSaveToHistory(updated);
-                              const dayLabel =
-                                dayLabels[selectedDay] ||
-                                `Day ${String(selectedDay).padStart(2, '0')}`;
-                              onShowToast(`Photos moved to ${dayLabel}.`, 'info');
-                            }}
-                          >
-                            Ingest to Day
-                          </button>
-                          <button
-                            className="text-xs text-gray-300 hover:text-gray-100"
-                            onClick={() => {
-                              const updated = photos.map(p => {
-                                if (p.day !== selectedDay) return p;
-                                const derived = getDerivedSubfolderGroup(p, selectedDay);
-                                if (derived !== group.label) return p;
-                                return { ...p, subfolderOverride: derived };
-                              });
-                              onSaveToHistory(updated);
-                            }}
-                          >
-                            Keep Subfolder
-                          </button>
-                        </>
-                      )}
-                      {isIngested && (
-                        <button
-                          className="text-xs text-red-300 hover:text-red-200"
-                          title="Revert photos back to subfolder"
-                          onClick={() => {
-                            const updated = photos.map(p => {
-                              if (p.day !== selectedDay) return p;
-                              if (groupPhotos.find(dp => dp.id === p.id)) {
-                                return { ...p, subfolderOverride: undefined };
-                              }
-                              return p;
-                            });
-                            onSaveToHistory(updated);
-                            onShowToast(`Photos reverted to subfolder.`, 'info');
-                          }}
-                        >
-                          Undo Ingest
-                        </button>
-                      )}
-                    </div>
-                  )}
-                </div>
+                {!isMeceGroup && !isDayRootGroup && hasExplicitOverride ? (
+                  <button
+                    className="text-xs text-red-300 hover:text-red-200"
+                    onClick={() => {
+                      const updated = photos.map(photo => {
+                        if (photo.day !== selectedDayForGrouping) return photo;
+                        const derived = getDerivedSubfolderGroup(photo, selectedDayForGrouping);
+                        if (derived !== group.label) return photo;
+                        return { ...photo, subfolderOverride: undefined };
+                      });
+                      onSaveToHistory(updated);
+                      onShowToast('Subfolder override cleared.', 'info');
+                    }}
+                  >
+                    Undo Override
+                  </button>
+                ) : null}
+                {!isMeceGroup && !isDayRootGroup && !hasExplicitOverride ? (
+                  <button
+                    className="text-xs text-blue-300 hover:text-blue-200"
+                    onClick={() => {
+                      const updated = photos.map(photo => {
+                        if (photo.day !== selectedDayForGrouping) return photo;
+                        const derived = getDerivedSubfolderGroup(photo, selectedDayForGrouping);
+                        if (derived !== group.label) return photo;
+                        return { ...photo, subfolderOverride: isIngestedGroup ? derived : null };
+                      });
+                      onSaveToHistory(updated);
+                    }}
+                  >
+                    {isIngestedGroup ? 'Keep Subfolder' : 'Ingest To Day'}
+                  </button>
+                ) : null}
               </div>
-
-              {hasSplit && (
-                <>
-                  <div className="mb-2 text-xs uppercase tracking-wider text-gray-500">Photos</div>
-                  {renderPhotoGrid(stills, orderedDisplayPhotos, orderedIndex)}
-                  <div className="mt-6 mb-2 text-xs uppercase tracking-wider text-gray-500">
-                    Videos
-                  </div>
-                  {renderPhotoGrid(videos, orderedDisplayPhotos, orderedIndex)}
-                </>
-              )}
-
-              {!hasSplit && renderPhotoGrid(groupSorted, orderedDisplayPhotos, orderedIndex)}
+              {renderPhotoGrid(group.photos)}
             </div>
           );
         })}
@@ -436,12 +284,10 @@ export default function PhotoGrid({
     );
   }
 
-  const useVirtualGrid =
-    selectedDay === null && orderedDisplayPhotos.length >= VIRTUAL_GRID_THRESHOLD;
-  if (useVirtualGrid) {
+  if (selectedDayForGrouping === null && orderedPhotos.length >= VIRTUAL_GRID_THRESHOLD) {
     return (
       <VirtualPhotoGrid
-        photos={orderedDisplayPhotos}
+        photos={orderedPhotos}
         selectedPhotos={selectedPhotos}
         onSelectPhoto={onSelectPhoto}
         onOpenViewer={onOpenViewer}
@@ -449,5 +295,5 @@ export default function PhotoGrid({
     );
   }
 
-  return renderPhotoGrid(orderedDisplayPhotos, orderedDisplayPhotos);
+  return renderPhotoGrid(orderedPhotos);
 }

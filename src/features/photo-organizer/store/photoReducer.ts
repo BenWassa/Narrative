@@ -1,4 +1,4 @@
-import type { ProjectPhoto } from '../services/projectService';
+import type { ProjectMode, ProjectPhoto } from '../services/projectService';
 
 const MAX_HISTORY = 30;
 
@@ -17,6 +17,7 @@ export type PhotoEngineAction =
         photoIds: string[];
         bucket: string;
         selectedDay: number | null;
+        projectMode?: ProjectMode;
         dayNum?: number | null;
       };
     }
@@ -63,10 +64,11 @@ function assignBucketReducer(
     photoIds: string[];
     bucket: string;
     selectedDay: number | null;
+    projectMode?: ProjectMode;
     dayNum?: number | null;
   },
 ): PhotoEngineState {
-  const { photoIds, bucket, selectedDay, dayNum = null } = payload;
+  const { photoIds, bucket, selectedDay, projectMode, dayNum = null } = payload;
   if (photoIds.length === 0) return state;
 
   const idSet = new Set(photoIds);
@@ -88,7 +90,9 @@ function assignBucketReducer(
     }
 
     const day =
-      dayNum || photo.day || selectedDay || Math.ceil(new Date(photo.timestamp).getDate() / 1);
+      projectMode === 'single_day'
+        ? 1
+        : dayNum || photo.day || selectedDay || Math.ceil(new Date(photo.timestamp).getDate() / 1);
     const key = `${day}_${bucket}`;
     const existing = state.photos.filter(p => p.day === day && p.bucket === bucket).length;
     const next = (counters[key] || existing) + 1;

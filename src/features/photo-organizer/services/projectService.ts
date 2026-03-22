@@ -1,6 +1,21 @@
 import safeLocalStorage from '../utils/safeLocalStorage';
 import { analyzePathStructure } from '../../../lib/folderDetectionService';
 import { thumbnailCache } from '../utils/thumbnailCache';
+import { BUCKET_LABELS, MECE_BUCKETS } from '../constants/meceBuckets';
+
+export type ProjectMode = 'single_day' | 'multi_day';
+
+export interface ProjectTreeNode {
+  id: string;
+  name: string;
+  relativePath: string;
+  parentPath: string | null;
+  kind: 'folder' | 'bucket' | 'day' | 'system';
+  children: ProjectTreeNode[];
+  photoCount: number;
+  isCanonical: boolean;
+  dayNumber?: number | null;
+}
 
 export interface ProjectPhoto {
   id: string;
@@ -67,6 +82,7 @@ export interface ProjectState {
   rootPath: string;
   photos: ProjectPhoto[];
   settings: ProjectSettings;
+  projectMode?: ProjectMode;
   dayLabels?: Record<string, string>;
   // list of folder names that the user marked as day containers during onboarding
   dayContainers?: string[];
@@ -101,6 +117,7 @@ interface ProjectManifest {
   projectName: string;
   rootPath: string;
   settings: ProjectSettings;
+  projectMode?: ProjectMode;
   dayLabels?: Record<string, string>;
   dayContainers?: string[];
   lastModified?: number;
@@ -113,6 +130,7 @@ interface ProjectInitResponse {
   projectId: string;
   photos: ProjectPhoto[];
   suggestedDays: Record<string, string[]>;
+  projectMode: ProjectMode;
 }
 
 const SUPPORTED_EXT = ['jpg', 'jpeg', 'png', 'heic', 'webp', 'mp4', 'mov', 'webm', 'avi', 'mkv'];
@@ -134,6 +152,10 @@ const DEBUG_LOGS =
   import.meta.env.DEV &&
   typeof window !== 'undefined' &&
   window.localStorage?.getItem('narrative:debug') === '1';
+
+const ROOT_BUCKET_KEYS = MECE_BUCKETS.filter(bucket => bucket.key !== 'X').map(
+  bucket => bucket.key,
+);
 
 function generateId() {
   return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
@@ -275,6 +297,125 @@ function shouldSkipFile(name: string) {
   );
 }
 
+function normalizeRelativePath(path: string) {
+  return path.split(/[\\/]/).filter(Boolean).join('/');
+}
+
+function bucketFolderName(bucketKey: string) {
+  const bucketLabel = BUCKET_LABELS[bucketKey] || bucketKey;
+  return `${bucketKey}_${bucketLabel}`;
+}
+
+function isBucketFolderName(name: string) {
+  const firstToken = (name.split(/[_\s-]+/)[0] || '').toUpperCase();
+  return ROOT_BUCKET_KEYS.includes(firstToken);
+}
+
+function inferProjectModeFromPhotos(
+  photos: ProjectPhoto[],
+  settings: ProjectSettings,
+): ProjectMode {
+  const daysFolder = settings.folderStructure.daysFolder;
+  const hasDayPaths = photos.some(photo => {
+    const path = normalizeRelativePath(photo.filePath || '');
+    return Boolean(path) && (path === daysFolder || path.startsWith(`${daysFolder}/`));
+  });
+  return hasDayPaths ? 'multi_day' : 'single_day';
+}
+
+async function ensureDirectoryPath(
+  rootHandle: FileSystemDirectoryHandle,
+  relativePath: string,
+): Promise<FileSystemDirectoryHandle> {
+  const segments = normalizeRelativePath(relativePath).split('/').filter(Boolean);
+  let current = rootHandle;
+  for (const segment of segments) {
+    current = await current.getDirectoryHandle(segment, { create: true });
+  }
+  return current;
+}
+
+async function getDirectoryHandleByPath(
+  rootHandle: FileSystemDirectoryHandle,
+  relativePath: string,
+): Promise<FileSystemDirectoryHandle> {
+  const segments = normalizeRelativePath(relativePath).split('/').filter(Boolean);
+  let current = rootHandle;
+  for (const segment of segments) {
+    current = await current.getDirectoryHandle(segment);
+  }
+  return current;
+}
+
+async function copyDirectoryContents(
+  sourceHandle: FileSystemDirectoryHandle,
+  destinationHandle: FileSystemDirectoryHandle,
+) {
+  // @ts-ignore entries() is supported in modern browsers
+  for await (const [name, entry] of sourceHandle.entries()) {
+    if (entry.kind === 'directory') {
+      const nextDestination = await destinationHandle.getDirectoryHandle(name, { create: true });
+      await copyDirectoryContents(entry as FileSystemDirectoryHandle, nextDestination);
+      continue;
+    }
+
+    const sourceFile = await (entry as FileSystemFileHandle).getFile();
+    const destinationFileHandle = await destinationHandle.getFileHandle(name, { create: true });
+    const writable = await destinationFileHandle.createWritable();
+    try {
+      await writable.write(sourceFile);
+    } finally {
+      await writable.close();
+    }
+  }
+}
+
+async function moveDirectory(
+  rootHandle: FileSystemDirectoryHandle,
+  sourceRelativePath: string,
+  destinationRelativePath: string,
+) {
+  const normalizedSource = normalizeRelativePath(sourceRelativePath);
+  const normalizedDestination = normalizeRelativePath(destinationRelativePath);
+  if (!normalizedSource || !normalizedDestination || normalizedSource === normalizedDestination) {
+    return;
+  }
+
+  const sourceParentPath = normalizedSource.split('/').slice(0, -1).join('/');
+  const sourceName = normalizedSource.split('/').slice(-1)[0];
+  const destinationParentPath = normalizedDestination.split('/').slice(0, -1).join('/');
+  const destinationName = normalizedDestination.split('/').slice(-1)[0];
+
+  const sourceParent = sourceParentPath
+    ? await getDirectoryHandleByPath(rootHandle, sourceParentPath)
+    : rootHandle;
+  const sourceHandle = await sourceParent.getDirectoryHandle(sourceName);
+  const destinationParent = destinationParentPath
+    ? await ensureDirectoryPath(rootHandle, destinationParentPath)
+    : rootHandle;
+  const destinationHandle = await destinationParent.getDirectoryHandle(destinationName, {
+    create: true,
+  });
+
+  await copyDirectoryContents(sourceHandle, destinationHandle);
+  await sourceParent.removeEntry(sourceName, { recursive: true });
+}
+
+function replacePathPrefix(path: string | undefined, fromPrefix: string, toPrefix: string) {
+  if (!path) return path;
+  const normalizedPath = normalizeRelativePath(path);
+  const normalizedFrom = normalizeRelativePath(fromPrefix);
+  const normalizedTo = normalizeRelativePath(toPrefix);
+
+  if (normalizedPath === normalizedFrom) {
+    return normalizedTo;
+  }
+  if (!normalizedPath.startsWith(`${normalizedFrom}/`)) {
+    return normalizedPath;
+  }
+  return `${normalizedTo}${normalizedPath.slice(normalizedFrom.length)}`;
+}
+
 async function collectFiles(
   dirHandle: FileSystemDirectoryHandle,
   prefix = '',
@@ -331,9 +472,7 @@ async function writeManifest(
 }
 
 function parseExifDateString(value: string): number | null {
-  const match = value.match(
-    /^(\d{4}):(\d{2}):(\d{2})[ T](\d{2}):(\d{2}):(\d{2})(?:\.\d+)?$/,
-  );
+  const match = value.match(/^(\d{4}):(\d{2}):(\d{2})[ T](\d{2}):(\d{2}):(\d{2})(?:\.\d+)?$/);
   if (!match) return null;
   const [, year, month, day, hour, minute, second] = match;
   const timestamp = new Date(
@@ -407,8 +546,7 @@ function extractExifTimestampFromJpegBuffer(buffer: ArrayBuffer): number | null 
               continue;
             }
 
-            const stringOffset =
-              count <= 4 ? entryOffset + 8 : tiffOffset + valueOffset;
+            const stringOffset = count <= 4 ? entryOffset + 8 : tiffOffset + valueOffset;
             if (stringOffset + count > view.byteLength) continue;
 
             const parsed = parseExifDateString(readAscii(view, stringOffset, count));
@@ -431,7 +569,8 @@ function extractExifTimestampFromJpegBuffer(buffer: ArrayBuffer): number | null 
 async function extractCaptureTimestamp(file: File): Promise<number | null> {
   const mimeType = file.type.toLowerCase();
   const ext = file.name.split('.').pop()?.toLowerCase() || '';
-  const isJpeg = mimeType === 'image/jpeg' || mimeType === 'image/jpg' || ext === 'jpg' || ext === 'jpeg';
+  const isJpeg =
+    mimeType === 'image/jpeg' || mimeType === 'image/jpg' || ext === 'jpg' || ext === 'jpeg';
   if (!isJpeg) return null;
 
   try {
@@ -837,6 +976,151 @@ function clusterPhotosByTime(photos: ProjectPhoto[]) {
   return days;
 }
 
+export async function ensureProjectScaffolding(
+  dirHandle: FileSystemDirectoryHandle,
+  projectMode: ProjectMode,
+  settings: ProjectSettings = DEFAULT_SETTINGS,
+): Promise<void> {
+  const { daysFolder, archiveFolder, favoritesFolder, metaFolder } = settings.folderStructure;
+
+  await ensureDirectoryPath(dirHandle, archiveFolder);
+  await ensureDirectoryPath(dirHandle, favoritesFolder);
+  await ensureDirectoryPath(dirHandle, metaFolder);
+
+  if (projectMode === 'single_day') {
+    for (const bucketKey of ROOT_BUCKET_KEYS) {
+      await ensureDirectoryPath(dirHandle, bucketFolderName(bucketKey));
+    }
+    return;
+  }
+
+  await ensureDirectoryPath(dirHandle, daysFolder);
+}
+
+function buildPhotoCountMap(photos: ProjectPhoto[]) {
+  const counts = new Map<string, number>();
+  photos.forEach(photo => {
+    const path = normalizeRelativePath(photo.filePath || '');
+    const segments = path.split('/').filter(Boolean);
+    if (segments.length <= 1) {
+      return;
+    }
+    for (let index = 1; index < segments.length; index += 1) {
+      const folderPath = segments.slice(0, index).join('/');
+      counts.set(folderPath, (counts.get(folderPath) || 0) + 1);
+    }
+  });
+  return counts;
+}
+
+function classifyTreeNode(
+  name: string,
+  relativePath: string,
+  parentPath: string | null,
+  projectMode: ProjectMode,
+  settings: ProjectSettings,
+): Pick<ProjectTreeNode, 'kind' | 'isCanonical' | 'dayNumber'> {
+  const normalizedPath = normalizeRelativePath(relativePath);
+  const daysFolder = settings.folderStructure.daysFolder;
+  const archiveFolder = settings.folderStructure.archiveFolder;
+  const favoritesFolder = settings.folderStructure.favoritesFolder;
+  const metaFolder = settings.folderStructure.metaFolder;
+
+  if (
+    normalizedPath === archiveFolder ||
+    normalizedPath === favoritesFolder ||
+    normalizedPath === metaFolder
+  ) {
+    return { kind: 'system', isCanonical: true, dayNumber: null };
+  }
+
+  if (
+    projectMode === 'multi_day' &&
+    parentPath === daysFolder &&
+    normalizedPath.startsWith(`${daysFolder}/`)
+  ) {
+    return { kind: 'day', isCanonical: true, dayNumber: null };
+  }
+
+  if (
+    (projectMode === 'single_day' && !parentPath && isBucketFolderName(name)) ||
+    (projectMode === 'multi_day' && parentPath?.startsWith(daysFolder) && isBucketFolderName(name))
+  ) {
+    return { kind: 'bucket', isCanonical: true, dayNumber: null };
+  }
+
+  return { kind: 'folder', isCanonical: false, dayNumber: null };
+}
+
+async function readProjectTreeNodes(
+  dirHandle: FileSystemDirectoryHandle,
+  projectMode: ProjectMode,
+  settings: ProjectSettings,
+  photos: ProjectPhoto[],
+  prefix = '',
+  parentPath: string | null = null,
+): Promise<ProjectTreeNode[]> {
+  const photoCountMap = buildPhotoCountMap(photos);
+  const nodes: ProjectTreeNode[] = [];
+
+  // @ts-ignore entries() is supported in modern browsers
+  for await (const [name, entry] of dirHandle.entries()) {
+    if (entry.kind !== 'directory') {
+      continue;
+    }
+    if (name.startsWith('.')) {
+      continue;
+    }
+    const relativePath = prefix ? `${prefix}/${name}` : name;
+    const children = await readProjectTreeNodes(
+      entry as FileSystemDirectoryHandle,
+      projectMode,
+      settings,
+      photos,
+      relativePath,
+      relativePath,
+    );
+    const classification = classifyTreeNode(name, relativePath, parentPath, projectMode, settings);
+    nodes.push({
+      id: relativePath,
+      name,
+      relativePath,
+      parentPath,
+      kind: classification.kind,
+      children,
+      photoCount: photoCountMap.get(relativePath) || 0,
+      isCanonical: classification.isCanonical,
+      dayNumber: classification.dayNumber,
+    });
+  }
+
+  nodes.sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
+  return nodes;
+}
+
+export async function buildProjectTree(
+  dirHandle: FileSystemDirectoryHandle,
+  projectMode: ProjectMode,
+  settings: ProjectSettings,
+  photos: ProjectPhoto[],
+): Promise<ProjectTreeNode[]> {
+  const rootNodes = await readProjectTreeNodes(dirHandle, projectMode, settings, photos);
+  if (projectMode !== 'multi_day') {
+    return rootNodes;
+  }
+
+  const daysFolder = settings.folderStructure.daysFolder;
+  const promotedDaysNode = rootNodes.find(node => node.relativePath === daysFolder);
+  if (!promotedDaysNode) {
+    return rootNodes;
+  }
+
+  return [
+    ...promotedDaysNode.children.map(node => ({ ...node, parentPath: null })),
+    ...rootNodes.filter(node => node.relativePath !== daysFolder),
+  ];
+}
+
 function serializeState(state: ProjectState) {
   const edits = state.photos.map(photo => ({
     filePath: photo.filePath,
@@ -865,6 +1149,7 @@ function serializeState(state: ProjectState) {
     projectName: state.projectName,
     rootPath: state.rootPath,
     settings: state.settings,
+    projectMode: state.projectMode,
     dayLabels: state.dayLabels || {},
     dayContainers: state.dayContainers || [],
     lastModified: state.lastModified ?? Date.now(),
@@ -948,10 +1233,9 @@ function dedupeLogicalPhotos(
   };
 
   return Array.from(groups.values())
-    .map(group =>
-      group
-        .slice()
-        .sort((a, b) => {
+    .map(
+      group =>
+        group.slice().sort((a, b) => {
           const scoreDiff = scorePhoto(b) - scorePhoto(a);
           if (scoreDiff !== 0) return scoreDiff;
           return (a.filePath || '').localeCompare(b.filePath || '');
@@ -983,6 +1267,7 @@ function buildManifest(state: ProjectState): ProjectManifest {
     projectName: state.projectName,
     rootPath: state.rootPath,
     settings: state.settings,
+    projectMode: state.projectMode,
     dayLabels: state.dayLabels || {},
     dayContainers: state.dayContainers || [],
     lastModified: state.lastModified ?? Date.now(),
@@ -1019,9 +1304,10 @@ export async function initProject(options: {
   dirHandle: FileSystemDirectoryHandle;
   projectName?: string;
   rootLabel?: string;
+  projectMode?: ProjectMode;
   onProgress?: (progress: number, message: string) => void;
 }): Promise<ProjectInitResponse> {
-  const { dirHandle, projectName, rootLabel, onProgress } = options;
+  const { dirHandle, projectName, rootLabel, projectMode = 'single_day', onProgress } = options;
 
   // Check if File System Access API is supported
   let permission;
@@ -1054,12 +1340,16 @@ export async function initProject(options: {
   onProgress?.(75, 'Analyzing photo timestamps...');
   const suggestedDays = clusterPhotosByTime(photos);
 
+  onProgress?.(80, 'Preparing project folders...');
+  await ensureProjectScaffolding(dirHandle, projectMode, DEFAULT_SETTINGS);
+
   onProgress?.(85, 'Saving project data...');
   const state: ProjectState = {
     projectName: projectName?.trim() || dirHandle.name,
     rootPath: rootLabel || dirHandle.name,
     photos,
     settings: DEFAULT_SETTINGS,
+    projectMode,
     lastModified: Date.now(),
   };
 
@@ -1072,7 +1362,7 @@ export async function initProject(options: {
   }
 
   onProgress?.(95, 'Project initialized successfully');
-  return { projectId, photos, suggestedDays };
+  return { projectId, photos, suggestedDays, projectMode };
 }
 
 export async function getState(projectId: string): Promise<ProjectState> {
@@ -1155,18 +1445,152 @@ export async function getState(projectId: string): Promise<ProjectState> {
     settings,
     new Set((manifest?.photos || []).map(photo => photo.filePath).filter(Boolean) as string[]),
   );
+  const projectMode =
+    manifest?.projectMode ||
+    stored.projectMode ||
+    inferProjectModeFromPhotos(dedupedPhotos, settings);
 
   return {
     projectName: manifest?.projectName || stored.projectName || handle.name,
     rootPath: manifest?.rootPath || stored.rootPath || handle.name,
     photos: dedupedPhotos,
     settings,
+    projectMode,
     dayLabels: manifest?.dayLabels || stored.dayLabels || {},
     dayContainers: manifest?.dayContainers || stored.dayContainers || [],
     lastModified: manifest?.lastModified || stored.lastModified,
     ingested: manifest?.ingested ?? stored.ingested ?? true,
     sourceRoot: manifest?.sourceRoot ?? stored.sourceRoot,
   };
+}
+
+export async function renameProjectFolder(
+  projectId: string,
+  state: ProjectState,
+  fromRelativePath: string,
+  newName: string,
+): Promise<ProjectState> {
+  const trimmedName = newName.trim();
+  if (!trimmedName) {
+    throw new Error('Folder name is required.');
+  }
+
+  const handle = await getHandle(projectId);
+  if (!handle) {
+    throw new Error('Project folder access not available.');
+  }
+
+  const normalizedFrom = normalizeRelativePath(fromRelativePath);
+  const segments = normalizedFrom.split('/').filter(Boolean);
+  const parentPath = segments.slice(0, -1).join('/');
+  const nextPath = parentPath ? `${parentPath}/${trimmedName}` : trimmedName;
+  await moveDirectory(handle, normalizedFrom, nextPath);
+
+  const nextPhotos = state.photos.map(photo => ({
+    ...photo,
+    filePath: replacePathPrefix(photo.filePath, normalizedFrom, nextPath),
+  }));
+
+  const nextState: ProjectState = {
+    ...state,
+    photos: nextPhotos,
+    lastModified: Date.now(),
+  };
+  await saveState(projectId, nextState);
+  return nextState;
+}
+
+export async function deleteProjectFolder(
+  projectId: string,
+  state: ProjectState,
+  relativePath: string,
+): Promise<ProjectState> {
+  const handle = await getHandle(projectId);
+  if (!handle) {
+    throw new Error('Project folder access not available.');
+  }
+
+  const normalizedPath = normalizeRelativePath(relativePath);
+  const segments = normalizedPath.split('/').filter(Boolean);
+  const folderName = segments.pop();
+  if (!folderName) {
+    throw new Error('Folder path is required.');
+  }
+
+  const parentHandle =
+    segments.length > 0 ? await getDirectoryHandleByPath(handle, segments.join('/')) : handle;
+  await parentHandle.removeEntry(folderName, { recursive: true });
+
+  const nextPhotos = state.photos.filter(photo => {
+    const photoPath = normalizeRelativePath(photo.filePath || '');
+    return photoPath !== normalizedPath && !photoPath.startsWith(`${normalizedPath}/`);
+  });
+
+  const nextState: ProjectState = {
+    ...state,
+    photos: nextPhotos,
+    lastModified: Date.now(),
+  };
+  await saveState(projectId, nextState);
+  return nextState;
+}
+
+export async function convertProjectToMultiDay(
+  projectId: string,
+  state: ProjectState,
+): Promise<ProjectState> {
+  if (state.projectMode === 'multi_day') {
+    return state;
+  }
+
+  const handle = await getHandle(projectId);
+  if (!handle) {
+    throw new Error('Project folder access not available.');
+  }
+
+  const dayLabel =
+    state.dayLabels?.['1'] ||
+    state.dayLabels?.[1 as unknown as keyof typeof state.dayLabels] ||
+    'Day 01';
+  const daysRoot = state.settings.folderStructure.daysFolder;
+  await ensureDirectoryPath(handle, `${daysRoot}/${dayLabel}`);
+
+  for (const bucketKey of ROOT_BUCKET_KEYS) {
+    const folderName = bucketFolderName(bucketKey);
+    try {
+      await moveDirectory(handle, folderName, `${daysRoot}/${dayLabel}/${folderName}`);
+    } catch (error) {
+      // Ignore missing folders during conversion.
+    }
+  }
+
+  const nextPhotos = state.photos.map(photo => {
+    if (!photo.bucket || photo.archived) {
+      return photo;
+    }
+    const folderName = bucketFolderName(photo.bucket);
+    const filePath = photo.filePath
+      ? replacePathPrefix(photo.filePath, folderName, `${daysRoot}/${dayLabel}/${folderName}`)
+      : photo.filePath;
+    return {
+      ...photo,
+      day: photo.day ?? 1,
+      filePath,
+    };
+  });
+
+  const nextState: ProjectState = {
+    ...state,
+    projectMode: 'multi_day',
+    photos: nextPhotos,
+    dayLabels: {
+      ...(state.dayLabels || {}),
+      1: dayLabel,
+    },
+    lastModified: Date.now(),
+  };
+  await saveState(projectId, nextState);
+  return nextState;
 }
 
 export async function saveState(projectId: string, state: ProjectState): Promise<void> {

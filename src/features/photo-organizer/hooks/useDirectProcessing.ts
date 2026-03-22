@@ -1,5 +1,5 @@
 import { useCallback, useState } from 'react';
-import type { ProjectPhoto, ProjectSettings } from '../services/projectService';
+import type { ProjectMode, ProjectPhoto, ProjectSettings } from '../services/projectService';
 import {
   getExportDestinationHandle,
   getHandle,
@@ -28,6 +28,7 @@ export function useDirectProcessing(
   dayLabels: Record<number, string>,
   projectSettings: ProjectSettings,
   projectId: string | null,
+  projectMode?: ProjectMode,
   ingested?: boolean,
   sourceRoot?: string,
 ) {
@@ -43,20 +44,26 @@ export function useDirectProcessing(
   const [structureMode, setStructureMode] = useState<ExportStructureMode>('auto');
   const [existingDestinationPaths, setExistingDestinationPaths] = useState<Set<string>>(new Set());
 
-  const scanDestinationPaths = useCallback(async (handle: FileSystemDirectoryHandle, prefix = '') => {
-    const paths = new Set<string>();
-    // @ts-ignore entries() is supported in modern browsers
-    for await (const [name, entry] of handle.entries()) {
-      const relativePath = prefix ? `${prefix}/${name}` : name;
-      if (entry.kind === 'directory') {
-        const nested = await scanDestinationPaths(entry as FileSystemDirectoryHandle, relativePath);
-        nested.forEach(path => paths.add(path));
-      } else {
-        paths.add(relativePath);
+  const scanDestinationPaths = useCallback(
+    async (handle: FileSystemDirectoryHandle, prefix = '') => {
+      const paths = new Set<string>();
+      // @ts-ignore entries() is supported in modern browsers
+      for await (const [name, entry] of handle.entries()) {
+        const relativePath = prefix ? `${prefix}/${name}` : name;
+        if (entry.kind === 'directory') {
+          const nested = await scanDestinationPaths(
+            entry as FileSystemDirectoryHandle,
+            relativePath,
+          );
+          nested.forEach(path => paths.add(path));
+        } else {
+          paths.add(relativePath);
+        }
       }
-    }
-    return paths;
-  }, []);
+      return paths;
+    },
+    [],
+  );
 
   const openDirectProcessing = useCallback(async () => {
     setState('planning');
@@ -84,6 +91,7 @@ export function useDirectProcessing(
         photos,
         dayLabels,
         projectSettings,
+        projectMode,
         ingested,
         sourceRoot,
         structureMode,
@@ -102,7 +110,16 @@ export function useDirectProcessing(
         setState('error');
       }
     }
-  }, [photos, dayLabels, projectSettings, ingested, sourceRoot, structureMode, scanDestinationPaths]);
+  }, [
+    photos,
+    dayLabels,
+    projectSettings,
+    ingested,
+    sourceRoot,
+    structureMode,
+    scanDestinationPaths,
+    projectMode,
+  ]);
 
   const confirmExecution = useCallback(async () => {
     if (!plan || !destinationHandle || state !== 'ready') {
@@ -177,6 +194,7 @@ export function useDirectProcessing(
           photos,
           dayLabels,
           projectSettings,
+          projectMode,
           ingested,
           sourceRoot,
           structureMode: mode,
@@ -185,7 +203,16 @@ export function useDirectProcessing(
         setPlan(newPlan);
       }
     },
-    [state, photos, dayLabels, projectSettings, ingested, sourceRoot, existingDestinationPaths],
+    [
+      state,
+      photos,
+      dayLabels,
+      projectSettings,
+      ingested,
+      sourceRoot,
+      existingDestinationPaths,
+      projectMode,
+    ],
   );
 
   const canUndoDirectProcess = useCallback(() => {

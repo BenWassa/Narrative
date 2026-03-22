@@ -2,6 +2,7 @@ import { useCallback, useState, useEffect } from 'react';
 
 import type {
   ProjectPhoto,
+  ProjectMode,
   ProjectSettings,
   ProjectState,
   ExportManifest,
@@ -39,6 +40,7 @@ export function useExportScript(
   dayLabels: Record<number, string>,
   projectSettings: ProjectSettings,
   projectRootPath?: string,
+  projectMode?: ProjectMode,
   ingested?: boolean,
   sourceRoot?: string,
 ) {
@@ -93,6 +95,7 @@ export function useExportScript(
         photos,
         dayLabels,
         projectSettings,
+        projectMode,
         ingested: isIngested,
         sourceRoot: sourceRoot,
         structureMode: selectedStructureMode,
@@ -758,7 +761,7 @@ export function useExportScript(
     setLastExportManifest(manifest);
     saveExportManifest(projectRootPath, manifest);
     return manifest;
-  }, [photos, dayLabels, projectSettings, projectRootPath, ingested, sourceRoot]);
+  }, [photos, dayLabels, projectSettings, projectRootPath, ingested, sourceRoot, projectMode]);
 
   // Open undo script modal
   const openUndoScriptModal = useCallback(() => {

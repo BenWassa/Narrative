@@ -1,6 +1,6 @@
 import { type Dispatch, type SetStateAction, useEffect, useState } from 'react';
 import { Heart, Pencil, Save, X as XIcon } from 'lucide-react';
-import type { ProjectPhoto } from '../services/projectService';
+import type { ProjectMode, ProjectPhoto } from '../services/projectService';
 
 interface Bucket {
   key: string;
@@ -12,6 +12,7 @@ interface Bucket {
 interface RightSidebarProps {
   selectedPhotos: Set<string>;
   photos: ProjectPhoto[];
+  projectMode: ProjectMode;
   days: [number, ProjectPhoto[]][];
   buckets: Bucket[];
   onSaveToHistory: (newPhotos: ProjectPhoto[]) => void;
@@ -28,6 +29,7 @@ interface RightSidebarProps {
 export default function RightSidebar({
   selectedPhotos,
   photos,
+  projectMode,
   days,
   buckets,
   onSaveToHistory,
@@ -114,53 +116,55 @@ export default function RightSidebar({
           )}
         </div>
 
-        <div className="space-y-4 mb-6">
-          <h3 className="text-sm font-semibold text-gray-300 mb-3">Assign Day</h3>
-          <div className="flex gap-2 items-center">
-            <select
-              aria-label="Assign to..."
-              onChange={e => {
-                const val = e.target.value;
-                if (!val) return;
-                const dayNum =
-                  val === 'new' ? Math.max(0, ...days.map(d => d[0])) + 1 : Number(val);
-                const targets = Array.from(selectedPhotos);
-                const newPhotos = photos.map(ph =>
-                  targets.includes(ph.id) ? { ...ph, day: dayNum } : ph,
-                );
-                onSaveToHistory(newPhotos);
-                if (val === 'new') {
-                  onSetDayLabels(prev => ({
-                    ...prev,
-                    [dayNum]: `Day ${String(dayNum).padStart(2, '0')}`,
-                  }));
-                  onPersistState(newPhotos);
-                }
-                onSetSelectedDay(dayNum);
-                onSetCurrentView('days');
+        {projectMode === 'multi_day' && (
+          <div className="space-y-4 mb-6">
+            <h3 className="text-sm font-semibold text-gray-300 mb-3">Assign Day</h3>
+            <div className="flex gap-2 items-center">
+              <select
+                aria-label="Assign to..."
+                onChange={e => {
+                  const val = e.target.value;
+                  if (!val) return;
+                  const dayNum =
+                    val === 'new' ? Math.max(0, ...days.map(d => d[0])) + 1 : Number(val);
+                  const targets = Array.from(selectedPhotos);
+                  const newPhotos = photos.map(ph =>
+                    targets.includes(ph.id) ? { ...ph, day: dayNum } : ph,
+                  );
+                  onSaveToHistory(newPhotos);
+                  if (val === 'new') {
+                    onSetDayLabels(prev => ({
+                      ...prev,
+                      [dayNum]: `Day ${String(dayNum).padStart(2, '0')}`,
+                    }));
+                    onPersistState(newPhotos);
+                  }
+                  onSetSelectedDay(dayNum);
+                  onSetCurrentView('folders');
+                  onSetSelectedPhotos(new Set());
+                }}
+                className="px-3 py-2 rounded bg-gray-800"
+                defaultValue=""
+              >
+                <option value="">Assign to...</option>
+                {days.map(([d]) => (
+                  <option key={d} value={d}>{`Day ${String(d).padStart(2, '0')}`}</option>
+                ))}
+                <option value="new">Create new day</option>
+              </select>
+              <div className="text-xs text-gray-400">Assign selected photos to a day folder</div>
+            </div>
+            <button
+              onClick={() => {
+                onRemoveDayAssignment(Array.from(selectedPhotos));
                 onSetSelectedPhotos(new Set());
               }}
-              className="px-3 py-2 rounded bg-gray-800"
-              defaultValue=""
+              className="w-full px-3 py-2 bg-gray-700 hover:bg-gray-600 rounded text-sm font-medium transition-colors"
             >
-              <option value="">Assign to...</option>
-              {days.map(([d]) => (
-                <option key={d} value={d}>{`Day ${String(d).padStart(2, '0')}`}</option>
-              ))}
-              <option value="new">Create new day</option>
-            </select>
-            <div className="text-xs text-gray-400">Assign selected photos to a day folder</div>
+              Remove Day Assignment
+            </button>
           </div>
-          <button
-            onClick={() => {
-              onRemoveDayAssignment(Array.from(selectedPhotos));
-              onSetSelectedPhotos(new Set());
-            }}
-            className="w-full px-3 py-2 bg-gray-700 hover:bg-gray-600 rounded text-sm font-medium transition-colors"
-          >
-            Remove Day Assignment
-          </button>
-        </div>
+        )}
 
         <div className="space-y-2 mb-6">
           <h3 className="text-sm font-semibold text-gray-300 mb-3">Assign Category</h3>
