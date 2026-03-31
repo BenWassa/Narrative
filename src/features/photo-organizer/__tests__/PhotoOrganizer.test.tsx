@@ -345,6 +345,123 @@ test('archive folder selection shows archived photos instead of empty state', as
   expect(screen.queryByText('No photos in this view')).not.toBeInTheDocument();
 });
 
+test('hide assigned filters assigned photos from the current folder view', async () => {
+  const folderState = {
+    ...sampleState,
+    photos: [
+      {
+        id: 'assigned_1',
+        originalName: 'IMG_7001.jpg',
+        currentName: 'IMG_7001.jpg',
+        timestamp: Date.now(),
+        fileModifiedTimestamp: Date.now(),
+        timestampSource: 'filesystem' as const,
+        day: null,
+        bucket: 'A',
+        sequence: null,
+        favorite: false,
+        rating: 0,
+        archived: false,
+        thumbnail: 'https://picsum.photos/seed/assigned-1/400/300',
+        filePath: 'FolderA/IMG_7001.jpg',
+      },
+      {
+        id: 'unassigned_1',
+        originalName: 'IMG_7002.jpg',
+        currentName: 'IMG_7002.jpg',
+        timestamp: Date.now() + 1,
+        fileModifiedTimestamp: Date.now() + 1,
+        timestampSource: 'filesystem' as const,
+        day: null,
+        bucket: null,
+        sequence: null,
+        favorite: false,
+        rating: 0,
+        archived: false,
+        thumbnail: 'https://picsum.photos/seed/unassigned-1/400/300',
+        filePath: 'FolderA/IMG_7002.jpg',
+      },
+    ],
+  };
+
+  vi.mocked(projectService.getState).mockResolvedValue(folderState as any);
+  vi.mocked(projectService.buildProjectTree).mockResolvedValue([
+    {
+      id: 'FolderA',
+      name: 'FolderA',
+      relativePath: 'FolderA',
+      parentPath: null,
+      kind: 'folder',
+      children: [],
+      photoCount: 2,
+      isCanonical: false,
+      dayNumber: null,
+    },
+  ]);
+
+  render(<PhotoOrganizer />);
+  const projectButton = await screen.findByRole('button', { name: /Test Trip/i });
+  fireEvent.click(projectButton);
+
+  const folderLabel = await screen.findByText('FolderA');
+  fireEvent.click(folderLabel.closest('button')!);
+
+  expect(await screen.findByTestId('photo-assigned_1')).toBeInTheDocument();
+  expect(screen.getByTestId('photo-unassigned_1')).toBeInTheDocument();
+
+  fireEvent.click(screen.getByRole('button', { name: 'Hide Assigned' }));
+
+  await screen.findByText('Skip Assigned: ON');
+  expect(screen.queryByTestId('photo-assigned_1')).not.toBeInTheDocument();
+  expect(screen.getByTestId('photo-unassigned_1')).toBeInTheDocument();
+});
+
+test('header distinguishes root media count from folders count', async () => {
+  const inboxOnlyState = {
+    ...sampleState,
+    photos: [
+      {
+        id: 'inbox_1',
+        originalName: 'IMG_8001.jpg',
+        currentName: 'IMG_8001.jpg',
+        timestamp: Date.now(),
+        fileModifiedTimestamp: Date.now(),
+        timestampSource: 'filesystem' as const,
+        day: null,
+        bucket: null,
+        sequence: null,
+        favorite: false,
+        rating: 0,
+        archived: false,
+        thumbnail: 'https://picsum.photos/seed/inbox-1/400/300',
+        filePath: 'Inbox/IMG_8001.jpg',
+      },
+    ],
+  };
+
+  vi.mocked(projectService.getState).mockResolvedValue(inboxOnlyState as any);
+  vi.mocked(projectService.buildProjectTree).mockResolvedValue([
+    {
+      id: 'Inbox',
+      name: 'Inbox',
+      relativePath: 'Inbox',
+      parentPath: null,
+      kind: 'system',
+      children: [],
+      photoCount: 1,
+      isCanonical: true,
+      dayNumber: null,
+    },
+  ]);
+
+  render(<PhotoOrganizer />);
+  const projectButton = await screen.findByRole('button', { name: /Test Trip/i });
+  fireEvent.click(projectButton);
+
+  expect(await screen.findByText('0 sorted · 0 root media · 0 archived')).toBeInTheDocument();
+  expect(screen.getByRole('button', { name: /Folders \(1\)/i })).toBeInTheDocument();
+});
+
 test.skip('folders shows days container when day subfolders exist even if photos are unassigned', async () => {
   // Photo is inside a days-structured folder (with Dnn subfolder) but has no day assigned
   // This tests that folders with day-like structure (Dnn subfolders) are recognized

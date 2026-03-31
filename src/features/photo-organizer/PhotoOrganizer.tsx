@@ -374,11 +374,16 @@ export default function PhotoOrganizer() {
   );
 
   const filteredPhotos = React.useMemo(() => {
+    const isAssigned = (photo: ProjectPhoto) => Boolean(photo.bucket) || photo.archived;
+    const applyVisibilityFilter = (photo: ProjectPhoto) => !hideAssigned || !isAssigned(photo);
+
     if (currentView === 'archive') {
-      return photos.filter(photo => photo.archived);
+      return photos.filter(photo => photo.archived).filter(applyVisibilityFilter);
     }
     if (currentView === 'review') {
-      return photos.filter(photo => Boolean(photo.bucket) && !photo.archived);
+      return photos
+        .filter(photo => Boolean(photo.bucket) && !photo.archived)
+        .filter(applyVisibilityFilter);
     }
     if (currentView !== 'folders' || !selectedTreePath) {
       return [];
@@ -389,7 +394,7 @@ export default function PhotoOrganizer() {
       return photos.filter(photo => {
         if (photo.archived) return false;
         const photoPath = normalizePath(photo.filePath || '');
-        return Boolean(photoPath) && !photoPath.includes('/');
+        return Boolean(photoPath) && !photoPath.includes('/') && applyVisibilityFilter(photo);
       });
     }
 
@@ -402,9 +407,19 @@ export default function PhotoOrganizer() {
       const photoPath = normalizePath(photo.filePath || '');
       if (!photoPath) return false;
       if (viewingArchiveFolder ? !photo.archived : photo.archived) return false;
-      return photoPath === selectedPath || photoPath.startsWith(`${selectedPath}/`);
+      return (
+        (photoPath === selectedPath || photoPath.startsWith(`${selectedPath}/`)) &&
+        applyVisibilityFilter(photo)
+      );
     });
-  }, [currentView, normalizePath, photos, projectSettings.folderStructure.archiveFolder, selectedTreePath]);
+  }, [
+    currentView,
+    hideAssigned,
+    normalizePath,
+    photos,
+    projectSettings.folderStructure.archiveFolder,
+    selectedTreePath,
+  ]);
 
   const rootMediaPhotoCount = React.useMemo(
     () =>
@@ -641,12 +656,13 @@ export default function PhotoOrganizer() {
   const stats = React.useMemo(
     () => ({
       total: photos.length,
+      folders: photos.filter(p => !p.archived).length,
       sorted: photos.filter(p => p.bucket && !p.archived).length,
       unsorted: photos.filter(p => !p.bucket && !p.archived).length,
       archived: photos.filter(p => p.archived).length,
-      root: photos.filter(p => !p.bucket && !p.archived).length,
+      root: rootMediaPhotoCount,
     }),
-    [photos],
+    [photos, rootMediaPhotoCount],
   );
 
   return (
