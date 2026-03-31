@@ -12,11 +12,11 @@ export interface ExecutionContext {
 }
 
 export interface ExecutionProgress {
-  phase: 'preparing' | 'copying' | 'complete';
+  phase: 'preparing' | 'copying' | 'verifying' | 'cleanup' | 'complete';
   processed: number;
   total: number;
   currentFile?: string;
-  currentStatus?: 'copied' | 'skipped' | 'failed';
+  currentStatus?: 'copied' | 'skipped' | 'failed' | 'verified' | 'failed_verification' | 'deleted';
 }
 
 export interface ExecutionResult {
@@ -24,6 +24,9 @@ export interface ExecutionResult {
   copiedCount: number;
   skippedCount: number;
   failedCount: number;
+  verifiedCount: number;
+  verificationFailedCount: number;
+  deletedCount: number;
   failures: Array<{ operation: PlannedOperation; error: string }>;
   conflicts: Array<{ operation: PlannedOperation; reason: string }>;
   manifest: ExportManifest;
@@ -35,11 +38,30 @@ export interface ExecutionLog {
   operations: Array<{
     sourcePath: string;
     destinationPath: string;
-    status: 'copied' | 'skipped' | 'failed';
+    status: 'copied' | 'skipped' | 'failed' | 'verified' | 'failed_verification' | 'deleted';
     reason?: string;
     error?: string;
+    sourceHash?: string;
+    destHash?: string;
   }>;
-  summary: { copied: number; skipped: number; failed: number };
+  summary: {
+    copied: number;
+    skipped: number;
+    failed: number;
+    verified: number;
+    verificationFailed: number;
+    deleted: number;
+  };
+}
+
+/**
+ * Utility to calculate SHA-256 hash of a file's content
+ */
+async function calculateHash(file: File): Promise<string> {
+  const buffer = await file.arrayBuffer();
+  const hashBuffer = await crypto.subtle.digest('SHA-256', buffer);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
 }
 
 /**
@@ -83,7 +105,7 @@ async function createDirectoryPath(
  */
 export async function executePlan(
   plan: OperationPlan,
-  context: ExecutionContext,
+  context: ExecutionContext & { deleteAfterVerify?: boolean },
 ): Promise<ExecutionResult> {
   // Validate plan has no blockers
   if (plan.blockers.length > 0) {
@@ -99,11 +121,15 @@ export async function executePlan(
     destinationRootLabel,
     ingested,
     onProgress,
+    deleteAfterVerify = false,
   } = context;
 
   const copiedCount = { count: 0 };
   const skippedCount = { count: 0 };
   const failedCount = { count: 0 };
+  const verifiedCount = { count: 0 };
+  const verificationFailedCount = { count: 0 };
+  const deletedCount = { count: 0 };
   const failures: Array<{ operation: PlannedOperation; error: string }> = [];
   const conflicts: Array<{ operation: PlannedOperation; reason: string }> = [];
   const executionLogOps: ExecutionLog['operations'] = [];
@@ -139,9 +165,11 @@ export async function executePlan(
       currentStatus: undefined,
     });
 
+    const normalizedSourcePath = operation.sourceRelativePath.startsWith('/') ? operation.sourceRelativePath.slice(1) : operation.sourceRelativePath;
+
     try {
       // Get source file
-      const sourceFile = await getFileAtPath(sourceDirectoryHandle, operation.sourceRelativePath);
+      const sourceFile = await getFileAtPath(sourceDirectoryHandle, normalizedSourcePath);
 
       // Split destination path into directory + filename
       const destPathParts = operation.destinationRelativePath.split('/');
@@ -168,7 +196,7 @@ export async function executePlan(
           reason: 'File already exists at destination',
         });
         executionLogOps.push({
-          sourcePath: operation.sourceRelativePath,
+          sourcePath: normalizedSourcePath,
           destinationPath: operationDestPath,
           status: 'skipped',
           reason: 'File already exists at destination',
@@ -182,25 +210,90 @@ export async function executePlan(
         });
       } else {
         // File does not exist: proceed with copy using stream (not arrayBuffer, to avoid OOM)
-        const writable = await destDir.getFileHandle(destFileName, { create: true });
-        const ws = await writable.createWritable();
+        const fileHandle = await destDir.getFileHandle(destFileName, { create: true });
+        const ws = await fileHandle.createWritable();
 
         // Use pipeTo for streaming large files without loading entire content into memory
         await sourceFile.stream().pipeTo(ws);
 
         copiedCount.count++;
-        executionLogOps.push({
-          sourcePath: operation.sourceRelativePath,
-          destinationPath: operationDestPath,
-          status: 'copied',
-        });
+        
+        // NOW VERIFY HASH
         onProgress({
-          phase: 'copying',
+          phase: 'verifying',
           processed: i,
           total,
           currentFile: operation.currentName,
-          currentStatus: 'copied',
         });
+
+        const sourceHash = await calculateHash(sourceFile);
+        const destFile = await fileHandle.getFile();
+        const destHash = await calculateHash(destFile);
+
+        if (sourceHash === destHash) {
+          verifiedCount.count++;
+          executionLogOps.push({
+            sourcePath: normalizedSourcePath,
+            destinationPath: operationDestPath,
+            status: 'verified',
+            sourceHash,
+            destHash,
+          });
+
+          // OPTIONAL CLEANUP: Delete from source if requested
+          if (deleteAfterVerify) {
+            onProgress({
+              phase: 'cleanup',
+              processed: i,
+              total,
+              currentFile: operation.currentName,
+            });
+            
+            // Delete source file
+            const pathParts = normalizedSourcePath.split('/').filter(Boolean);
+            const fileName = pathParts.pop()!;
+            let current = sourceDirectoryHandle;
+            for (const segment of pathParts) {
+              current = await current.getDirectoryHandle(segment);
+            }
+            await current.removeEntry(fileName);
+            deletedCount.count++;
+            
+            // Update status to 'deleted' in log if desired, or keep as 'verified'
+            const lastOp = executionLogOps[executionLogOps.length - 1];
+            if (lastOp) lastOp.status = 'deleted';
+          }
+
+          onProgress({
+            phase: 'copying',
+            processed: i + 1,
+            total,
+            currentFile: operation.currentName,
+            currentStatus: deleteAfterVerify ? 'deleted' : 'verified',
+          });
+        } else {
+          verificationFailedCount.count++;
+          const errorMsg = `Hash mismatch! Source: ${sourceHash}, Dest: ${destHash}`;
+          failures.push({
+            operation,
+            error: errorMsg,
+          });
+          executionLogOps.push({
+            sourcePath: operation.sourceRelativePath,
+            destinationPath: operationDestPath,
+            status: 'failed_verification',
+            sourceHash,
+            destHash,
+            error: errorMsg,
+          });
+          onProgress({
+            phase: 'copying',
+            processed: i + 1,
+            total,
+            currentFile: operation.currentName,
+            currentStatus: 'failed_verification',
+          });
+        }
       }
     } catch (error) {
       // Per-file failure: record and continue
@@ -234,6 +327,9 @@ export async function executePlan(
       copied: copiedCount.count,
       skipped: skippedCount.count,
       failed: failedCount.count,
+      verified: verifiedCount.count,
+      verificationFailed: verificationFailedCount.count,
+      deleted: deletedCount.count,
     },
   };
 
@@ -249,10 +345,13 @@ export async function executePlan(
   onProgress({ phase: 'complete', processed: total, total });
 
   return {
-    completed: failedCount.count === 0,
+    completed: failedCount.count === 0 && verificationFailedCount.count === 0,
     copiedCount: copiedCount.count,
     skippedCount: skippedCount.count,
     failedCount: failedCount.count,
+    verifiedCount: verifiedCount.count,
+    verificationFailedCount: verificationFailedCount.count,
+    deletedCount: deletedCount.count,
     failures,
     conflicts,
     manifest,

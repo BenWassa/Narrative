@@ -17,6 +17,8 @@ interface DirectProcessingModalProps {
   onClose: () => void;
   onConfirm: () => void;
   onStructureModeChange: (mode: ExportStructureMode) => void;
+  deleteAfterVerify: boolean;
+  onToggleDeleteAfterVerify: (value: boolean) => void;
   canUndoDirectProcess?: boolean;
   onUndoDirectProcess?: () => void;
 }
@@ -33,6 +35,8 @@ function DirectProcessingModal({
   onClose,
   onConfirm,
   onStructureModeChange,
+  deleteAfterVerify,
+  onToggleDeleteAfterVerify,
   canUndoDirectProcess,
   onUndoDirectProcess,
 }: DirectProcessingModalProps) {
@@ -100,7 +104,7 @@ function DirectProcessingModal({
                 <div className="text-sm text-blue-200">
                   {plan.summary.copyCount > 0 && (
                     <div>
-                      <strong>{plan.summary.copyCount}</strong> files to copy
+                      <strong>{plan.summary.copyCount}</strong> {deleteAfterVerify ? 'files to move (verify & delete source)' : 'files to copy'}
                     </div>
                   )}
                   {plan.summary.skippedCount > 0 && (
@@ -115,6 +119,24 @@ function DirectProcessingModal({
                     </div>
                   )}
                 </div>
+              </div>
+
+              {/* Cleanup option */}
+              <div className="mb-6">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={deleteAfterVerify}
+                    onChange={e => onToggleDeleteAfterVerify(e.target.checked)}
+                    className="w-4 h-4 rounded border-gray-700 bg-gray-800 text-blue-600 focus:ring-blue-500"
+                  />
+                  <span className="text-sm font-medium text-gray-300">
+                    Delete from original folder after successful verification
+                  </span>
+                </label>
+                <p className="mt-1 text-xs text-gray-500 ml-6">
+                  Recommended to keep your folders tidy. Files are only deleted if the copy is verified byte-for-byte.
+                </p>
               </div>
 
               {/* Warnings */}
@@ -194,6 +216,8 @@ function DirectProcessingModal({
                     <span className="text-gray-300">
                       {progress.phase === 'preparing' && 'Preparing...'}
                       {progress.phase === 'copying' && 'Copying files...'}
+                      {progress.phase === 'verifying' && 'Verifying file integrity...'}
+                      {progress.phase === 'cleanup' && 'Cleaning up source files...'}
                       {progress.phase === 'complete' && 'Complete!'}
                     </span>
                     <span className="text-gray-400">
@@ -217,13 +241,13 @@ function DirectProcessingModal({
                   <div className="p-3 bg-gray-800 rounded">
                     <div className="text-sm text-gray-400 mb-1">Current file</div>
                     <div className="text-sm text-white flex items-center gap-2">
-                      {progress.currentStatus === 'copied' && (
+                      {(progress.currentStatus === 'copied' || progress.currentStatus === 'verified' || progress.currentStatus === 'deleted') && (
                         <CheckCircle className="w-4 h-4 text-green-400" />
                       )}
                       {progress.currentStatus === 'skipped' && (
                         <Clock className="w-4 h-4 text-yellow-400" />
                       )}
-                      {progress.currentStatus === 'failed' && (
+                      {(progress.currentStatus === 'failed' || progress.currentStatus === 'failed_verification') && (
                         <AlertCircle className="w-4 h-4 text-red-400" />
                       )}
                       {!progress.currentStatus && (
@@ -242,10 +266,18 @@ function DirectProcessingModal({
             <>
               <div className="space-y-4">
                 {/* Summary boxes */}
-                <div className="grid grid-cols-3 gap-3">
+                <div className="grid grid-cols-4 gap-3">
                   <div className="p-3 bg-green-900 bg-opacity-50 rounded border border-green-700">
-                    <div className="text-2xl font-bold text-green-300">{result.copiedCount}</div>
-                    <div className="text-xs text-green-200">Copied</div>
+                    <div className="text-2xl font-bold text-green-300">
+                      {result.verifiedCount}
+                    </div>
+                    <div className="text-xs text-green-200">Verified</div>
+                  </div>
+                  <div className="p-3 bg-blue-900 bg-opacity-50 rounded border border-blue-700">
+                    <div className="text-2xl font-bold text-blue-300">
+                      {result.deletedCount}
+                    </div>
+                    <div className="text-xs text-blue-200">Cleaned</div>
                   </div>
                   <div className="p-3 bg-yellow-900 bg-opacity-50 rounded border border-yellow-700">
                     <div className="text-2xl font-bold text-yellow-300">{result.skippedCount}</div>
@@ -253,21 +285,21 @@ function DirectProcessingModal({
                   </div>
                   <div
                     className={`p-3 ${
-                      result.failedCount > 0
+                      result.failedCount > 0 || result.verificationFailedCount > 0
                         ? 'bg-red-900 bg-opacity-50 border border-red-700'
                         : 'bg-gray-800 border border-gray-700'
                     } rounded`}
                   >
                     <div
                       className={`text-2xl font-bold ${
-                        result.failedCount > 0 ? 'text-red-300' : 'text-gray-300'
+                        result.failedCount > 0 || result.verificationFailedCount > 0 ? 'text-red-300' : 'text-gray-300'
                       }`}
                     >
-                      {result.failedCount}
+                      {result.failedCount + result.verificationFailedCount}
                     </div>
                     <div
                       className={`text-xs ${
-                        result.failedCount > 0 ? 'text-red-200' : 'text-gray-200'
+                        result.failedCount > 0 || result.verificationFailedCount > 0 ? 'text-red-200' : 'text-gray-200'
                       }`}
                     >
                       Failed
@@ -276,9 +308,17 @@ function DirectProcessingModal({
                 </div>
 
                 {/* Failures list */}
-                {result.failures.length > 0 && (
+                {(result.failures.length > 0) && (
                   <div className="p-4 bg-red-900 bg-opacity-30 rounded border border-red-700">
-                    <div className="text-sm font-medium text-red-200 mb-2">Failures</div>
+                    <div className="text-sm font-medium text-red-200 mb-2 flex items-center justify-between">
+                      <span>Failures ({result.failures.length})</span>
+                      <button
+                        onClick={onConfirm}
+                        className="text-xs bg-red-800 hover:bg-red-700 text-white px-2 py-1 rounded"
+                      >
+                        Try Failed Again
+                      </button>
+                    </div>
                     <div className="space-y-1 text-xs text-red-300 max-h-40 overflow-y-auto">
                       {result.failures.map((failure, idx) => (
                         <div key={idx}>

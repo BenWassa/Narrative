@@ -154,6 +154,8 @@ export default function PhotoOrganizer() {
     error: directProcessingError,
     destinationLabel,
     structureMode: directStructureMode,
+    deleteAfterVerify,
+    toggleDeleteAfterVerify,
     openDirectProcessing,
     confirmExecution,
     closeDirectProcessing,
@@ -197,10 +199,10 @@ export default function PhotoOrganizer() {
         directPlan.operations
           .filter(operation =>
             directResult.executionLog.operations.some(
-              log => log.status === 'copied' && log.sourcePath === operation.sourceRelativePath,
+              log => (log.status === 'copied' || log.status === 'verified' || log.status === 'deleted') && log.sourcePath === (operation.sourceRelativePath.startsWith('/') ? operation.sourceRelativePath.slice(1) : operation.sourceRelativePath),
             ),
           )
-          .map(operation => [operation.sourceRelativePath, operation]),
+          .map(operation => [operation.sourceRelativePath.startsWith('/') ? operation.sourceRelativePath.slice(1) : operation.sourceRelativePath, operation]),
       );
 
       refreshManifest();
@@ -211,19 +213,29 @@ export default function PhotoOrganizer() {
 
       const nextPhotos = photos.map(photo => {
         if (!photo.filePath) return photo;
-        const operation = copiedBySourcePath.get(photo.filePath);
+        const normalizedFilePath = photo.filePath.startsWith('/') ? photo.filePath.slice(1) : photo.filePath;
+        const operation = copiedBySourcePath.get(normalizedFilePath);
         if (!operation) return photo;
 
         return {
           ...photo,
           filePath: operation.destinationRelativePath,
           currentName: operation.currentName,
+          day: operation.photo.day,
+          bucket: operation.photo.bucket,
           detectedDay: operation.photo.day,
           detectedBucket: operation.photo.bucket,
           isPreOrganized: true,
           organizationConfidence: 'high' as const,
         };
       });
+
+      console.log('Syncing direct processing results. Next photos count:', nextPhotos.length);
+      console.log('Inbox folder path:', projectSettings.folderStructure.inboxFolder);
+      
+      const inboxPhotosBefore = photos.filter(p => p.filePath?.includes(projectSettings.folderStructure.inboxFolder));
+      const inboxPhotosAfter = nextPhotos.filter(p => p.filePath?.includes(projectSettings.folderStructure.inboxFolder));
+      console.log(`Inbox photos: ${inboxPhotosBefore.length} -> ${inboxPhotosAfter.length}`);
 
       const nextState: ProjectState = {
         projectName,
@@ -838,8 +850,10 @@ export default function PhotoOrganizer() {
         onClose={closeDirectProcessing}
         onConfirm={confirmExecution}
         onStructureModeChange={updateDirectStructureMode}
+        deleteAfterVerify={deleteAfterVerify}
+        onToggleDeleteAfterVerify={toggleDeleteAfterVerify}
         canUndoDirectProcess={canUndoDirectProcess()}
-        onUndoDirectProcess={handleUndoProcessing}
+        onUndoDirectProcess={undoLastDirectProcess}
       />
 
       {/* Undo Script Modal */}

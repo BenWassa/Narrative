@@ -42,6 +42,7 @@ export function useDirectProcessing(
   );
   const [destinationLabel, setDestinationLabel] = useState<string>('');
   const [structureMode, setStructureMode] = useState<ExportStructureMode>('auto');
+  const [deleteAfterVerify, setDeleteAfterVerify] = useState<boolean>(false);
   const [existingDestinationPaths, setExistingDestinationPaths] = useState<Set<string>>(new Set());
 
   const scanDestinationPaths = useCallback(
@@ -156,6 +157,7 @@ export function useDirectProcessing(
         destinationRootLabel: destinationLabel,
         ingested: ingested ?? true,
         onProgress: setProgress,
+        deleteAfterVerify,
       });
 
       setResult(executionResult);
@@ -171,7 +173,7 @@ export function useDirectProcessing(
       setError(err instanceof Error ? err.message : String(err));
       setState('error');
     }
-  }, [plan, destinationHandle, state, projectId, ingested, destinationLabel]);
+  }, [plan, destinationHandle, state, projectId, ingested, destinationLabel, deleteAfterVerify]);
 
   const closeDirectProcessing = useCallback(() => {
     setState('idle');
@@ -183,6 +185,7 @@ export function useDirectProcessing(
     setDestinationLabel('');
     setExistingDestinationPaths(new Set());
     setStructureMode('auto');
+    setDeleteAfterVerify(false);
   }, []);
 
   const updateStructureMode = useCallback(
@@ -214,6 +217,10 @@ export function useDirectProcessing(
       projectMode,
     ],
   );
+
+  const toggleDeleteAfterVerify = useCallback((value: boolean) => {
+    setDeleteAfterVerify(value);
+  }, []);
 
   const canUndoDirectProcess = useCallback(() => {
     if (!projectId) return false;
@@ -322,6 +329,8 @@ export function useDirectProcessing(
     confirmExecution,
     closeDirectProcessing,
     updateStructureMode,
+    toggleDeleteAfterVerify,
+    deleteAfterVerify,
     canUndoDirectProcess,
     undoLastDirectProcess,
   };

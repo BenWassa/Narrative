@@ -24,6 +24,12 @@ Narrative is a local-first, keyboard-driven workflow for curating travel photos.
 
 ---
 
+## Technical Overview
+
+For a detailed look at the architecture, data model, and development workflow, see the [Technical Overview](./docs/TECHNICAL_OVERVIEW.md).
+
+---
+
 ## Requirements
 
 - Node.js >= 20
