@@ -10,6 +10,8 @@ vi.mock('../services/projectService', () => ({
   saveState: vi.fn(),
   deleteProject: vi.fn(),
   buildPhotosFromHandle: vi.fn(),
+  buildProjectTree: vi.fn(),
+  getHandle: vi.fn(),
   saveHandle: vi.fn(),
 }));
 
@@ -85,6 +87,8 @@ beforeEach(() => {
   );
   vi.mocked(projectService.getState).mockResolvedValue(sampleState);
   vi.mocked(projectService.saveState).mockResolvedValue();
+  vi.mocked(projectService.getHandle).mockResolvedValue({} as FileSystemDirectoryHandle);
+  vi.mocked(projectService.buildProjectTree).mockResolvedValue([]);
 });
 
 afterEach(() => {
@@ -271,6 +275,74 @@ test.skip('other groups order: only non-day folders appear in Other when day-lik
   // "Day1_PlayaDelCarmen" should be in Days section (auto-detected)
   const day1Folder = await screen.findByText('Day 01');
   expect(day1Folder).toBeTruthy();
+});
+
+test('archive folder selection shows archived photos instead of empty state', async () => {
+  const archivedState = {
+    ...sampleState,
+    photos: [
+      {
+        id: 'archive_1',
+        originalName: 'IMG_9001.jpg',
+        currentName: 'IMG_9001.jpg',
+        timestamp: Date.now(),
+        fileModifiedTimestamp: Date.now(),
+        timestampSource: 'filesystem' as const,
+        day: null,
+        bucket: 'X',
+        sequence: null,
+        favorite: false,
+        rating: 0,
+        archived: true,
+        thumbnail: 'https://picsum.photos/seed/archive-1/400/300',
+        filePath: 'X_Archive/IMG_9001.jpg',
+      },
+      {
+        id: 'archive_2',
+        originalName: 'IMG_9002.jpg',
+        currentName: 'IMG_9002.jpg',
+        timestamp: Date.now() + 1,
+        fileModifiedTimestamp: Date.now() + 1,
+        timestampSource: 'filesystem' as const,
+        day: null,
+        bucket: 'X',
+        sequence: null,
+        favorite: false,
+        rating: 0,
+        archived: true,
+        thumbnail: 'https://picsum.photos/seed/archive-2/400/300',
+        filePath: 'X_Archive/IMG_9002.jpg',
+      },
+    ],
+  };
+
+  vi.mocked(projectService.getState).mockResolvedValue(archivedState as any);
+  vi.mocked(projectService.buildProjectTree).mockResolvedValue([
+    {
+      id: 'X_Archive',
+      name: 'X_Archive',
+      relativePath: 'X_Archive',
+      parentPath: null,
+      kind: 'system',
+      children: [],
+      photoCount: 2,
+      isCanonical: true,
+      dayNumber: null,
+    },
+  ]);
+
+  render(<PhotoOrganizer />);
+  const projectButton = await screen.findByRole('button', { name: /Test Trip/i });
+  fireEvent.click(projectButton);
+
+  const archiveFolderLabel = await screen.findByText('X_Archive');
+  const archiveFolderButton = archiveFolderLabel.closest('button');
+  expect(archiveFolderButton).toBeTruthy();
+  fireEvent.click(archiveFolderButton!);
+
+  expect(await screen.findByTestId('photo-archive_1')).toBeInTheDocument();
+  expect(screen.getByTestId('photo-archive_2')).toBeInTheDocument();
+  expect(screen.queryByText('No photos in this view')).not.toBeInTheDocument();
 });
 
 test.skip('folders shows days container when day subfolders exist even if photos are unassigned', async () => {

@@ -392,12 +392,19 @@ export default function PhotoOrganizer() {
         return Boolean(photoPath) && !photoPath.includes('/');
       });
     }
+
+    const archiveFolderPath = normalizePath(projectSettings.folderStructure.archiveFolder || '');
+    const viewingArchiveFolder =
+      Boolean(archiveFolderPath) &&
+      (selectedPath === archiveFolderPath || selectedPath.startsWith(`${archiveFolderPath}/`));
+
     return photos.filter(photo => {
-      if (photo.archived) return false;
       const photoPath = normalizePath(photo.filePath || '');
+      if (!photoPath) return false;
+      if (viewingArchiveFolder ? !photo.archived : photo.archived) return false;
       return photoPath === selectedPath || photoPath.startsWith(`${selectedPath}/`);
     });
-  }, [currentView, normalizePath, photos, selectedTreePath]);
+  }, [currentView, normalizePath, photos, projectSettings.folderStructure.archiveFolder, selectedTreePath]);
 
   const rootMediaPhotoCount = React.useMemo(
     () =>
