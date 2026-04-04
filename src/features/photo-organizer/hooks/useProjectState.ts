@@ -41,7 +41,6 @@ export const calculateProjectStats = (
   photos: ProjectPhoto[],
   settings?: { inboxFolder?: string; archiveFolder?: string },
 ) => {
-  const inboxFolder = (settings?.inboxFolder || 'Inbox').toLowerCase();
   const archiveFolder = (settings?.archiveFolder || 'X_Archive').toLowerCase();
   let inboxCount = 0;
   let assignedCount = 0;
@@ -52,10 +51,10 @@ export const calculateProjectStats = (
     const topFolder = (p.filePath?.split(/[\\/]/)[0] || '').toLowerCase();
     if (topFolder === archiveFolder || p.archived) {
       archivedCount++;
-    } else if (topFolder === inboxFolder || !topFolder) {
-      inboxCount++;
-    } else {
+    } else if (p.day != null) {
       assignedCount++;
+    } else {
+      inboxCount++;
     }
 
     if (p.mimeType?.startsWith('video/') || (p.originalName && VIDEO_EXTENSION_REGEX.test(p.originalName))) {
