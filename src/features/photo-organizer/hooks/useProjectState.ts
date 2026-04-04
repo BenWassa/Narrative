@@ -38,7 +38,7 @@ const STATE_PREFIX = 'narrative:projectState:';
 
 const VIDEO_EXTENSION_REGEX = /\.(mp4|mov|webm|avi|mkv)$/i;
 
-const calculateProjectStats = (photos: ProjectPhoto[]) => {
+export const calculateProjectStats = (photos: ProjectPhoto[]) => {
   let inboxCount = 0;
   let assignedCount = 0;
   let archivedCount = 0;

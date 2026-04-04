@@ -20,7 +20,7 @@ import {
 import { ACTIVE_PROJECT_KEY, RECENT_PROJECTS_KEY } from './constants/projectKeys';
 import { MECE_BUCKETS, isMeceBucketLabel } from './constants/meceBuckets';
 import { usePhotoSelection } from './hooks/usePhotoSelection';
-import { useProjectState } from './hooks/useProjectState';
+import { useProjectState, calculateProjectStats } from './hooks/useProjectState';
 import { useViewOptions } from './hooks/useViewOptions';
 import { useToast } from './hooks/useToast';
 import { useExportScript } from './hooks/useExportScript';
@@ -110,6 +110,7 @@ export default function PhotoOrganizer() {
     loadProject,
     retryProjectPermission,
     handleOnboardingComplete: handleOnboardingCompleteInternal,
+    updateRecentProjects,
   } = useProjectState({
     debugEnabled,
     showToast,
@@ -684,6 +685,15 @@ export default function PhotoOrganizer() {
         hasExportManifest={hasExportManifest()}
         hasDirectProcessingUndo={canUndoDirectProcess()}
         onMainMenu={() => {
+          if (projectRootPath) {
+            updateRecentProjects({
+              projectName: projectName || 'Untitled Project',
+              projectId: projectRootPath,
+              rootPath: projectFolderLabel || projectRootPath,
+              lastOpened: Date.now(),
+              ...calculateProjectStats(photos),
+            });
+          }
           setShowOnboarding(false);
           setProjectError(null);
           setShowWelcome(true);
