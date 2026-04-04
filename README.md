@@ -118,6 +118,15 @@ If your project includes a `98_ARCHIVE/` folder, those files are treated as arch
 
 ---
 
+## Troubleshooting
+
+- If you see repeated `sw.js` console errors (for example, `Response body is already used`), clear site data and unregister service workers for this app in DevTools:
+- Open DevTools -> `Application` -> `Service Workers`, then click `Unregister` for this origin/scope.
+- If needed, also clear storage in DevTools -> `Application` -> `Storage` -> `Clear site data`.
+- `Unchecked runtime.lastError: Could not establish connection` is usually from a browser extension unless this repo introduces `chrome.runtime` usage.
+
+---
+
 ## Release Workflow
 
 To create a new release:
