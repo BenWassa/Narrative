@@ -691,7 +691,7 @@ export default function PhotoOrganizer() {
               projectId: projectRootPath,
               rootPath: projectFolderLabel || projectRootPath,
               lastOpened: Date.now(),
-              ...calculateProjectStats(photos),
+              ...calculateProjectStats(photos, projectSettings?.folderStructure),
             });
           }
           setShowOnboarding(false);

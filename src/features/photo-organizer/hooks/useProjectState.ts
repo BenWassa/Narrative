@@ -37,18 +37,23 @@ const DEFAULT_SETTINGS: ProjectSettings = {
 const STATE_PREFIX = 'narrative:projectState:';
 
 const VIDEO_EXTENSION_REGEX = /\.(mp4|mov|webm|avi|mkv)$/i;
-
-export const calculateProjectStats = (photos: ProjectPhoto[]) => {
+export const calculateProjectStats = (
+  photos: ProjectPhoto[],
+  settings?: { inboxFolder?: string; archiveFolder?: string },
+) => {
+  const inboxFolder = (settings?.inboxFolder || 'Inbox').toLowerCase();
+  const archiveFolder = (settings?.archiveFolder || 'X_Archive').toLowerCase();
   let inboxCount = 0;
   let assignedCount = 0;
   let archivedCount = 0;
   let videoCount = 0;
 
   photos.forEach(p => {
-    if (!p.bucket) {
-      inboxCount++;
-    } else if (p.bucket === 'X' || p.bucket === 'X_Archive') {
+    const topFolder = (p.filePath?.split(/[\\/]/)[0] || '').toLowerCase();
+    if (topFolder === archiveFolder || p.archived) {
       archivedCount++;
+    } else if (topFolder === inboxFolder || !topFolder) {
+      inboxCount++;
     } else {
       assignedCount++;
     }
@@ -375,7 +380,7 @@ export function useProjectState({
             existingProject = normalized.find(p => p.rootPath === projectId);
           }
           const existingCoverUrl = existingProject?.coverUrl;
-          const projectStats = calculateProjectStats(photosWithDays);
+          const projectStats = calculateProjectStats(photosWithDays, state.settings?.folderStructure);
 
           updateRecentProjects({
             projectName: state.projectName || 'Untitled Project',
@@ -658,7 +663,7 @@ export function useProjectState({
           projectId: nextProjectId,
           rootPath: state.rootPath || state.dirHandle.name,
           lastOpened: Date.now(),
-          ...calculateProjectStats(hydratedPhotos),
+          ...calculateProjectStats(hydratedPhotos, nextState.settings?.folderStructure),
         });
 
         setLoadingProgress(98);
