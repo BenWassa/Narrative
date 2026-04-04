@@ -94,7 +94,8 @@ export default function ProjectHeader({
           <img src={APP_ICON_SRC} alt="Narrative" className="w-8 h-8 rounded" />
           <div>
             <h1 className="text-lg font-semibold text-gray-100 flex items-center gap-2">
-              Dashboard <span className="text-gray-600 font-light">/</span> {projectName}
+              Narrative <span className="text-gray-600 font-light">/</span>{' '}
+              <span className="text-gray-400 font-normal">{projectName}</span>
             </h1>
             <p className="text-xs text-gray-400">
               {stats.sorted} sorted · {stats.root} root media · {stats.archived} archived

@@ -44,14 +44,22 @@ export default function StartScreen({
   const groupedByYear = useMemo(() => {
     const groups: Record<number, RecentProject[]> = {};
     recentProjects.forEach(project => {
-      const year = new Date(project.createdAt || project.lastOpened || Date.now()).getFullYear();
-      if (!groups[year]) {
-        groups[year] = [];
-      }
+      // Prefer year embedded in the project name (e.g. "Mexico 2025", "Diving_Mexico_2025")
+      // since app-side timestamps reflect when the project was opened, not when the trip happened
+      const nameMatch = (project.projectName + ' ' + project.rootPath).match(/\b(20\d{2})\b/);
+      const year = nameMatch
+        ? parseInt(nameMatch[1], 10)
+        : new Date(project.lastOpened || Date.now()).getFullYear();
+      if (!groups[year]) groups[year] = [];
       groups[year].push(project);
     });
+    // Sort projects within each group by lastOpened descending (most recent first)
     return Object.entries(groups)
-      .sort(([a], [b]) => Number(b) - Number(a)) as [string, RecentProject[]][];
+      .sort(([a], [b]) => Number(b) - Number(a))
+      .map(([year, projects]) => [
+        year,
+        [...projects].sort((a, b) => (b.lastOpened || 0) - (a.lastOpened || 0)),
+      ] as [string, RecentProject[]]);
   }, [recentProjects]);
   const [collapsedYears, setCollapsedYears] = useState<Record<string, boolean>>(readCollapsedYears);
   const latestYear = groupedByYear.length > 0 ? Number(groupedByYear[0][0]) : currentYear;
@@ -136,58 +144,82 @@ export default function StartScreen({
           )}
 
           {stats.totalProjects > 0 && (
-            <div className="mb-6 bg-gray-900 border border-gray-800 rounded-2xl p-5 shadow-lg">
-              <div className="flex items-center justify-between mb-4">
-                <div className="flex gap-4">
-                  <div className="px-3 py-1 bg-gray-950 border border-gray-800 rounded-lg text-sm text-gray-300">
-                    <span className="text-gray-500 mr-2">Total Photos:</span>
-                    {stats.totalPhotos.toLocaleString()}
+            <div className="bg-gray-900 border border-gray-800 rounded-xl p-5">
+              <div className="flex items-start justify-between gap-4 mb-4">
+                {/* Stat chips */}
+                <div className="flex flex-wrap gap-3">
+                  <div className="flex flex-col">
+                    <span className="text-2xl font-bold text-gray-100 leading-none">
+                      {stats.totalPhotos.toLocaleString()}
+                    </span>
+                    <span className="text-xs text-gray-500 mt-1">photos</span>
                   </div>
-                  <div className="px-3 py-1 bg-gray-950 border border-gray-800 rounded-lg text-sm text-gray-300">
-                    <span className="text-gray-500 mr-2">Videos:</span>
-                    {stats.totalVideos.toLocaleString()}
-                  </div>
-                  <div className="px-3 py-1 bg-gray-950 border border-gray-800 rounded-lg text-sm text-gray-300">
-                    <span className="text-gray-500 mr-2">Projects:</span>
-                    {stats.totalProjects}
+                  {stats.totalVideos > 0 && (
+                    <div className="flex flex-col pl-4 border-l border-gray-700">
+                      <span className="text-2xl font-bold text-gray-100 leading-none">
+                        {stats.totalVideos.toLocaleString()}
+                      </span>
+                      <span className="text-xs text-gray-500 mt-1">videos</span>
+                    </div>
+                  )}
+                  <div className="flex flex-col pl-4 border-l border-gray-700">
+                    <span className="text-2xl font-bold text-gray-100 leading-none">
+                      {stats.totalProjects}
+                    </span>
+                    <span className="text-xs text-gray-500 mt-1">projects</span>
                   </div>
                 </div>
-                <div className="flex items-center gap-2">
+                {/* Actions */}
+                <div className="flex items-center gap-2 shrink-0">
                   {stats.mostRecentProject && (
                     <button
                       onClick={() => onOpenProject(stats.mostRecentProject!.projectId)}
-                      className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white text-sm font-medium rounded-lg transition-colors"
+                      className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white text-sm font-medium rounded-lg transition-colors"
                     >
-                      <Play size={16} /> Resume Last Project
+                      <Play size={14} />
+                      Resume
                     </button>
                   )}
                   <button
                     onClick={() => setShowOnboarding(true)}
-                    className="px-4 py-2 bg-gray-800 text-gray-200 rounded-lg text-sm font-medium border border-gray-700 hover:border-blue-500 hover:text-white transition-colors"
+                    className="inline-flex items-center gap-2 px-4 py-2 bg-gray-800 hover:bg-gray-700 text-gray-300 hover:text-white text-sm font-medium rounded-lg border border-gray-700 hover:border-gray-600 transition-colors"
                   >
-                    <Plus className="w-4 h-4" /> Add Project
+                    <Plus size={14} />
+                    New
                   </button>
                 </div>
               </div>
-              <div className="space-y-2">
-                <div className="h-2 w-full bg-gray-950 rounded-full overflow-hidden flex">
-                  <div
-                    className="bg-blue-500 h-full transition-all"
-                    style={{ width: `${stats.assignedPercent}%` }}
-                  />
-                  <div
-                    className="bg-gray-600 h-full transition-all"
-                    style={{ width: `${stats.archivedPercent}%` }}
-                  />
+              {/* Progress bar — only show if we have breakdown data */}
+              {stats.inboxCount + stats.assignedCount + stats.archivedCount > 0 ? (
+                <div className="space-y-1.5">
+                  <div className="h-1.5 w-full bg-gray-800 rounded-full overflow-hidden flex">
+                    <div
+                      className="bg-blue-500 h-full transition-all duration-300"
+                      style={{ width: `${stats.assignedPercent}%` }}
+                    />
+                    <div
+                      className="bg-gray-600 h-full transition-all duration-300"
+                      style={{ width: `${stats.archivedPercent}%` }}
+                    />
+                  </div>
+                  <div className="flex items-center gap-3 text-xs text-gray-500">
+                    <span className="flex items-center gap-1.5">
+                      <span className="w-2 h-2 rounded-full bg-blue-500 inline-block" />
+                      <span className="text-gray-300">{stats.assignedPercent}%</span> assigned
+                    </span>
+                    <span className="flex items-center gap-1.5">
+                      <span className="w-2 h-2 rounded-full bg-gray-700 inline-block" />
+                      {stats.inboxCount.toLocaleString()} inbox
+                    </span>
+                    <span className="flex items-center gap-1.5">
+                      <span className="w-2 h-2 rounded-full bg-gray-600 inline-block" />
+                      {stats.archivedCount.toLocaleString()} archived
+                    </span>
+                  </div>
                 </div>
-                <div className="flex gap-4 text-xs font-medium text-gray-400">
-                  <span className="text-blue-400">{stats.assignedPercent}% assigned</span>
-                  <span>•</span>
-                  <span>{stats.inboxCount.toLocaleString()} inbox</span>
-                  <span>•</span>
-                  <span>{stats.archivedCount.toLocaleString()} archived</span>
-                </div>
-              </div>
+              ) : (
+                <p className="text-xs text-gray-600">Open a project to track assignment progress.</p>
+              )}
             </div>
           )}
 

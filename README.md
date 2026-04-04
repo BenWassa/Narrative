@@ -19,7 +19,10 @@ Narrative is a local-first, keyboard-driven workflow for curating travel photos.
 - **Archive-aware imports**: Files under `98_ARCHIVE/` load as archived automatically.
 - **Export script**: Generates a bash script that copies photos into day folders.
 - **Local-only storage**: Project state stored in localStorage + IndexedDB handles.
-- **Main menu**: Jump back to the project picker from any project.
+- **Dashboard**: Aggregated stats across all projects — total photos, videos, assignment progress bar, and per-project progress indicators.
+- **Year grouping**: Projects on the dashboard are grouped by the year in the project name, with the current year expanded and past years collapsed.
+- **Resume last project**: One-click button to reopen the most recently accessed project.
+- **Navigation breadcrumb**: Persistent `Narrative / [view]` label so you always know which screen you're on.
 - **Supported formats**: JPG, JPEG, PNG, HEIC, WEBP.
 
 ---

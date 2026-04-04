@@ -200,10 +200,9 @@ export function useProjectState({
 
         const existing = existingIndex !== -1 ? normalized[existingIndex] : {};
         const merged = {
-          createdAt: Date.now(),
           ...existing,
           ...project,
-          createdAt: existing.createdAt || project.createdAt || Date.now(),
+          createdAt: (existing as RecentProject).createdAt || project.createdAt || Date.now(),
         } as RecentProject;
         const filtered = normalized.filter((_, index) => index !== existingIndex);
 
