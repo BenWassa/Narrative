@@ -36,6 +36,31 @@ const DEFAULT_SETTINGS: ProjectSettings = {
 };
 const STATE_PREFIX = 'narrative:projectState:';
 
+const VIDEO_EXTENSION_REGEX = /\.(mp4|mov|webm|avi|mkv)$/i;
+
+const calculateProjectStats = (photos: ProjectPhoto[]) => {
+  let inboxCount = 0;
+  let assignedCount = 0;
+  let archivedCount = 0;
+  let videoCount = 0;
+
+  photos.forEach(p => {
+    if (!p.bucket) {
+      inboxCount++;
+    } else if (p.bucket === 'X' || p.bucket === 'X_Archive') {
+      archivedCount++;
+    } else {
+      assignedCount++;
+    }
+
+    if (p.mimeType?.startsWith('video/') || (p.originalName && VIDEO_EXTENSION_REGEX.test(p.originalName))) {
+      videoCount++;
+    }
+  });
+
+  return { totalPhotos: photos.length, inboxCount, assignedCount, archivedCount, videoCount };
+};
+
 interface UseProjectStateOptions {
   debugEnabled: boolean;
   showToast: (message: string, tone?: 'info' | 'error') => void;
@@ -174,7 +199,12 @@ export function useProjectState({
         }
 
         const existing = existingIndex !== -1 ? normalized[existingIndex] : {};
-        const merged = { ...existing, ...project } as RecentProject;
+        const merged = {
+          createdAt: Date.now(),
+          ...existing,
+          ...project,
+          createdAt: existing.createdAt || project.createdAt || Date.now(),
+        } as RecentProject;
         const filtered = normalized.filter((_, index) => index !== existingIndex);
 
         const next = [merged, ...filtered].slice(0, 20);
@@ -346,14 +376,15 @@ export function useProjectState({
             existingProject = normalized.find(p => p.rootPath === projectId);
           }
           const existingCoverUrl = existingProject?.coverUrl;
+          const projectStats = calculateProjectStats(photosWithDays);
 
           updateRecentProjects({
             projectName: state.projectName || 'Untitled Project',
             projectId,
             rootPath: state.rootPath || 'Unknown location',
             lastOpened: Date.now(),
-            totalPhotos: state.photos?.length || 0,
             ...(existingCoverUrl && { coverUrl: existingCoverUrl }),
+            ...projectStats,
           });
         }
         setLoadingProgress(100);
@@ -628,7 +659,7 @@ export function useProjectState({
           projectId: nextProjectId,
           rootPath: state.rootPath || state.dirHandle.name,
           lastOpened: Date.now(),
-          totalPhotos: hydratedPhotos.length,
+          ...calculateProjectStats(hydratedPhotos),
         });
 
         setLoadingProgress(98);

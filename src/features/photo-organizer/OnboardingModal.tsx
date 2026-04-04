@@ -29,6 +29,11 @@ export interface RecentProject {
   coverKey?: string; // New: IndexedDB cover reference
   totalPhotos?: number;
   lastOpened: number;
+  inboxCount?: number;
+  assignedCount?: number;
+  archivedCount?: number;
+  videoCount?: number;
+  createdAt?: number;
 }
 
 interface OnboardingModalProps {

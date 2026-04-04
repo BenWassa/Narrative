@@ -1,14 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import * as coverStorage from '../utils/coverStorageService';
-
-interface RecentProject {
-  projectName: string;
-  projectId: string;
-  rootPath: string;
-  coverUrl?: string; // Legacy base64
-  coverKey?: string; // New IndexedDB reference
-  totalPhotos?: number;
-}
+import type { RecentProject } from '../OnboardingModal';
 
 interface ProjectTileProps {
   project: RecentProject;
@@ -19,33 +11,62 @@ export default function ProjectTile({ project, onOpen }: ProjectTileProps) {
   const [coverUrl, setCoverUrl] = useState<string | null>(null);
 
   useEffect(() => {
-    // Load cover from IndexedDB if coverKey exists, otherwise use legacy coverUrl
+    let activeUrl: string | null = null;
+    let isMounted = true;
+
+    const cleanup = () => {
+      if (activeUrl && activeUrl.startsWith('blob:')) {
+        URL.revokeObjectURL(activeUrl);
+      }
+      activeUrl = null;
+    };
+
+    const applyLegacyCover = () => {
+      cleanup();
+      if (isMounted) {
+        if (project.coverUrl) {
+          activeUrl = project.coverUrl;
+          setCoverUrl(project.coverUrl);
+        } else {
+          setCoverUrl(null);
+        }
+      }
+    };
+
     if (project.coverKey) {
       coverStorage
         .getCoverUrl(project.projectId)
-        .then(url => setCoverUrl(url))
+        .then(url => {
+          if (isMounted) {
+            cleanup();
+            activeUrl = url;
+            setCoverUrl(url);
+          }
+        })
         .catch(err => {
           console.warn(`Failed to load cover for ${project.projectId}:`, err);
-          // Fall back to legacy coverUrl if available
-          if (project.coverUrl) {
-            setCoverUrl(project.coverUrl);
+          if (isMounted) {
+            applyLegacyCover();
           }
         });
-    } else if (project.coverUrl) {
-      // Legacy base64 cover
-      setCoverUrl(project.coverUrl);
+    } else {
+      applyLegacyCover();
     }
 
-    // Cleanup: revoke object URLs on unmount
     return () => {
-      if (coverUrl && coverUrl.startsWith('blob:')) {
-        URL.revokeObjectURL(coverUrl);
-      }
+      isMounted = false;
+      cleanup();
     };
-  }, [project, project.coverKey, project.coverUrl]);
+  }, [project.coverKey, project.coverUrl, project.projectId]);
+
+  const total = project.totalPhotos || 1;
+  const assignedPct =
+    typeof project.assignedCount === 'number' ? (project.assignedCount / total) * 100 : 0;
+  const archivedPct =
+    typeof project.archivedCount === 'number' ? (project.archivedCount / total) * 100 : 0;
 
   return (
-    <div className="relative rounded-lg overflow-hidden border border-gray-800 bg-gray-950 hover:border-blue-500 transition-colors group cursor-pointer">
+    <div className="relative rounded-lg overflow-hidden border border-gray-800 bg-gray-950 hover:border-blue-500 transition-colors group cursor-pointer pb-1">
       <button
         onClick={() => onOpen(project.projectId)}
         className="w-full block text-left"
@@ -68,14 +89,33 @@ export default function ProjectTile({ project, onOpen }: ProjectTileProps) {
         </div>
       </button>
 
-      <div className="p-3 space-y-1">
+      <div className="p-3 space-y-1 relative z-10">
         <div className="text-sm font-semibold text-gray-200 truncate">{project.projectName}</div>
-        {typeof project.totalPhotos === 'number' && (
-          <div className="text-xs text-gray-500">{`${project.totalPhotos} ${
-            project.totalPhotos === 1 ? 'photo' : 'photos'
-          }`}</div>
-        )}
-        <div className="text-xs text-gray-600 truncate">{project.rootPath}</div>
+        <div className="flex justify-between items-center text-xs text-gray-500">
+          <span>{`${project.totalPhotos || 0} photos`}</span>
+          {project.inboxCount !== undefined && project.inboxCount > 0 && (
+            <span className="bg-gray-800 text-gray-300 px-2 py-0.5 rounded-full text-xs font-medium border border-gray-700">
+              {project.inboxCount} inbox
+            </span>
+          )}
+        </div>
+        <div className="flex justify-between items-center text-xs text-gray-600 truncate">
+          <span>{project.rootPath}</span>
+          {typeof project.assignedCount === 'number' && (
+            <span className="text-blue-400 font-medium">{Math.round(assignedPct)}% assigned</span>
+          )}
+        </div>
+      </div>
+
+      <div className="absolute bottom-0 left-0 w-full h-1 bg-gray-900 flex">
+        <div
+          className="bg-blue-500 h-full transition-all"
+          style={{ width: `${Math.min(assignedPct, 100)}%` }}
+        />
+        <div
+          className="bg-gray-600 h-full transition-all"
+          style={{ width: `${Math.min(archivedPct, 100)}%` }}
+        />
       </div>
     </div>
   );
