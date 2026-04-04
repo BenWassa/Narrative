@@ -117,24 +117,24 @@ export default function StartScreen({
   return (
     <div className="h-screen bg-gray-950 text-gray-100 flex flex-col">
       <div className="border-b border-gray-800 bg-gray-900/50 backdrop-blur-sm">
-        <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <img src={APP_ICON_SRC} alt="Narrative" className="w-8 h-8 rounded" />
-            <div>
-              <h1 className="text-xl font-bold flex items-center gap-2">
-                Narrative
-                <span className="text-gray-600 text-lg font-light">/</span>
-                <span className="text-gray-400">Dashboard</span>
-              </h1>
+          <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <img src={APP_ICON_SRC} alt="Narrative" className="w-8 h-8 rounded" />
+              <div>
+                <h1 className="text-xl font-bold flex items-center gap-2">
+                  Narrative
+                  <span className="text-gray-600 text-lg font-light">/</span>
+                  <span className="text-gray-400">Dashboard</span>
+                </h1>
+              </div>
+            </div>
+            <div className="flex items-center gap-4">
+              <div className="px-3 py-1 bg-gray-800 text-gray-300 rounded-md text-xs font-medium tracking-wide">
+                <span className="uppercase">{currentVersion}</span>
+              </div>
             </div>
           </div>
-          <div className="px-3 py-1 bg-gray-800 text-gray-300 rounded-md text-xs font-medium tracking-wide">
-            <span className="uppercase">{currentVersion}</span>
-          </div>
-        </div>
-      </div>
-
-      <div className="flex-1 flex flex-col items-center p-6 overflow-y-auto scrollbar-thin">
+        </div>      <div className="flex-1 flex flex-col items-center p-6 overflow-y-auto scrollbar-thin">
         <div className="w-full max-w-7xl space-y-6">
           {errorMessage && (
             <div className="rounded-lg border border-red-800 bg-red-950/60 px-4 py-3 text-sm text-red-200">
@@ -143,7 +143,7 @@ export default function StartScreen({
           )}
 
           {stats.totalProjects > 0 && (
-            <div className="bg-gray-900 border border-gray-800 rounded-xl p-5">
+            <div className="bg-gray-900 border border-gray-800 rounded-xl p-5 shadow-sm">
               <div className="flex items-start justify-between gap-4 mb-4">
                 {/* Stat chips */}
                 <div className="flex flex-wrap gap-3">
@@ -151,21 +151,27 @@ export default function StartScreen({
                     <span className="text-2xl font-bold text-gray-100 leading-none">
                       {stats.totalPhotos.toLocaleString()}
                     </span>
-                    <span className="text-xs text-gray-500 mt-1">photos</span>
+                    <span className="text-xs text-gray-500 mt-1 uppercase tracking-wider font-semibold">
+                      photos
+                    </span>
                   </div>
                   {stats.totalVideos > 0 && (
                     <div className="flex flex-col pl-4 border-l border-gray-700">
                       <span className="text-2xl font-bold text-gray-100 leading-none">
                         {stats.totalVideos.toLocaleString()}
                       </span>
-                      <span className="text-xs text-gray-500 mt-1">videos</span>
+                      <span className="text-xs text-gray-500 mt-1 uppercase tracking-wider font-semibold">
+                        videos
+                      </span>
                     </div>
                   )}
                   <div className="flex flex-col pl-4 border-l border-gray-700">
                     <span className="text-2xl font-bold text-gray-100 leading-none">
                       {stats.totalProjects}
                     </span>
-                    <span className="text-xs text-gray-500 mt-1">projects</span>
+                    <span className="text-xs text-gray-500 mt-1 uppercase tracking-wider font-semibold">
+                      projects
+                    </span>
                   </div>
                 </div>
                 {/* Actions */}
@@ -173,19 +179,12 @@ export default function StartScreen({
                   {stats.mostRecentProject && (
                     <button
                       onClick={() => onOpenProject(stats.mostRecentProject!.projectId)}
-                      className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white text-sm font-medium rounded-lg transition-colors"
+                      className="inline-flex items-center gap-2 px-4 py-2 bg-gray-800 hover:bg-gray-700 text-gray-200 text-sm font-semibold rounded-lg border border-gray-700 transition-all active:scale-95"
                     >
-                      <Play size={14} />
-                      Resume
+                      <Play size={14} className="fill-current" />
+                      Resume Last
                     </button>
                   )}
-                  <button
-                    onClick={() => setShowOnboarding(true)}
-                    className="inline-flex items-center gap-2 px-4 py-2 bg-gray-800 hover:bg-gray-700 text-gray-300 hover:text-white text-sm font-medium rounded-lg border border-gray-700 hover:border-gray-600 transition-colors"
-                  >
-                    <Plus size={14} />
-                    New
-                  </button>
                 </div>
               </div>
               {/* Progress bar — only show if we have breakdown data */}
@@ -290,9 +289,10 @@ export default function StartScreen({
       <button
         onClick={() => setShowOnboarding(true)}
         aria-label="Add project"
-        className="fixed bottom-6 right-6 w-14 h-14 rounded-full bg-blue-600 hover:bg-blue-500 text-white shadow-lg hover:shadow-blue-500/30 flex items-center justify-center transition-all"
+        className="fixed bottom-8 right-8 h-14 px-6 rounded-full bg-blue-600 hover:bg-blue-500 text-white shadow-xl shadow-blue-900/40 flex items-center gap-3 transition-all hover:scale-105 active:scale-95 group"
       >
-        <Plus size={24} />
+        <Plus size={24} className="transition-transform group-hover:rotate-90" />
+        <span className="font-bold tracking-wide">New Project</span>
       </button>
 
       <OnboardingModal
