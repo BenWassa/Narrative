@@ -58,11 +58,10 @@ export default function StartScreen({
       .sort(([a], [b]) => Number(b) - Number(a))
       .map(([year, projects]) => [
         year,
-        [...projects].sort((a, b) => (b.lastOpened || 0) - (a.lastOpened || 0)),
+        [...projects].sort((a, b) => (b.createdAt || b.lastOpened || 0) - (a.createdAt || a.lastOpened || 0)),
       ] as [string, RecentProject[]]);
   }, [recentProjects]);
-  const [collapsedYears, setCollapsedYears] = useState<Record<string, boolean>>(readCollapsedYears);
-  const latestYear = groupedByYear.length > 0 ? Number(groupedByYear[0][0]) : currentYear;
+  const [collapsedYears, setCollapsedYears] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     const fetchVersion = async () => {
@@ -226,7 +225,7 @@ export default function StartScreen({
           {groupedByYear.length > 0 ? (
             <div className="space-y-8">
               {groupedByYear.map(([year, projects]) => {
-                const isCollapsed = collapsedYears[year] ?? Number(year) !== currentYear;
+                const isCollapsed = collapsedYears[year] ?? false;
                 return (
                   <div key={year}>
                     <button
@@ -246,6 +245,7 @@ export default function StartScreen({
 
                     {!isCollapsed && (
                       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 auto-rows-max">
+                        {/* ARCHIVED: inline "Add Project" tile — replaced by floating FAB
                         {Number(year) === latestYear && (
                           <div className="relative rounded-lg overflow-hidden border-2 border-dashed border-gray-700 bg-gray-950 hover:border-blue-500 transition-colors group cursor-pointer pb-1">
                             <button
@@ -267,6 +267,7 @@ export default function StartScreen({
                             </button>
                           </div>
                         )}
+                        END ARCHIVED */}
 
                         {projects.map(project => (
                           <ProjectTile key={project.projectId} project={project} onOpen={onOpenProject} />
@@ -278,18 +279,21 @@ export default function StartScreen({
               })}
             </div>
           ) : (
-            <div className="text-center py-12 text-gray-500 space-y-4">
-              <p className="text-sm">No recent projects. Add a folder to get started.</p>
-              <button
-                onClick={() => setShowOnboarding(true)}
-                className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white text-sm font-medium rounded-lg transition-colors"
-              >
-                Add Project
-              </button>
+            <div className="text-center py-12 text-gray-500">
+              <p className="text-sm">No recent projects. Use the + button to get started.</p>
             </div>
           )}
         </div>
       </div>
+
+      {/* Floating action button — bottom right */}
+      <button
+        onClick={() => setShowOnboarding(true)}
+        aria-label="Add project"
+        className="fixed bottom-6 right-6 w-14 h-14 rounded-full bg-blue-600 hover:bg-blue-500 text-white shadow-lg hover:shadow-blue-500/30 flex items-center justify-center transition-all"
+      >
+        <Plus size={24} />
+      </button>
 
       <OnboardingModal
         isOpen={showOnboarding}
