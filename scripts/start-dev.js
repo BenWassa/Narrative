@@ -1,5 +1,8 @@
 #!/usr/bin/env node
 const { spawn } = require('child_process');
+const net = require('net');
+
+const DEFAULT_PORT = 5173;
 
 function start(cmd, args, opts) {
   const p = spawn(cmd, args, { stdio: 'inherit', shell: true, ...opts });
@@ -9,24 +12,53 @@ function start(cmd, args, opts) {
   return p;
 }
 
-console.log('Starting frontend...');
+function isPortAvailable(port) {
+  return new Promise(resolve => {
+    const server = net.createServer();
 
-const frontend = start('npm', ['run', 'dev']);
-
-// Immediately print the frontend URL so it's visible in mixed output
-console.log('\nFrontend: http://localhost:5173\n');
-
-// Forward signals
-['SIGINT', 'SIGTERM', 'SIGHUP'].forEach(sig => {
-  process.on(sig, () => {
-    frontend.kill(sig);
-    process.exit();
+    server.once('error', () => resolve(false));
+    server.once('listening', () => {
+      server.close(() => resolve(true));
+    });
+    server.listen(port, '127.0.0.1');
   });
-});
+}
 
-// Keep the script running until both children exit
-process.on('exit', () => {
-  try {
-    frontend.kill();
-  } catch (e) {}
+async function findAvailablePort(startPort) {
+  let port = startPort;
+
+  while (!(await isPortAvailable(port))) {
+    port += 1;
+  }
+
+  return port;
+}
+
+async function main() {
+  const port = await findAvailablePort(DEFAULT_PORT);
+
+  console.log(`Starting frontend on port ${port}...`);
+
+  const frontend = start('npm', ['run', 'dev', '--', '--port', String(port)]);
+
+  console.log(`\nFrontend: http://localhost:${port}\n`);
+
+  // Forward signals
+  ['SIGINT', 'SIGTERM', 'SIGHUP'].forEach(sig => {
+    process.on(sig, () => {
+      frontend.kill(sig);
+      process.exit();
+    });
+  });
+
+  process.on('exit', () => {
+    try {
+      frontend.kill();
+    } catch (e) {}
+  });
+}
+
+main().catch(error => {
+  console.error(error);
+  process.exit(1);
 });

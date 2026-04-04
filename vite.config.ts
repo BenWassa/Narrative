@@ -5,8 +5,8 @@ import { resolve } from 'path';
 
 const pkg = JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 'utf-8'));
 
-export default defineConfig({
-  base: '/Narrative/',
+export default defineConfig(({ command }) => ({
+  base: command === 'serve' ? '/' : '/Narrative/',
   plugins: [
     react(),
     {
@@ -31,10 +31,15 @@ export default defineConfig({
   define: {
     __APP_VERSION__: JSON.stringify(pkg.version),
   },
+  server: {
+    host: 'localhost',
+    port: 5173,
+    strictPort: false,
+  },
   build: {
     // Output site to docs/ so GitHub Pages can serve the app at the repo root.
     outDir: 'docs',
     // Preserve any existing docs content in docs/.
     emptyOutDir: false,
   },
-});
+}));
