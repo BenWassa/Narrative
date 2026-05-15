@@ -807,8 +807,9 @@ export async function readProjectStatsFromManifest(
         let assignedCount = 0, inboxCount = 0, archivedCount = 0, videoCount = 0;
         photos.forEach(p => {
           const topFolder = (p.filePath?.split(/[\\/]/)[0] || '').toLowerCase();
+          const rawTopFolder = p.filePath?.split(/[\\/]/)[0] || '';
           if (topFolder === archiveFolder || p.archived || p.bucket === 'X') archivedCount++;
-          else if (isSingleDay ? p.bucket != null : p.day != null) assignedCount++;
+          else if (isSingleDay ? (isBucketFolderName(rawTopFolder) || p.bucket != null) : p.day != null) assignedCount++;
           else inboxCount++;
           if (p.mediaKind === 'video' || (p.originalName && /\.(mp4|mov|webm|avi|mkv)$/i.test(p.originalName))) videoCount++;
         });
@@ -827,8 +828,9 @@ export async function readProjectStatsFromManifest(
     let assignedCount = 0, inboxCount = 0, archivedCount = 0, videoCount = 0;
     manifest.photos.forEach(p => {
       const topFolder = (p.filePath?.split(/[\\/]/)[0] || '').toLowerCase();
-      if (topFolder === archiveFolder || p.archived) archivedCount++;
-      else if (isSingleDay ? p.bucket != null : p.day != null) assignedCount++;
+      const rawTopFolder = p.filePath?.split(/[\\/]/)[0] || '';
+      if (topFolder === archiveFolder || p.archived || p.bucket === 'X') archivedCount++;
+      else if (isSingleDay ? (isBucketFolderName(rawTopFolder) || p.bucket != null) : p.day != null) assignedCount++;
       else inboxCount++;
       if (p.mediaKind === 'video' || (p.originalName && /\.(mp4|mov|webm|avi|mkv)$/i.test(p.originalName))) videoCount++;
     });

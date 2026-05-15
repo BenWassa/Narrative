@@ -39,6 +39,15 @@ const DEFAULT_SETTINGS: ProjectSettings = {
 const STATE_PREFIX = 'narrative:projectState:';
 
 const VIDEO_EXTENSION_REGEX = /\.(mp4|mov|webm|avi|mkv)$/i;
+// Bucket keys that represent assigned (non-archive) buckets
+const ASSIGNED_BUCKET_KEYS = new Set(['A', 'B', 'C', 'D', 'E', 'M']);
+
+function isAssignedTopFolder(topFolder: string, archiveFolder: string): boolean {
+  if (!topFolder || topFolder === archiveFolder) return false;
+  const firstToken = (topFolder.split(/[_\s-]+/)[0] || '').toUpperCase();
+  return ASSIGNED_BUCKET_KEYS.has(firstToken);
+}
+
 export const calculateProjectStats = (
   photos: ProjectPhoto[],
   settings?: { inboxFolder?: string; archiveFolder?: string },
@@ -55,7 +64,9 @@ export const calculateProjectStats = (
     const topFolder = (p.filePath?.split(/[\\/]/)[0] || '').toLowerCase();
     if (topFolder === archiveFolder || p.archived || p.bucket === 'X') {
       archivedCount++;
-    } else if (isSingleDay ? p.bucket != null : p.day != null) {
+    } else if (isSingleDay
+      ? isAssignedTopFolder(topFolder, archiveFolder) || p.bucket != null
+      : p.day != null) {
       assignedCount++;
     } else {
       inboxCount++;
