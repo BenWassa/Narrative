@@ -789,6 +789,29 @@ async function readManifest(dirHandle: FileSystemDirectoryHandle): Promise<Proje
   }
 }
 
+export async function readProjectStatsFromManifest(
+  projectId: string,
+): Promise<{ totalPhotos: number; assignedCount: number; inboxCount: number; archivedCount: number; videoCount: number } | null> {
+  try {
+    const handle = await getHandle(projectId);
+    if (!handle) return null;
+    const manifest = await readManifest(handle);
+    if (!manifest) return null;
+    const archiveFolder = (manifest.settings?.folderStructure?.archiveFolder || 'X_Archive').toLowerCase();
+    let assignedCount = 0, inboxCount = 0, archivedCount = 0, videoCount = 0;
+    manifest.photos.forEach(p => {
+      const topFolder = (p.filePath?.split(/[\\/]/)[0] || '').toLowerCase();
+      if (topFolder === archiveFolder || p.archived) archivedCount++;
+      else if (p.day != null) assignedCount++;
+      else inboxCount++;
+      if (p.mediaKind === 'video' || (p.originalName && /\.(mp4|mov|webm|avi|mkv)$/i.test(p.originalName))) videoCount++;
+    });
+    return { totalPhotos: manifest.photos.length, assignedCount, inboxCount, archivedCount, videoCount };
+  } catch {
+    return null;
+  }
+}
+
 async function writeManifest(
   dirHandle: FileSystemDirectoryHandle,
   manifest: ProjectManifest,

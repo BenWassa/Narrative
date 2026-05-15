@@ -15,6 +15,7 @@ import {
   getState,
   initProject,
   inspectProjectFolder,
+  readProjectStatsFromManifest,
   type ProjectMode,
   ProjectPhoto,
   ProjectSettings,
@@ -862,25 +863,20 @@ export function useProjectState({
           );
           setRecentProjects(deduped);
 
-          // Recompute stats for all projects from stored state in the background
-          // so the dashboard reflects current assigned/unassigned counts without
-          // requiring the user to open each project first.
-          const refreshed = deduped.map(project => {
-            try {
-              const raw = safeLocalStorage.get(`${STATE_PREFIX}${project.projectId}`);
-              if (!raw) return project;
-              const stored = JSON.parse(raw);
-              // serializeState stores photos as `edits`, not `photos`
-              const photos = stored.edits ?? stored.photos;
-              if (!Array.isArray(photos)) return project;
-              const stats = calculateProjectStats(photos, stored.settings?.folderStructure);
-              return { ...project, ...stats };
-            } catch {
-              return project;
-            }
+          // Recompute stats for all projects from their .narrative.json manifests
+          // in the background so the dashboard shows accurate assigned/unassigned
+          // counts without requiring the user to open each project first.
+          Promise.all(
+            deduped.map(async project => {
+              const stats = await readProjectStatsFromManifest(project.projectId);
+              return stats ? { ...project, ...stats } : project;
+            }),
+          ).then(refreshed => {
+            setRecentProjects(refreshed);
+            safeLocalStorage.set(RECENT_PROJECTS_KEY, JSON.stringify(refreshed));
+          }).catch(() => {
+            // keep deduped on failure
           });
-          setRecentProjects(refreshed);
-          safeLocalStorage.set(RECENT_PROJECTS_KEY, JSON.stringify(refreshed));
         } catch (err) {
           console.warn('Failed to parse recent projects from storage', err);
           setRecentProjects([]);

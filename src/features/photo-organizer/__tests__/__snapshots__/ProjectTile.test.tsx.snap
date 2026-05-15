@@ -3,7 +3,7 @@
 exports[`ProjectTile > renders an image when coverUrl is present 1`] = `
 <div>
   <div
-    class="relative rounded-lg overflow-hidden border border-gray-800 bg-gray-950 hover:border-blue-500 transition-colors group cursor-pointer"
+    class="relative rounded-lg overflow-hidden border border-gray-800 bg-gray-950 hover:border-blue-500 transition-colors group cursor-pointer pb-1"
   >
     <button
       aria-label="Open project Test"
@@ -20,7 +20,7 @@ exports[`ProjectTile > renders an image when coverUrl is present 1`] = `
       </div>
     </button>
     <div
-      class="p-3 space-y-1"
+      class="p-3 space-y-1 relative z-10"
     >
       <div
         class="text-sm font-semibold text-gray-200 truncate"
@@ -28,15 +28,31 @@ exports[`ProjectTile > renders an image when coverUrl is present 1`] = `
         Test
       </div>
       <div
-        class="text-xs text-gray-500"
+        class="flex justify-between items-center text-xs text-gray-500"
       >
-        120 photos
+        <span>
+          120 photos
+        </span>
       </div>
       <div
-        class="text-xs text-gray-600 truncate"
+        class="flex justify-between items-center text-xs text-gray-600 truncate"
       >
-        /tmp/test
+        <span>
+          /tmp/test
+        </span>
       </div>
+    </div>
+    <div
+      class="absolute bottom-0 left-0 w-full h-1 bg-gray-900 flex"
+    >
+      <div
+        class="bg-blue-500 h-full transition-all"
+        style="width: 0%;"
+      />
+      <div
+        class="bg-gray-600 h-full transition-all"
+        style="width: 0%;"
+      />
     </div>
   </div>
 </div>
@@ -45,7 +61,7 @@ exports[`ProjectTile > renders an image when coverUrl is present 1`] = `
 exports[`ProjectTile > renders with a fallback gradient when no coverUrl 1`] = `
 <div>
   <div
-    class="relative rounded-lg overflow-hidden border border-gray-800 bg-gray-950 hover:border-blue-500 transition-colors group cursor-pointer"
+    class="relative rounded-lg overflow-hidden border border-gray-800 bg-gray-950 hover:border-blue-500 transition-colors group cursor-pointer pb-1"
   >
     <button
       aria-label="Open project Test"
@@ -70,7 +86,7 @@ exports[`ProjectTile > renders with a fallback gradient when no coverUrl 1`] = `
       </div>
     </button>
     <div
-      class="p-3 space-y-1"
+      class="p-3 space-y-1 relative z-10"
     >
       <div
         class="text-sm font-semibold text-gray-200 truncate"
@@ -78,10 +94,31 @@ exports[`ProjectTile > renders with a fallback gradient when no coverUrl 1`] = `
         Test
       </div>
       <div
-        class="text-xs text-gray-600 truncate"
+        class="flex justify-between items-center text-xs text-gray-500"
       >
-        /tmp/test
+        <span>
+          0 photos
+        </span>
       </div>
+      <div
+        class="flex justify-between items-center text-xs text-gray-600 truncate"
+      >
+        <span>
+          /tmp/test
+        </span>
+      </div>
+    </div>
+    <div
+      class="absolute bottom-0 left-0 w-full h-1 bg-gray-900 flex"
+    >
+      <div
+        class="bg-blue-500 h-full transition-all"
+        style="width: 0%;"
+      />
+      <div
+        class="bg-gray-600 h-full transition-all"
+        style="width: 0%;"
+      />
     </div>
   </div>
 </div>
