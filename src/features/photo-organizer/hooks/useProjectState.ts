@@ -42,8 +42,10 @@ const VIDEO_EXTENSION_REGEX = /\.(mp4|mov|webm|avi|mkv)$/i;
 export const calculateProjectStats = (
   photos: ProjectPhoto[],
   settings?: { inboxFolder?: string; archiveFolder?: string },
+  projectMode?: string,
 ) => {
   const archiveFolder = (settings?.archiveFolder || 'X_Archive').toLowerCase();
+  const isSingleDay = projectMode === 'single_day' || projectMode == null;
   let inboxCount = 0;
   let assignedCount = 0;
   let archivedCount = 0;
@@ -51,9 +53,9 @@ export const calculateProjectStats = (
 
   photos.forEach(p => {
     const topFolder = (p.filePath?.split(/[\\/]/)[0] || '').toLowerCase();
-    if (topFolder === archiveFolder || p.archived) {
+    if (topFolder === archiveFolder || p.archived || p.bucket === 'X') {
       archivedCount++;
-    } else if (p.day != null) {
+    } else if (isSingleDay ? p.bucket != null : p.day != null) {
       assignedCount++;
     } else {
       inboxCount++;
@@ -397,6 +399,7 @@ export function useProjectState({
           const projectStats = calculateProjectStats(
             photosWithDays,
             state.settings?.folderStructure,
+            state.projectMode,
           );
 
           updateRecentProjects({
@@ -547,6 +550,7 @@ export function useProjectState({
             const projectStats = calculateProjectStats(
               initResult.photos,
               DEFAULT_SETTINGS.folderStructure,
+              projectMode,
             );
             importedProjects.push({
               projectName: child.name,
@@ -798,7 +802,7 @@ export function useProjectState({
           projectId: nextProjectId,
           rootPath: state.rootPath || state.dirHandle.name,
           lastOpened: Date.now(),
-          ...calculateProjectStats(hydratedPhotos, nextState.settings?.folderStructure),
+          ...calculateProjectStats(hydratedPhotos, nextState.settings?.folderStructure, nextState.projectMode),
         });
 
         setLoadingProgress(98);
@@ -861,6 +865,14 @@ export function useProjectState({
             'Loaded recent projects:',
             deduped.map(p => ({ id: p.projectId, cover: p.coverUrl ? 'has cover' : 'no cover' })),
           );
+          console.log('[useProjectState] initial deduped projects (pre-manifest refresh):', deduped.map(p => ({
+            id: p.projectId,
+            name: p.projectName,
+            totalPhotos: p.totalPhotos,
+            assignedCount: p.assignedCount,
+            inboxCount: p.inboxCount,
+            archivedCount: p.archivedCount,
+          })));
           setRecentProjects(deduped);
 
           // Recompute stats for all projects from their .narrative.json manifests
@@ -869,12 +881,22 @@ export function useProjectState({
           Promise.all(
             deduped.map(async project => {
               const stats = await readProjectStatsFromManifest(project.projectId);
+              console.log(`[useProjectState] manifest stats for ${project.projectId}:`, stats ?? 'null (no handle or manifest)');
               return stats ? { ...project, ...stats } : project;
             }),
           ).then(refreshed => {
+            console.log('[useProjectState] refreshed projects after manifest read:', refreshed.map(p => ({
+              id: p.projectId,
+              name: p.projectName,
+              totalPhotos: p.totalPhotos,
+              assignedCount: p.assignedCount,
+              inboxCount: p.inboxCount,
+              archivedCount: p.archivedCount,
+            })));
             setRecentProjects(refreshed);
             safeLocalStorage.set(RECENT_PROJECTS_KEY, JSON.stringify(refreshed));
-          }).catch(() => {
+          }).catch(err => {
+            console.warn('[useProjectState] manifest refresh failed:', err);
             // keep deduped on failure
           });
         } catch (err) {

@@ -793,19 +793,46 @@ export async function readProjectStatsFromManifest(
   projectId: string,
 ): Promise<{ totalPhotos: number; assignedCount: number; inboxCount: number; archivedCount: number; videoCount: number } | null> {
   try {
+    // localStorage serialized state is always more up-to-date than the on-disk manifest
+    // (the manifest may be stale if the project was edited without flushing to disk).
+    const raw = safeLocalStorage.get(`${STATE_PREFIX}${projectId}`);
+    if (raw) {
+      const stored = JSON.parse(raw);
+      const photos: Array<{ day: number | null; bucket?: string | null; archived?: boolean; filePath?: string; mediaKind?: string; originalName?: string }> =
+        stored.edits || stored.photos || [];
+      console.log(`[readProjectStatsFromManifest] ${projectId} — stored keys:`, Object.keys(stored), '| photo array key:', stored.edits ? 'edits' : stored.photos ? 'photos' : 'none', '| count:', photos.length, '| projectMode:', stored.projectMode, '| sample photo:', photos[0]);
+      if (photos.length > 0) {
+        const archiveFolder = (stored.settings?.folderStructure?.archiveFolder || 'X_Archive').toLowerCase();
+        const isSingleDay = stored.projectMode === 'single_day' || stored.projectMode == null;
+        let assignedCount = 0, inboxCount = 0, archivedCount = 0, videoCount = 0;
+        photos.forEach(p => {
+          const topFolder = (p.filePath?.split(/[\\/]/)[0] || '').toLowerCase();
+          if (topFolder === archiveFolder || p.archived || p.bucket === 'X') archivedCount++;
+          else if (isSingleDay ? p.bucket != null : p.day != null) assignedCount++;
+          else inboxCount++;
+          if (p.mediaKind === 'video' || (p.originalName && /\.(mp4|mov|webm|avi|mkv)$/i.test(p.originalName))) videoCount++;
+        });
+        console.log(`[readProjectStatsFromManifest] ${projectId} — source: localStorage (mode: ${stored.projectMode ?? 'single_day'})`, { assignedCount, inboxCount, archivedCount, videoCount, total: photos.length });
+        return { totalPhotos: photos.length, assignedCount, inboxCount, archivedCount, videoCount };
+      }
+    }
+
+    // Fall back to on-disk manifest (e.g. localStorage was cleared)
     const handle = await getHandle(projectId);
     if (!handle) return null;
     const manifest = await readManifest(handle);
     if (!manifest) return null;
     const archiveFolder = (manifest.settings?.folderStructure?.archiveFolder || 'X_Archive').toLowerCase();
+    const isSingleDay = manifest.projectMode === 'single_day' || manifest.projectMode == null;
     let assignedCount = 0, inboxCount = 0, archivedCount = 0, videoCount = 0;
     manifest.photos.forEach(p => {
       const topFolder = (p.filePath?.split(/[\\/]/)[0] || '').toLowerCase();
       if (topFolder === archiveFolder || p.archived) archivedCount++;
-      else if (p.day != null) assignedCount++;
+      else if (isSingleDay ? p.bucket != null : p.day != null) assignedCount++;
       else inboxCount++;
       if (p.mediaKind === 'video' || (p.originalName && /\.(mp4|mov|webm|avi|mkv)$/i.test(p.originalName))) videoCount++;
     });
+    console.log(`[readProjectStatsFromManifest] ${projectId} — source: manifest (mode: ${manifest.projectMode ?? 'single_day'})`, { assignedCount, inboxCount, archivedCount, videoCount, total: manifest.photos.length });
     return { totalPhotos: manifest.photos.length, assignedCount, inboxCount, archivedCount, videoCount };
   } catch {
     return null;
