@@ -223,12 +223,16 @@ export default function StartScreen({
                       style={{ width: `${stats.assignedPercent}%` }}
                     />
                     <div
-                      className="bg-amber-500 h-full transition-all duration-300"
+                      className="bg-gray-500 h-full transition-all duration-300"
                       style={{ width: `${stats.inboxPercent}%` }}
                     />
                     <div
-                      className="bg-rose-500 h-full transition-all duration-300"
-                      style={{ width: `${stats.archivedPercent}%` }}
+                      className="h-full transition-all duration-300"
+                      style={{
+                        width: `${stats.archivedPercent}%`,
+                        backgroundImage:
+                          'repeating-linear-gradient(45deg, #6b7280 0, #6b7280 3px, #1f2937 3px, #1f2937 6px)',
+                      }}
                     />
                   </div>
                   <div className="flex items-center gap-3 text-xs text-gray-400">
@@ -238,12 +242,18 @@ export default function StartScreen({
                       <span>assigned ({stats.assignedCount.toLocaleString()})</span>
                     </span>
                     <span className="flex items-center gap-1.5">
-                      <span className="w-2 h-2 rounded-full bg-amber-500 inline-block" />
+                      <span className="w-2 h-2 rounded-full bg-gray-500 inline-block" />
                       <span className="text-gray-200 font-medium">{stats.inboxPercent}%</span>
                       <span>inbox ({stats.inboxCount.toLocaleString()})</span>
                     </span>
                     <span className="flex items-center gap-1.5">
-                      <span className="w-2 h-2 rounded-full bg-rose-500 inline-block" />
+                      <span
+                        className="w-2 h-2 rounded-full inline-block"
+                        style={{
+                          backgroundImage:
+                            'repeating-linear-gradient(45deg, #6b7280 0, #6b7280 1.5px, #1f2937 1.5px, #1f2937 3px)',
+                        }}
+                      />
                       <span className="text-gray-200 font-medium">{stats.archivedPercent}%</span>
                       <span>archived ({stats.archivedCount.toLocaleString()})</span>
                     </span>
