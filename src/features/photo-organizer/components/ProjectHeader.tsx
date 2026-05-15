@@ -37,6 +37,7 @@ interface ProjectHeaderProps {
   onDeleteProject: () => void;
   onImportTrip: () => void;
   onExportScript: () => void;
+  onExportVideoTimeline?: () => void;
   onDirectProcess?: () => void;
   onUndoExport?: () => void;
   onShowHelp: () => void;
@@ -73,6 +74,7 @@ export default function ProjectHeader({
   onDeleteProject,
   onImportTrip,
   onExportScript,
+  onExportVideoTimeline,
   onDirectProcess,
   onUndoExport,
   onShowHelp,
@@ -225,6 +227,16 @@ export default function ProjectHeader({
           >
             Export Script
           </button>
+          {onExportVideoTimeline && (
+            <button
+              onClick={onExportVideoTimeline}
+              className="px-3 py-1 bg-gray-800 hover:bg-gray-700 rounded text-sm font-medium"
+              title="Export timeline.json for the video pipeline"
+              disabled={stats.total === 0}
+            >
+              Export Video Timeline
+            </button>
+          )}
           {onDirectProcess && (
             <button
               onClick={onDirectProcess}

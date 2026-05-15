@@ -17,6 +17,7 @@ import {
   saveHandle,
   getHandle,
 } from './services/projectService';
+import { checkVideoTimelineReadiness, writeVideoTimeline } from './utils/videoTimeline';
 import { ACTIVE_PROJECT_KEY, RECENT_PROJECTS_KEY } from './constants/projectKeys';
 import { MECE_BUCKETS, isMeceBucketLabel } from './constants/meceBuckets';
 import { usePhotoSelection } from './hooks/usePhotoSelection';
@@ -106,6 +107,8 @@ export default function PhotoOrganizer() {
     loadingMessage,
     dayLabels,
     setDayLabels,
+    dayNotes,
+    setDayNotes,
     dayContainers,
     loadProject,
     retryProjectPermission,
@@ -200,10 +203,22 @@ export default function PhotoOrganizer() {
         directPlan.operations
           .filter(operation =>
             directResult.executionLog.operations.some(
-              log => (log.status === 'copied' || log.status === 'verified' || log.status === 'deleted') && log.sourcePath === (operation.sourceRelativePath.startsWith('/') ? operation.sourceRelativePath.slice(1) : operation.sourceRelativePath),
+              log =>
+                (log.status === 'copied' ||
+                  log.status === 'verified' ||
+                  log.status === 'deleted') &&
+                log.sourcePath ===
+                  (operation.sourceRelativePath.startsWith('/')
+                    ? operation.sourceRelativePath.slice(1)
+                    : operation.sourceRelativePath),
             ),
           )
-          .map(operation => [operation.sourceRelativePath.startsWith('/') ? operation.sourceRelativePath.slice(1) : operation.sourceRelativePath, operation]),
+          .map(operation => [
+            operation.sourceRelativePath.startsWith('/')
+              ? operation.sourceRelativePath.slice(1)
+              : operation.sourceRelativePath,
+            operation,
+          ]),
       );
 
       refreshManifest();
@@ -214,7 +229,9 @@ export default function PhotoOrganizer() {
 
       const nextPhotos = photos.map(photo => {
         if (!photo.filePath) return photo;
-        const normalizedFilePath = photo.filePath.startsWith('/') ? photo.filePath.slice(1) : photo.filePath;
+        const normalizedFilePath = photo.filePath.startsWith('/')
+          ? photo.filePath.slice(1)
+          : photo.filePath;
         const operation = copiedBySourcePath.get(normalizedFilePath);
         if (!operation) return photo;
 
@@ -233,9 +250,13 @@ export default function PhotoOrganizer() {
 
       console.log('Syncing direct processing results. Next photos count:', nextPhotos.length);
       console.log('Inbox folder path:', projectSettings.folderStructure.inboxFolder);
-      
-      const inboxPhotosBefore = photos.filter(p => p.filePath?.includes(projectSettings.folderStructure.inboxFolder));
-      const inboxPhotosAfter = nextPhotos.filter(p => p.filePath?.includes(projectSettings.folderStructure.inboxFolder));
+
+      const inboxPhotosBefore = photos.filter(p =>
+        p.filePath?.includes(projectSettings.folderStructure.inboxFolder),
+      );
+      const inboxPhotosAfter = nextPhotos.filter(p =>
+        p.filePath?.includes(projectSettings.folderStructure.inboxFolder),
+      );
       console.log(`Inbox photos: ${inboxPhotosBefore.length} -> ${inboxPhotosAfter.length}`);
 
       const nextState: ProjectState = {
@@ -244,7 +265,8 @@ export default function PhotoOrganizer() {
         photos: nextPhotos,
         settings: projectSettings,
         projectMode,
-        dayLabels: dayLabels as any,
+        dayLabels,
+        dayNotes,
         dayContainers: dayContainers || [],
         lastModified: Date.now(),
         ingested,
@@ -270,6 +292,7 @@ export default function PhotoOrganizer() {
     projectSettings,
     projectMode,
     dayLabels,
+    dayNotes,
     dayContainers,
     ingested,
     sourceRoot,
@@ -464,7 +487,7 @@ export default function PhotoOrganizer() {
   );
 
   const isVideoPhoto = useCallback((photo: ProjectPhoto) => {
-    if (photo.mimeType?.startsWith('video/')) return true;
+    if (photo.mediaKind === 'video' || photo.mimeType?.startsWith('video/')) return true;
     const ext = photo.originalName.split('.').pop()?.toLowerCase() || '';
     return ['mp4', 'mov', 'webm', 'avi', 'mkv'].includes(ext);
   }, []);
@@ -564,7 +587,8 @@ export default function PhotoOrganizer() {
       photos,
       settings: projectSettings,
       projectMode,
-      dayLabels: dayLabels as any,
+      dayLabels,
+      dayNotes,
       dayContainers: dayContainers || [],
       lastModified: Date.now(),
       ingested,
@@ -573,6 +597,7 @@ export default function PhotoOrganizer() {
     [
       dayContainers,
       dayLabels,
+      dayNotes,
       ingested,
       photos,
       projectFolderLabel,
@@ -617,6 +642,37 @@ export default function PhotoOrganizer() {
     await loadProject(projectRootPath, { addRecent: false });
     showToast('Project converted to multi-day.', 'info');
   }, [currentProjectState, loadProject, projectRootPath, setSelectedTreePath, showToast]);
+
+  const handleExportVideoTimeline = useCallback(async () => {
+    if (!projectRootPath) return;
+    try {
+      const handle = await getHandle(projectRootPath);
+      if (!handle) {
+        showToast('Project folder access is missing. Reopen the project and try again.', 'error');
+        return;
+      }
+      const readiness = await checkVideoTimelineReadiness(handle, currentProjectState);
+      if (readiness.unassignedCount > 0) {
+        showToast(
+          `Assign days before exporting video timeline. ${readiness.unassignedCount} active media item(s) are unassigned.`,
+          'error',
+        );
+        return;
+      }
+      if (readiness.missingPaths.length > 0) {
+        showToast(
+          `Cannot export timeline.json: ${readiness.missingPaths.length} media path(s) do not exist under this project folder.`,
+          'error',
+        );
+        return;
+      }
+      const timeline = await writeVideoTimeline(handle, currentProjectState);
+      showToast(`Exported timeline.json with ${timeline.days.length} day(s).`, 'info');
+    } catch (error) {
+      console.warn('Failed to export video timeline:', error);
+      showToast('Failed to export timeline.json.', 'error');
+    }
+  }, [currentProjectState, projectRootPath, showToast]);
 
   const isViewerOpen = galleryViewPhoto !== null;
 
@@ -755,6 +811,7 @@ export default function PhotoOrganizer() {
           setShowOnboarding(true);
         }}
         onExportScript={openExportScriptModal}
+        onExportVideoTimeline={handleExportVideoTimeline}
         onDirectProcess={openDirectProcessing}
         onUndoExport={handleUndoProcessing}
         onShowHelp={() => setShowHelp(true)}
@@ -811,6 +868,7 @@ export default function PhotoOrganizer() {
               selectedPhotos={selectedPhotos}
               galleryViewPhoto={galleryViewPhoto}
               dayLabels={dayLabels}
+              dayNotes={dayNotes}
               buckets={MECE_BUCKETS}
               onSelectPhoto={photoId => setSelectedPhotos(new Set([photoId]))}
               onOpenViewer={photoId => setGalleryViewPhoto(photoId)}
@@ -821,6 +879,12 @@ export default function PhotoOrganizer() {
                 photoDispatch({ type: 'ASSIGN_DAY', payload: { photoIds: [photoId], day } });
               }}
               onSaveToHistory={commitPhotos}
+              onUpdateDayTitle={(day, title) => {
+                setDayLabels(prev => ({ ...prev, [day]: title }));
+              }}
+              onUpdateDayNotes={(day, notes) => {
+                setDayNotes(prev => ({ ...prev, [day]: notes }));
+              }}
               onShowToast={showToast}
               getSubfolderGroup={getSubfolderGroup}
               getDerivedSubfolderGroup={getDerivedSubfolderGroup}

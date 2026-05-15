@@ -1,0 +1,58 @@
+{
+  "schema": 1,
+  "trip": {
+    "id": "sample-weekend",
+    "title": "Sample Weekend",
+    "date_range": ["2026-03-12", "2026-03-13"]
+  },
+  "music": {
+    "path": "",
+    "target_duration_sec": 60
+  },
+  "days": [
+    {
+      "day_number": 1,
+      "date": "2026-03-12",
+      "title": "Arrival",
+      "notes": "First walk after check-in.",
+      "media": [
+        {
+          "kind": "photo",
+          "path": "01_DAYS/Day 01/A_Establishing/IMG_0001.jpg",
+          "bucket": "A",
+          "order": 0,
+          "caption": null
+        },
+        {
+          "kind": "video",
+          "path": "01_DAYS/Day 01/D_Action-Moment/CLIP_0001.mp4",
+          "bucket": "D",
+          "order": 1,
+          "caption": null,
+          "duration_sec": 12.4,
+          "best_segment_sec": null
+        }
+      ]
+    },
+    {
+      "day_number": 2,
+      "date": "2026-03-13",
+      "title": "Market Morning",
+      "notes": "Breakfast and side streets.",
+      "media": [
+        {
+          "kind": "photo",
+          "path": "01_DAYS/Day 02/M_Mood-Food/IMG_0100.jpg",
+          "bucket": "M",
+          "order": 0,
+          "caption": null
+        }
+      ]
+    }
+  ],
+  "render": {
+    "aspect": "16:9",
+    "resolution": [1920, 1080],
+    "template": "recap-v1"
+  }
+}

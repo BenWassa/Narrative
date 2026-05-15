@@ -37,6 +37,7 @@ Thumbs.db
 # Backend runtime data
 _meta/
 99_EXPORTS/
+__pycache__/
 
 
 # narrative-template specific

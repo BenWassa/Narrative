@@ -26,6 +26,7 @@ interface PhotoGridProps {
   selectedPhotos: Set<string>;
   galleryViewPhoto: string | null;
   dayLabels: Record<number, string>;
+  dayNotes: Record<number, string>;
   buckets: Bucket[];
   onSelectPhoto: (photoId: string) => void;
   onOpenViewer: (photoId: string) => void;
@@ -34,6 +35,8 @@ interface PhotoGridProps {
   onAssignBucket: (photoId: string, bucket: string) => void;
   onAssignDay: (photoId: string, day: number | null) => void;
   onSaveToHistory: (newPhotos: ProjectPhoto[]) => void;
+  onUpdateDayTitle: (day: number, title: string) => void;
+  onUpdateDayNotes: (day: number, notes: string) => void;
   onShowToast: (
     message: string,
     tone?: 'info' | 'error',
@@ -56,6 +59,7 @@ export default function PhotoGrid({
   selectedPhotos,
   galleryViewPhoto,
   dayLabels,
+  dayNotes,
   buckets,
   onSelectPhoto,
   onOpenViewer,
@@ -64,6 +68,8 @@ export default function PhotoGrid({
   onAssignBucket,
   onAssignDay,
   onSaveToHistory,
+  onUpdateDayTitle,
+  onUpdateDayNotes,
   onShowToast,
   getSubfolderGroup,
   getDerivedSubfolderGroup,
@@ -128,6 +134,11 @@ export default function PhotoGrid({
           {photo.bucket ? (
             <div className="absolute bottom-2 left-2 rounded px-2 py-1 text-xs font-bold text-white shadow-lg z-10 bg-black/70">
               <span>{photo.bucket}</span>
+            </div>
+          ) : null}
+          {isVideoPhoto(photo) ? (
+            <div className="absolute right-2 top-2 rounded bg-black/75 px-2 py-1 text-xs font-semibold text-white shadow-lg">
+              {photo.durationSec ? `${Math.round(photo.durationSec)}s` : 'Video'}
             </div>
           ) : null}
         </div>
@@ -219,6 +230,28 @@ export default function PhotoGrid({
   if (sortedGroups && selectedDayForGrouping !== null) {
     return (
       <div className="space-y-8">
+        <div className="grid gap-3 rounded border border-gray-800 bg-gray-900/60 p-4 md:grid-cols-[minmax(12rem,18rem)_1fr]">
+          <label className="block text-xs font-semibold uppercase tracking-wide text-gray-400">
+            Day Title
+            <input
+              value={
+                dayLabels[selectedDayForGrouping] ||
+                `Day ${String(selectedDayForGrouping).padStart(2, '0')}`
+              }
+              onChange={event => onUpdateDayTitle(selectedDayForGrouping, event.target.value)}
+              className="mt-1 w-full rounded border border-gray-700 bg-gray-950 px-3 py-2 text-sm normal-case tracking-normal text-gray-100"
+            />
+          </label>
+          <label className="block text-xs font-semibold uppercase tracking-wide text-gray-400">
+            Day Notes
+            <input
+              value={dayNotes[selectedDayForGrouping] || ''}
+              onChange={event => onUpdateDayNotes(selectedDayForGrouping, event.target.value)}
+              placeholder="Short recap line for lower-thirds"
+              className="mt-1 w-full rounded border border-gray-700 bg-gray-950 px-3 py-2 text-sm normal-case tracking-normal text-gray-100 placeholder:text-gray-600"
+            />
+          </label>
+        </div>
         {sortedGroups.map(group => {
           const groupPhotos = group.photos.filter(photo => photo.day === selectedDayForGrouping);
           const hasExplicitOverride = groupPhotos.some(

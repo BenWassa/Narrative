@@ -31,9 +31,10 @@ Success = elapsed time from curated photos to publishable draft drops from weeks
           ▼   (human eyeballs JSON, tweaks if needed)
           │
 ┌────────────────────┐
-│ Layer 3: render    │  HyperFrames template reads JSON
-│    (HyperFrames)   │  applies Ken Burns to stills · day cards ·
-│                    │  captions · fade transitions · burns music
+│ Layer 3: render    │  v1.0 ffmpeg renderer reads JSON
+│    (ffmpeg first)  │  basic scale/crop/cut · burns music
+│                    │  v1.1 HyperFrames adds Ken Burns · day cards ·
+│                    │  captions · fade transitions
 │                    │  emits: recap.mp4
 └─────────┬──────────┘
           │
@@ -58,38 +59,38 @@ This is the only thing the layers share. Get this right and each layer is indepe
     "date_range": ["2026-03-12", "2026-03-26"]
   },
   "music": {
-    "path": "songs/track.mp3",      // user-selected, lives outside the trip folder
-    "target_duration_sec": 360       // soft target; beat-sync will snap to nearest section/musical boundary
+    "path": "songs/track.mp3", // user-selected, lives outside the trip folder
+    "target_duration_sec": 360 // soft target; beat-sync will snap to nearest section/musical boundary
   },
   "days": [
     {
       "day_number": 1,
       "date": "2026-03-12",
-      "title": "Arrival in Tokyo",         // shown on day card
-      "notes": "Jet-lagged ramen run.",     // shown as lower-third or subtitle (optional)
+      "title": "Arrival in Tokyo", // shown on day card
+      "notes": "Jet-lagged ramen run.", // shown as lower-third or subtitle (optional)
       "media": [
         {
           "kind": "photo",
-          "path": "Day 1/IMG_0234.jpg",
-          "bucket": "landscape",            // existing MECE bucket
-          "order": 0,                        // Narrative's existing ordering
-          "caption": null                    // optional override; falls back to day.notes
+          "path": "01_DAYS/Day 1/IMG_0234.jpg",
+          "bucket": "landscape", // existing MECE bucket
+          "order": 0, // Narrative's existing ordering
+          "caption": null // optional override; falls back to day.notes
         },
         {
           "kind": "video",
-          "path": "Day 1/CLIP_0012.mp4",
+          "path": "01_DAYS/Day 1/CLIP_0012.mp4",
           "bucket": "people",
           "order": 1,
-          "duration_sec": 14.2,              // source duration, for trimming hints
-          "best_segment_sec": null           // null = let beat-sync pick; or [start, end] to lock it
+          "duration_sec": 14.2, // source duration, for trimming hints
+          "best_segment_sec": null // null = let beat-sync pick; or [start, end] to lock it
         }
       ]
     }
   ],
   "render": {
-    "aspect": "16:9",                  // or "9:16" — fixed per render
+    "aspect": "16:9", // or "9:16" — fixed per render
     "resolution": [1920, 1080],
-    "template": "recap-v1"             // names a HyperFrames composition
+    "template": "recap-v1" // names a HyperFrames composition
   }
 }
 ```
@@ -126,20 +127,27 @@ Same shape, with three things added per `media` item and one block added at the 
 
 Single MP4, draft quality. No project file, no XML. CapCut imports MP4s natively.
 
+### Path base
+
+`timeline.json` is written to the Narrative project root. Every `media.path` is relative to that same project root, and export refuses to write the timeline if any active assigned media path does not resolve under that root.
+
 ## 4. Scope per layer
 
 ### Layer 1: Narrative (extend existing app)
 
 **In scope:**
+
 - Recognize `.mp4` / `.mov` clips alongside photos in trip folders
 - Show video clips in the existing grid with a thumbnail (first frame) and a duration badge
-- Bucket video clips into the existing MECE buckets — clips are *additional photos*, not a new entity
+- Bucket video clips into the existing MECE buckets — clips are _additional photos_, not a new entity
 - Per-day `notes` field (new, short free-text input on the day header)
 - Per-day `title` field (new; defaults to `Day N`)
-- New export action: "Export video timeline" → writes `timeline.json` to the trip folder
+- New export action: "Export video timeline" → writes `timeline.json` to the project root
+- Refuse timeline export when active media is missing a day assignment or when any media path cannot be resolved under the project root
 - Trip-level title + date range come from existing project metadata
 
 **Out of scope (v1):**
+
 - Inline video preview / scrubbing — thumbnail only is enough for curation
 - Per-clip caption editing — falls back to day.notes
 - Picking the music track inside Narrative — Layer 2 takes `--song path.mp3` as a CLI arg
@@ -149,6 +157,7 @@ Single MP4, draft quality. No project file, no XML. CapCut imports MP4s natively
 ### Layer 2: beat-sync (new Python CLI)
 
 **In scope:**
+
 - Read `timeline.json` + a song file path
 - Detect beats with `librosa` (BPM + beat-time array)
 - Compute a duration target per media item: photos get N beats by bucket-default policy, video clips get max(min_beats, snapped_to_clip_length) beats
@@ -157,15 +166,17 @@ Single MP4, draft quality. No project file, no XML. CapCut imports MP4s natively
 - Emit `timeline.beat-locked.json`
 
 **Out of scope (v1):**
+
 - Section-aware editing — populate `section: "main"` everywhere, leave the door open
 - Audio-reactive animations — render layer concern
 - Voice-over / narration
 
 **Tools:** Python 3, `librosa`, `opencv-python`, `ffmpeg-python`. No GUI — pure CLI. Lives in a new top-level folder, e.g. `tools/beat-sync/`.
 
-### Layer 3: render (HyperFrames template)
+### Layer 3: render (ffmpeg v1.0, HyperFrames v1.1)
 
 **In scope:**
+
 - One composition template called `recap-v1`, parameterized by `timeline.beat-locked.json`
 - Day cards (title + date)
 - Ken Burns pans on photos (auto direction based on aspect)
@@ -176,13 +187,14 @@ Single MP4, draft quality. No project file, no XML. CapCut imports MP4s natively
 - Crossfades between days (longer); cuts within a day
 
 **Out of scope (v1):**
+
 - Color grading per clip — assume clips are pre-graded or share one LUT applied upstream
 - Talking-head / transcript cuts
 - TTS narration
 - Picture-in-picture, multi-track overlays
 - Transitions fancier than fade and cut
 
-**Tools:** HyperFrames + GSAP. Template lives in `tools/render/recap-v1/`.
+**Tools:** v1.0 ships a basic ffmpeg renderer in `tools/render/recap-v1/` so the JSON contract can be validated end to end. HyperFrames + GSAP are the v1.1 upgrade path for Ken Burns, day cards, lower-thirds, and crossfades.
 
 ## 5. Non-goals (v1)
 
@@ -192,7 +204,7 @@ Saying "not yet" is a feature. v1 explicitly does **not** do:
 2. **Color grading inside the pipeline.** Pre-grade in CapCut or apply a LUT upstream of the pipeline.
 3. **Voice-over / TTS narration.** Music only.
 4. **Multi-track / overlays.** Single timeline. No PiP, no overlay clips.
-5. **Final-cut quality.** The output is a *draft* that imports into CapCut for polish.
+5. **Final-cut quality.** The output is a _draft_ that imports into CapCut for polish.
 6. **Music selection UI.** Song path is a CLI arg, not a Narrative feature.
 
 ## 6. Example trip (Japan, 2026 spring, 14 days)
@@ -206,7 +218,7 @@ The honest sanity check. Walk one trip through every layer.
    For each of 14 days, type a 5–10 word note. e.g. Day 1 = `"Arrival in Tokyo"`, Day 7 = `"Snow at Koyasan."`.
 
 3. **Export timeline** (~1 second)
-   Click "Export video timeline". `timeline.json` appears in the trip folder. ~14 days × ~30 media each = ~420 entries.
+   Click "Export video timeline". `timeline.json` appears in the Narrative project root. ~14 days × ~30 media each = ~420 entries.
 
 4. **Pick a song** (~5 min)
    User chooses a 6-minute track from their music library.
@@ -219,7 +231,7 @@ The honest sanity check. Walk one trip through every layer.
    User scans durations and `in_out_sec` for clips. Notices Day 7's snow clip got 2 beats — adjusts to 8 by editing JSON.
 
 7. **Render** (~10 min on a laptop)
-   `hyperframes render recap-v1 --input timeline.beat-locked.json --out recap.mp4`
+   `python tools/render/recap-v1/render_ffmpeg.py timeline.beat-locked.json --out recap.mp4`
    MP4 lands at 1920×1080, 358 seconds.
 
 8. **Polish in CapCut** (~30 min)

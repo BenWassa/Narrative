@@ -19,6 +19,7 @@ export interface ProjectTreeNode {
 
 export interface ProjectPhoto {
   id: string;
+  mediaKind?: 'photo' | 'video';
   originalName: string;
   currentName: string;
   timestamp: number;
@@ -33,6 +34,7 @@ export interface ProjectPhoto {
   archived: boolean;
   thumbnail: string;
   mimeType?: string;
+  durationSec?: number;
   fileHandle?: FileSystemFileHandle;
   filePath?: string;
   metadata?: {
@@ -93,7 +95,8 @@ export interface ProjectState {
   photos: ProjectPhoto[];
   settings: ProjectSettings;
   projectMode?: ProjectMode;
-  dayLabels?: Record<string, string>;
+  dayLabels?: Record<number, string>;
+  dayNotes?: Record<number, string>;
   // list of folder names that the user marked as day containers during onboarding
   dayContainers?: string[];
   lastModified?: number;
@@ -107,12 +110,14 @@ export interface ProjectState {
 
 interface ProjectManifestPhoto {
   filePath?: string;
+  mediaKind?: 'photo' | 'video';
   originalName: string;
   currentName: string;
   timestamp: number;
   fileModifiedTimestamp: number;
   timestampSource: 'exif' | 'filesystem';
   fileSize?: number;
+  durationSec?: number;
   day: number | null;
   bucket: string | null;
   sequence: number | null;
@@ -128,7 +133,8 @@ interface ProjectManifest {
   rootPath: string;
   settings: ProjectSettings;
   projectMode?: ProjectMode;
-  dayLabels?: Record<string, string>;
+  dayLabels?: Record<number, string>;
+  dayNotes?: Record<number, string>;
   dayContainers?: string[];
   lastModified?: number;
   ingested?: boolean;
@@ -318,6 +324,37 @@ async function removeHandle(projectId: string): Promise<void> {
 function isSupportedFile(name: string) {
   const ext = name.split('.').pop()?.toLowerCase() || '';
   return SUPPORTED_EXT.includes(ext);
+}
+
+function isVideoFile(file: File) {
+  if (file.type.startsWith('video/')) return true;
+  const ext = file.name.split('.').pop()?.toLowerCase() || '';
+  return ['mp4', 'mov', 'webm', 'avi', 'mkv'].includes(ext);
+}
+
+function readVideoDuration(file: File): Promise<number | undefined> {
+  if (typeof document === 'undefined') return Promise.resolve(undefined);
+
+  return new Promise(resolve => {
+    const video = document.createElement('video');
+    const url = URL.createObjectURL(file);
+    let settled = false;
+
+    const finish = (duration?: number) => {
+      if (settled) return;
+      settled = true;
+      window.clearTimeout(timer);
+      video.removeAttribute('src');
+      URL.revokeObjectURL(url);
+      resolve(duration && Number.isFinite(duration) ? Math.round(duration * 10) / 10 : undefined);
+    };
+
+    const timer = window.setTimeout(() => finish(undefined), 1500);
+    video.preload = 'metadata';
+    video.onloadedmetadata = () => finish(video.duration);
+    video.onerror = () => finish(undefined);
+    video.src = url;
+  });
 }
 
 function shouldSkipFile(name: string) {
@@ -1154,6 +1191,8 @@ export async function buildPhotosFromHandle(
     const id = generateId();
     const ext = file.name.split('.').pop()?.toLowerCase() || '';
     const isHeic = ext === 'heic' || ext === 'heif' || file.type.toLowerCase().includes('heic');
+    const mediaKind = isVideoFile(file) ? 'video' : 'photo';
+    const durationSec = mediaKind === 'video' ? await readVideoDuration(file) : undefined;
 
     let thumbnail = '';
     if (isHeic) {
@@ -1201,6 +1240,7 @@ export async function buildPhotosFromHandle(
 
     photos.push({
       id,
+      mediaKind,
       originalName,
       currentName: originalName,
       timestamp,
@@ -1214,6 +1254,7 @@ export async function buildPhotosFromHandle(
       rating: 0,
       archived: false,
       thumbnail,
+      durationSec,
       mimeType: file.type || (isHeic ? 'image/heic' : ''),
       fileHandle: entry.handle,
       filePath: entry.path,
@@ -1398,6 +1439,7 @@ export async function buildProjectTree(
 function serializeState(state: ProjectState) {
   const edits = state.photos.map(photo => ({
     filePath: photo.filePath,
+    mediaKind: photo.mediaKind,
     originalName: photo.originalName,
     day: photo.day,
     bucket: photo.bucket,
@@ -1409,6 +1451,7 @@ function serializeState(state: ProjectState) {
     timestamp: photo.timestamp,
     fileModifiedTimestamp: photo.fileModifiedTimestamp,
     timestampSource: photo.timestampSource,
+    durationSec: photo.durationSec,
     sourceFolder: photo.sourceFolder,
     folderHierarchy: photo.folderHierarchy,
     detectedDay: photo.detectedDay,
@@ -1425,6 +1468,7 @@ function serializeState(state: ProjectState) {
     settings: state.settings,
     projectMode: state.projectMode,
     dayLabels: state.dayLabels || {},
+    dayNotes: state.dayNotes || {},
     dayContainers: state.dayContainers || [],
     lastModified: state.lastModified ?? Date.now(),
     ingested: state.ingested,
@@ -1521,12 +1565,14 @@ function dedupeLogicalPhotos(
 function buildManifest(state: ProjectState): ProjectManifest {
   const photos: ProjectManifestPhoto[] = state.photos.map(photo => ({
     filePath: photo.filePath,
+    mediaKind: photo.mediaKind,
     originalName: photo.originalName,
     currentName: photo.currentName,
     timestamp: photo.timestamp,
     fileModifiedTimestamp: photo.fileModifiedTimestamp,
     timestampSource: photo.timestampSource,
     fileSize: photo.fileSize,
+    durationSec: photo.durationSec,
     day: photo.day,
     bucket: photo.bucket,
     sequence: photo.sequence,
@@ -1543,6 +1589,7 @@ function buildManifest(state: ProjectState): ProjectManifest {
     settings: state.settings,
     projectMode: state.projectMode,
     dayLabels: state.dayLabels || {},
+    dayNotes: state.dayNotes || {},
     dayContainers: state.dayContainers || [],
     lastModified: state.lastModified ?? Date.now(),
     ingested: state.ingested,
@@ -1749,6 +1796,7 @@ export async function getState(projectId: string): Promise<ProjectState> {
     settings,
     projectMode,
     dayLabels: manifest?.dayLabels || stored.dayLabels || {},
+    dayNotes: manifest?.dayNotes || stored.dayNotes || {},
     dayContainers: manifest?.dayContainers || stored.dayContainers || [],
     lastModified: manifest?.lastModified || stored.lastModified,
     ingested: manifest?.ingested ?? stored.ingested ?? true,

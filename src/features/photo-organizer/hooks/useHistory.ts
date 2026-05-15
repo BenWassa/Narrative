@@ -33,7 +33,7 @@ export function useHistory({
         rootPath: projectFolderLabel || projectRootPath,
         photos: newPhotos ?? photos,
         settings: projectSettings,
-        dayLabels: dayLabels as any,
+        dayLabels,
       };
       saveState(projectRootPath, nextState).catch(() => {});
     },

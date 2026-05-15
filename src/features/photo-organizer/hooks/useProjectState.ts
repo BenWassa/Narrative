@@ -57,7 +57,10 @@ export const calculateProjectStats = (
       inboxCount++;
     }
 
-    if (p.mimeType?.startsWith('video/') || (p.originalName && VIDEO_EXTENSION_REGEX.test(p.originalName))) {
+    if (
+      p.mimeType?.startsWith('video/') ||
+      (p.originalName && VIDEO_EXTENSION_REGEX.test(p.originalName))
+    ) {
       videoCount++;
     }
   });
@@ -98,6 +101,7 @@ export function useProjectState({
   const [loadingProgress, setLoadingProgress] = useState(0);
   const [loadingMessage, setLoadingMessage] = useState('Loading project...');
   const [dayLabels, setDayLabels] = useState<Record<number, string>>({});
+  const [dayNotes, setDayNotes] = useState<Record<number, string>>({});
   const [dayContainers, setDayContainers] = useState<string[]>([]);
   const initializeRef = useRef(false); // Track if we've already initialized
   const autosaveTimerRef = useRef<number | null>(null);
@@ -181,8 +185,9 @@ export function useProjectState({
       setProjectMode(state.projectMode || 'single_day');
       setIngested(state.ingested ?? true);
       setSourceRoot(state.sourceRoot);
-      setDayLabels((state as any).dayLabels || {});
-      setDayContainers((state as any).dayContainers || []);
+      setDayLabels(state.dayLabels || {});
+      setDayNotes(state.dayNotes || {});
+      setDayContainers(state.dayContainers || []);
     },
     [prevThumbnailsRef],
   );
@@ -379,7 +384,10 @@ export function useProjectState({
             existingProject = normalized.find(p => p.rootPath === projectId);
           }
           const existingCoverUrl = existingProject?.coverUrl;
-          const projectStats = calculateProjectStats(photosWithDays, state.settings?.folderStructure);
+          const projectStats = calculateProjectStats(
+            photosWithDays,
+            state.settings?.folderStructure,
+          );
 
           updateRecentProjects({
             projectName: state.projectName || 'Untitled Project',
@@ -780,7 +788,8 @@ export function useProjectState({
         photos,
         settings: projectSettings,
         projectMode,
-        dayLabels: (dayLabels as any) || {},
+        dayLabels,
+        dayNotes,
         dayContainers: dayContainers || [],
         lastModified: Date.now(),
         ingested,
@@ -805,6 +814,7 @@ export function useProjectState({
     projectSettings,
     photos,
     dayLabels,
+    dayNotes,
     dayContainers,
     ingested,
     sourceRoot,
@@ -822,7 +832,8 @@ export function useProjectState({
         photos: newPhotos ?? photos,
         settings: projectSettings,
         projectMode,
-        dayLabels: dayLabels as any,
+        dayLabels,
+        dayNotes,
         dayContainers: dayContainers || [],
         lastModified: Date.now(),
         ingested,
@@ -837,6 +848,7 @@ export function useProjectState({
       photos,
       projectSettings,
       dayLabels,
+      dayNotes,
       dayContainers,
       ingested,
       sourceRoot,
@@ -886,6 +898,8 @@ export function useProjectState({
     loadingMessage,
     dayLabels,
     setDayLabels,
+    dayNotes,
+    setDayNotes,
     dayContainers,
     setDayContainers,
     loadProject,
