@@ -347,7 +347,7 @@ export default function StartScreen({
       <button
         onClick={() => setShowOnboarding(true)}
         aria-label="Add project"
-        className="fixed bottom-8 right-8 h-14 px-6 rounded-full bg-blue-600 hover:bg-blue-500 text-white shadow-xl shadow-blue-900/40 flex items-center gap-3 transition-all hover:scale-105 active:scale-95 group"
+        className="fixed bottom-8 right-8 z-50 h-14 px-6 rounded-full bg-blue-600 hover:bg-blue-500 text-white shadow-xl shadow-blue-900/40 flex items-center gap-3 transition-all hover:scale-105 active:scale-95 group"
       >
         <Plus size={24} className="transition-transform group-hover:rotate-90" />
         <span className="font-bold tracking-wide">New Project</span>
