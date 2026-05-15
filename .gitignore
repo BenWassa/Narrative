@@ -12,6 +12,13 @@ pnpm-debug.log*
 # Vite-built docs site (generated)
 docs/site/
 
+# Graphify output
+graphify-out/
+
+# Local agent/tool state
+.claude/
+.codex/
+
 # Env
 .env
 .env.*
