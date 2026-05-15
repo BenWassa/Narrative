@@ -28,7 +28,6 @@ import { useExportScript } from './hooks/useExportScript';
 import { useDirectProcessing } from './hooks/useDirectProcessing';
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
 import { useCoverPhoto } from './hooks/useCoverPhoto';
-import { useCoverSelection } from './hooks/useCoverSelection';
 import { useOnboardingHandlers } from './hooks/useOnboardingHandlers';
 import ProjectHeader from './components/ProjectHeader';
 import LeftSidebar from './components/LeftSidebar';
@@ -39,6 +38,7 @@ import HelpModal from './components/HelpModal';
 import ExportScriptModal from './components/ExportScriptModal';
 import DirectProcessingModal from './components/DirectProcessingModal';
 import UndoScriptModal from './components/UndoScriptModal';
+import VideoTimelineExportedModal from './components/VideoTimelineExportedModal';
 import Toast from './components/Toast';
 import FullscreenOverlay from './components/FullscreenOverlay';
 import DebugOverlay from './components/DebugOverlay';
@@ -52,6 +52,7 @@ export default function PhotoOrganizer() {
   const debugEnabled = import.meta.env.DEV && safeLocalStorage.get('narrative:debug') === '1';
   const [coverSelectionMode, setCoverSelectionMode] = useState(false);
   const [debugOverlayEnabled, setDebugOverlayEnabled] = useState(false);
+  const [videoTimelineExportedDayCount, setVideoTimelineExportedDayCount] = useState<number | null>(null);
 
   // Hooks for state management
   const { toast, showToast, clearToast } = useToast();
@@ -70,7 +71,6 @@ export default function PhotoOrganizer() {
     setFullscreenPhoto,
     selectedTreePath,
     setSelectedTreePath,
-    foldersViewStateRef,
   } = useViewOptions();
 
   const {
@@ -88,6 +88,7 @@ export default function PhotoOrganizer() {
     setProjectRootPath,
     projectFolderLabel,
     projectSettings,
+    setProjectSettings,
     projectMode,
     ingested,
     sourceRoot,
@@ -521,12 +522,6 @@ export default function PhotoOrganizer() {
     setCoverSelectionMode,
   });
 
-  const { setCoverFromSelection } = useCoverSelection({
-    projectRootPath,
-    selectedPhotos,
-    showToast,
-    setCoverForPhotoId,
-  });
 
   const { handleOnboardingComplete } = useOnboardingHandlers({
     handleOnboardingCompleteInternal,
@@ -671,7 +666,7 @@ export default function PhotoOrganizer() {
         return;
       }
       const timeline = await writeVideoTimeline(handle, currentProjectState);
-      showToast(`Exported timeline.json with ${timeline.days.length} day(s).`, 'info');
+      setVideoTimelineExportedDayCount(timeline.days.length);
     } catch (error) {
       console.warn('Failed to export video timeline:', error);
       showToast('Failed to export timeline.json.', 'error');
@@ -736,12 +731,12 @@ export default function PhotoOrganizer() {
         coverSelectionMode={coverSelectionMode}
         selectedPhotosCount={selectedPhotos.size}
         projectRootPath={projectRootPath}
-        currentView={currentView}
         hideAssigned={hideAssigned}
         recentProjects={recentProjects}
         projectError={projectError}
         permissionRetryProjectId={permissionRetryProjectId}
         loadingProject={loadingProject}
+        projectSettings={projectSettings}
         hasExportManifest={hasExportManifest()}
         hasDirectProcessingUndo={canUndoDirectProcess()}
         onMainMenu={() => {
@@ -759,16 +754,14 @@ export default function PhotoOrganizer() {
           setShowWelcome(true);
           safeLocalStorage.remove(ACTIVE_PROJECT_KEY);
         }}
-        onStartCoverSelection={() => {
-          setCoverSelectionMode(true);
-          showToast(
-            'Select a photo to set as cover. Click a photo to set, or press Esc to cancel.',
-            'info',
-          );
-        }}
-        onUseCoverSelection={async () => {
-          await setCoverFromSelection();
-          setCoverSelectionMode(false);
+        onStartCoverSelection={async () => {
+          if (selectedPhotos.size === 1) {
+            const photoId = Array.from(selectedPhotos)[0];
+            await setCoverForPhotoId(photoId);
+          } else {
+            setCoverSelectionMode(true);
+            showToast('Click a photo to set it as cover. Esc to cancel.', 'info');
+          }
         }}
         onCancelCoverSelection={() => {
           setCoverSelectionMode(false);
@@ -810,27 +803,15 @@ export default function PhotoOrganizer() {
           setShowWelcome(true);
           showToast('Project deleted.');
         }}
-        onImportTrip={() => {
-          setProjectError(null);
-          setShowOnboarding(true);
-        }}
         onExportScript={openExportScriptModal}
         onExportVideoTimeline={handleExportVideoTimeline}
         onDirectProcess={openDirectProcessing}
         onUndoExport={handleUndoProcessing}
         onShowHelp={() => setShowHelp(true)}
         onRetryPermission={retryProjectPermission}
-        onChangeView={viewId => setCurrentView(viewId)}
         onToggleHideAssigned={() => setHideAssigned(prev => !prev)}
-        onRememberFoldersViewState={() => {
-          foldersViewStateRef.current = { selectedTreePath };
-        }}
-        onRestoreFoldersViewState={() => {
-          setSelectedTreePath(foldersViewStateRef.current.selectedTreePath);
-        }}
-        onClearDaySelection={() => {
-          setSelectedTreePath(null);
-        }}
+        onUpdateProjectName={name => setProjectName(name)}
+        onUpdateProjectSettings={settings => setProjectSettings(settings)}
       />
 
       {/* Main Content */}
@@ -955,6 +936,13 @@ export default function PhotoOrganizer() {
         onToggleDeleteAfterVerify={toggleDeleteAfterVerify}
         canUndoDirectProcess={canUndoDirectProcess()}
         onUndoDirectProcess={undoLastDirectProcess}
+      />
+
+      {/* Video Timeline Exported Modal */}
+      <VideoTimelineExportedModal
+        isOpen={videoTimelineExportedDayCount !== null}
+        dayCount={videoTimelineExportedDayCount ?? 0}
+        onClose={() => setVideoTimelineExportedDayCount(null)}
       />
 
       {/* Undo Script Modal */}
