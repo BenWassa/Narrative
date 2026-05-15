@@ -106,6 +106,11 @@ export interface ProjectState {
   sourceRoot?: string;
   // Last export operation for undo
   lastExportManifest?: ExportManifest;
+  // Display metadata persisted to disk so the project survives storage clears
+  coverPhotoPath?: string;
+  displayName?: string;
+  description?: string;
+  createdAt?: number;
 }
 
 interface ProjectManifestPhoto {
@@ -139,6 +144,10 @@ interface ProjectManifest {
   lastModified?: number;
   ingested?: boolean;
   sourceRoot?: string;
+  coverPhotoPath?: string;
+  displayName?: string;
+  description?: string;
+  createdAt?: number;
   photos: ProjectManifestPhoto[];
 }
 
@@ -1473,6 +1482,10 @@ function serializeState(state: ProjectState) {
     lastModified: state.lastModified ?? Date.now(),
     ingested: state.ingested,
     sourceRoot: state.sourceRoot,
+    coverPhotoPath: state.coverPhotoPath,
+    displayName: state.displayName,
+    description: state.description,
+    createdAt: state.createdAt,
     edits,
   };
 }
@@ -1594,6 +1607,10 @@ function buildManifest(state: ProjectState): ProjectManifest {
     lastModified: state.lastModified ?? Date.now(),
     ingested: state.ingested,
     sourceRoot: state.sourceRoot,
+    ...(state.coverPhotoPath !== undefined && { coverPhotoPath: state.coverPhotoPath }),
+    ...(state.displayName !== undefined && { displayName: state.displayName }),
+    ...(state.description !== undefined && { description: state.description }),
+    ...(state.createdAt !== undefined && { createdAt: state.createdAt }),
     photos,
   };
 }
@@ -1682,6 +1699,7 @@ export async function initProject(options: {
     settings: DEFAULT_SETTINGS,
     projectMode,
     lastModified: Date.now(),
+    createdAt: Date.now(),
   };
 
   await saveHandle(projectId, dirHandle);
@@ -1801,6 +1819,10 @@ export async function getState(projectId: string): Promise<ProjectState> {
     lastModified: manifest?.lastModified || stored.lastModified,
     ingested: manifest?.ingested ?? stored.ingested ?? true,
     sourceRoot: manifest?.sourceRoot ?? stored.sourceRoot,
+    coverPhotoPath: manifest?.coverPhotoPath ?? stored.coverPhotoPath,
+    displayName: manifest?.displayName ?? stored.displayName,
+    description: manifest?.description ?? stored.description,
+    createdAt: manifest?.createdAt ?? stored.createdAt,
   };
 }
 

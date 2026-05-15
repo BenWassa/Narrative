@@ -13,6 +13,7 @@ interface UseCoverPhotoOptions {
   projectFolderLabel: string | null;
   setRecentProjects: (projects: RecentProject[]) => void;
   showToast: (message: string, tone?: 'info' | 'error') => void;
+  setCoverPhotoPath?: (path: string | undefined) => void;
 }
 
 export function useCoverPhoto({
@@ -22,6 +23,7 @@ export function useCoverPhoto({
   projectFolderLabel,
   setRecentProjects,
   showToast,
+  setCoverPhotoPath,
 }: UseCoverPhotoOptions) {
   const setCoverForPhotoId = useCallback(
     async (photoId: string) => {
@@ -62,11 +64,14 @@ export function useCoverPhoto({
           existingIndex = normalized.findIndex(project => project.rootPath === projectRootPath);
         }
 
+        const photoPath = selectedPhoto.filePath;
+
         const updated = normalized.map((project, index) =>
           index === existingIndex
             ? {
                 ...project,
                 coverKey,
+                coverPhotoPath: photoPath,
                 lastOpened: Date.now(),
               }
             : project,
@@ -80,11 +85,13 @@ export function useCoverPhoto({
             lastOpened: Date.now(),
             totalPhotos: photos.length,
             coverKey,
+            coverPhotoPath: photoPath,
           });
         }
 
         safeLocalStorage.set(RECENT_PROJECTS_KEY, JSON.stringify(updated.slice(0, 20)));
         setRecentProjects(updated.slice(0, 20));
+        setCoverPhotoPath?.(photoPath);
 
         console.log(`Cover saved to IndexedDB (${usedSize}):`, projectRootPath);
         showToast('Cover photo updated.');
@@ -93,7 +100,7 @@ export function useCoverPhoto({
         showToast('Failed to set cover photo.', 'error');
       }
     },
-    [photos, projectRootPath, projectName, projectFolderLabel, setRecentProjects, showToast],
+    [photos, projectRootPath, projectName, projectFolderLabel, setRecentProjects, showToast, setCoverPhotoPath],
   );
 
   return {

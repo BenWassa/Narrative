@@ -104,6 +104,10 @@ export function useProjectState({
   const [dayLabels, setDayLabels] = useState<Record<number, string>>({});
   const [dayNotes, setDayNotes] = useState<Record<number, string>>({});
   const [dayContainers, setDayContainers] = useState<string[]>([]);
+  const [coverPhotoPath, setCoverPhotoPath] = useState<string | undefined>(undefined);
+  const [displayName, setDisplayName] = useState<string | undefined>(undefined);
+  const [description, setDescription] = useState<string | undefined>(undefined);
+  const [createdAt, setCreatedAt] = useState<number | undefined>(undefined);
   const initializeRef = useRef(false); // Track if we've already initialized
   const autosaveTimerRef = useRef<number | null>(null);
 
@@ -189,6 +193,10 @@ export function useProjectState({
       setDayLabels(state.dayLabels || {});
       setDayNotes(state.dayNotes || {});
       setDayContainers(state.dayContainers || []);
+      setCoverPhotoPath(state.coverPhotoPath);
+      setDisplayName(state.displayName);
+      setDescription(state.description);
+      setCreatedAt(state.createdAt);
     },
     [prevThumbnailsRef],
   );
@@ -913,6 +921,10 @@ export function useProjectState({
         lastModified: Date.now(),
         ingested,
         sourceRoot,
+        coverPhotoPath,
+        displayName,
+        description,
+        createdAt,
       };
 
       saveState(projectRootPath, state).catch(err => {
@@ -940,6 +952,10 @@ export function useProjectState({
     projectMode,
     loadingProject,
     showWelcome,
+    coverPhotoPath,
+    displayName,
+    description,
+    createdAt,
   ]);
 
   const persistState = useCallback(
@@ -957,6 +973,10 @@ export function useProjectState({
         lastModified: Date.now(),
         ingested,
         sourceRoot,
+        coverPhotoPath,
+        displayName,
+        description,
+        createdAt,
       };
       saveState(projectRootPath, nextState).catch(() => {});
     },
@@ -972,6 +992,10 @@ export function useProjectState({
       ingested,
       sourceRoot,
       projectMode,
+      coverPhotoPath,
+      displayName,
+      description,
+      createdAt,
     ],
   );
 
@@ -1021,6 +1045,14 @@ export function useProjectState({
     setDayNotes,
     dayContainers,
     setDayContainers,
+    coverPhotoPath,
+    setCoverPhotoPath,
+    displayName,
+    setDisplayName,
+    description,
+    setDescription,
+    createdAt,
+    setCreatedAt,
     loadProject,
     retryProjectPermission,
     bulkImportProjects,

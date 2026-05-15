@@ -27,6 +27,9 @@ export interface RecentProject {
   rootPath: string;
   coverUrl?: string; // Legacy: base64 cover (for backward compatibility)
   coverKey?: string; // New: IndexedDB cover reference
+  coverPhotoPath?: string; // Relative path within project folder — fallback when IndexedDB is empty
+  displayName?: string; // Human-readable title, may differ from projectName/folder name
+  description?: string; // Freeform notes
   totalPhotos?: number;
   lastOpened: number;
   inboxCount?: number;

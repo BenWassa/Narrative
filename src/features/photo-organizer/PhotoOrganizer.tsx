@@ -110,6 +110,8 @@ export default function PhotoOrganizer() {
     dayNotes,
     setDayNotes,
     dayContainers,
+    coverPhotoPath,
+    setCoverPhotoPath,
     loadProject,
     retryProjectPermission,
     bulkImportProjects,
@@ -184,6 +186,7 @@ export default function PhotoOrganizer() {
     projectFolderLabel,
     setRecentProjects,
     showToast,
+    setCoverPhotoPath,
   });
 
   const lastDirectSyncRef = useRef<number | null>(null);
