@@ -3,3 +3,16 @@ coverage/
 docs/assets/
 docs/site/
 archive/
+
+# Test code and fixtures distort production architecture with mock/helper nodes.
+__tests__/
+__snapshots__/
+*.test.ts
+*.test.tsx
+*.spec.ts
+*.spec.tsx
+vitest.setup.ts
+
+# One-off data/dev helpers are not part of the runtime architecture map.
+scripts/count_photos.py
+scripts/generate_dummy_photos.js
