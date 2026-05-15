@@ -1,0 +1,239 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-05-15T14:33:45Z",
+  "title": "Design System: Narrative",
+  "extensions": {
+    "colorMeta": {
+      "field-black": {
+        "role": "neutral",
+        "displayName": "Field Black",
+        "canonical": "#030712",
+        "tonalRamp": ["#030712", "#111827", "#1f2937", "#374151", "#4b5563", "#6b7280", "#9ca3af", "#f3f4f6"]
+      },
+      "panel-slate": {
+        "role": "neutral",
+        "displayName": "Panel Slate",
+        "canonical": "#111827",
+        "tonalRamp": ["#030712", "#111827", "#1f2937", "#374151", "#4b5563", "#6b7280", "#9ca3af", "#f3f4f6"]
+      },
+      "action-blue": {
+        "role": "primary",
+        "displayName": "Action Blue",
+        "canonical": "#2563eb",
+        "tonalRamp": ["#172554", "#1e3a8a", "#1d4ed8", "#2563eb", "#3b82f6", "#60a5fa", "#93c5fd", "#dbeafe"]
+      },
+      "trust-green": {
+        "role": "secondary",
+        "displayName": "Trust Green",
+        "canonical": "#22c55e",
+        "tonalRamp": ["#052e16", "#14532d", "#15803d", "#16a34a", "#22c55e", "#4ade80", "#86efac", "#dcfce7"]
+      },
+      "warning-amber": {
+        "role": "secondary",
+        "displayName": "Warning Amber",
+        "canonical": "#f59e0b",
+        "tonalRamp": ["#451a03", "#78350f", "#b45309", "#d97706", "#f59e0b", "#fbbf24", "#fcd34d", "#fef3c7"]
+      },
+      "danger-red": {
+        "role": "secondary",
+        "displayName": "Danger Red",
+        "canonical": "#dc2626",
+        "tonalRamp": ["#450a0a", "#7f1d1d", "#991b1b", "#b91c1c", "#dc2626", "#ef4444", "#fca5a5", "#fee2e2"]
+      },
+      "bucket-purple": {
+        "role": "tertiary",
+        "displayName": "Bucket Purple",
+        "canonical": "#a855f7",
+        "tonalRamp": ["#3b0764", "#581c87", "#7e22ce", "#9333ea", "#a855f7", "#c084fc", "#d8b4fe", "#f3e8ff"]
+      },
+      "bucket-indigo": {
+        "role": "tertiary",
+        "displayName": "Bucket Indigo",
+        "canonical": "#6366f1",
+        "tonalRamp": ["#1e1b4b", "#312e81", "#4338ca", "#4f46e5", "#6366f1", "#818cf8", "#a5b4fc", "#e0e7ff"]
+      }
+    },
+    "typographyMeta": {
+      "display": {
+        "displayName": "Display",
+        "purpose": "Modal titles and dashboard page titles."
+      },
+      "headline": {
+        "displayName": "Headline",
+        "purpose": "Project headers, gallery titles, and major panel headings."
+      },
+      "title": {
+        "displayName": "Title",
+        "purpose": "Section headings, button labels, selected project names, and form labels."
+      },
+      "body": {
+        "displayName": "Body",
+        "purpose": "Dense workflow copy and helper text."
+      },
+      "mono": {
+        "displayName": "Mono",
+        "purpose": "File paths, shell scripts, current file names, and commands."
+      }
+    },
+    "shadows": [
+      {
+        "name": "media-lift",
+        "value": "0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1)",
+        "purpose": "Photo thumbnails and selectable media at hover or selected states."
+      },
+      {
+        "name": "modal-lift",
+        "value": "0 25px 50px -12px rgb(0 0 0 / 0.25)",
+        "purpose": "Export, loading, and processing dialogs."
+      }
+    ],
+    "motion": [
+      {
+        "name": "state-transition",
+        "value": "150ms cubic-bezier(0.4, 0, 0.2, 1)",
+        "purpose": "Default hover, focus, border, and background transitions."
+      },
+      {
+        "name": "media-scale",
+        "value": "200ms cubic-bezier(0.4, 0, 0.2, 1)",
+        "purpose": "Project tile cover scale on hover."
+      }
+    ],
+    "breakpoints": [
+      {
+        "name": "sm",
+        "value": "640px"
+      },
+      {
+        "name": "lg",
+        "value": "1024px"
+      },
+      {
+        "name": "xl",
+        "value": "1280px"
+      }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "Major workflow action such as downloading a script or importing a trip.",
+      "html": "<button class=\"ds-btn-primary\"><svg viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M12 3v12m0 0 4-4m-4 4-4-4M5 21h14\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"/></svg>Download Script</button>",
+      "css": ".ds-btn-primary{display:inline-flex;align-items:center;gap:.5rem;border:0;border-radius:.5rem;background:#2563eb;color:#f3f4f6;padding:.75rem 1.25rem;font:600 .875rem/1.4 ui-sans-serif,system-ui,sans-serif;transition:background-color 150ms cubic-bezier(.4,0,.2,1),transform 150ms cubic-bezier(.4,0,.2,1);cursor:pointer}.ds-btn-primary svg{width:1rem;height:1rem}.ds-btn-primary:hover{background:#1d4ed8}.ds-btn-primary:active{background:#1e40af;transform:translateY(1px)}.ds-btn-primary:focus-visible{outline:2px solid #3b82f6;outline-offset:2px}"
+    },
+    {
+      "name": "Secondary Button",
+      "kind": "button",
+      "refersTo": "button-secondary",
+      "description": "Neutral action for copy, menu, cancel, and non-destructive workflow steps.",
+      "html": "<button class=\"ds-btn-secondary\">Copy to Clipboard</button>",
+      "css": ".ds-btn-secondary{border:0;border-radius:.375rem;background:#1f2937;color:#f3f4f6;padding:.5rem .75rem;font:600 .875rem/1.4 ui-sans-serif,system-ui,sans-serif;transition:background-color 150ms cubic-bezier(.4,0,.2,1),transform 150ms cubic-bezier(.4,0,.2,1);cursor:pointer}.ds-btn-secondary:hover{background:#374151}.ds-btn-secondary:active{background:#4b5563;transform:translateY(1px)}.ds-btn-secondary:focus-visible{outline:2px solid #3b82f6;outline-offset:2px}"
+    },
+    {
+      "name": "Text Field",
+      "kind": "input",
+      "refersTo": "field-default",
+      "description": "Path and settings field with dark fill and explicit focus ring.",
+      "html": "<label class=\"ds-field\"><span>Project Directory</span><input value=\"/Users/you/Photos/Trip-to-Japan\" /></label>",
+      "css": ".ds-field{display:grid;gap:.5rem;color:#e5e7eb;font:600 .875rem/1.4 ui-sans-serif,system-ui,sans-serif}.ds-field input{border:1px solid #374151;border-radius:.5rem;background:#030712;color:#f3f4f6;padding:.75rem 1rem;font:400 .875rem/1.5 ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;transition:border-color 150ms cubic-bezier(.4,0,.2,1),box-shadow 150ms cubic-bezier(.4,0,.2,1)}.ds-field input:focus{border-color:transparent;outline:0;box-shadow:0 0 0 2px #3b82f6}"
+    },
+    {
+      "name": "Project Card",
+      "kind": "card",
+      "refersTo": "project-card",
+      "description": "Recent project tile with cover media, metadata, and assignment progress.",
+      "html": "<article class=\"ds-project-card\"><div class=\"ds-cover\">No cover</div><div class=\"ds-project-body\"><strong>Japan 2026</strong><span>842 photos</span><small>63% assigned</small></div><div class=\"ds-progress\"><i></i><b></b></div></article>",
+      "css": ".ds-project-card{position:relative;overflow:hidden;border:1px solid #1f2937;border-radius:.5rem;background:#030712;color:#d1d5db;font-family:ui-sans-serif,system-ui,sans-serif;cursor:pointer;transition:border-color 150ms cubic-bezier(.4,0,.2,1)}.ds-project-card:hover{border-color:#3b82f6}.ds-cover{aspect-ratio:16/9;display:grid;place-items:center;background:linear-gradient(135deg,#1f2937,#111827);color:#6b7280;font-size:.75rem;font-weight:600}.ds-project-body{display:grid;gap:.25rem;padding:.75rem .75rem 1rem}.ds-project-body strong{color:#e5e7eb;font-size:.875rem}.ds-project-body span{color:#6b7280;font-size:.75rem}.ds-project-body small{color:#60a5fa;font-size:.75rem;font-weight:600}.ds-progress{position:absolute;left:0;right:0;bottom:0;height:.25rem;display:flex;background:#111827}.ds-progress i{width:63%;background:#3b82f6}.ds-progress b{width:12%;background:#4b5563}"
+    },
+    {
+      "name": "Status Chip",
+      "kind": "chip",
+      "refersTo": "status-chip",
+      "description": "Compact state label for inbox counts, view context, and filters.",
+      "html": "<span class=\"ds-chip\">14 inbox</span>",
+      "css": ".ds-chip{display:inline-flex;align-items:center;border:1px solid #374151;border-radius:9999px;background:#1f2937;color:#d1d5db;padding:.125rem .5rem;font:600 .75rem/1.25 ui-sans-serif,system-ui,sans-serif}"
+    },
+    {
+      "name": "Bucket Button",
+      "kind": "custom",
+      "refersTo": "mece-bucket-control",
+      "description": "Saturated classification button for assigning MECE story roles.",
+      "html": "<button class=\"ds-bucket\"><span><b>A</b> Establishing</span><small>Wide shots, landscapes</small></button>",
+      "css": ".ds-bucket{display:grid;width:100%;gap:.25rem;border:0;border-radius:.5rem;background:#3b82f6;color:#f3f4f6;padding:.75rem 1rem;text-align:left;transition:filter 150ms cubic-bezier(.4,0,.2,1);cursor:pointer}.ds-bucket:hover{filter:brightness(1.1)}.ds-bucket:focus-visible{outline:2px solid #93c5fd;outline-offset:2px}.ds-bucket span{font:500 .875rem/1.4 ui-sans-serif,system-ui,sans-serif}.ds-bucket b{margin-right:.75rem;font-size:1.125rem;font-weight:700}.ds-bucket small{opacity:.8;font:400 .75rem/1.4 ui-sans-serif,system-ui,sans-serif}"
+    },
+    {
+      "name": "Navigation Header",
+      "kind": "nav",
+      "refersTo": "app-header",
+      "description": "Compact breadcrumb header with dense action cluster.",
+      "html": "<header class=\"ds-header\"><div><strong>Narrative</strong><span>/</span><em>Dashboard</em></div><button>Import Trip</button></header>",
+      "css": ".ds-header{display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid #1f2937;background:#111827;color:#f3f4f6;padding:.75rem 1.5rem;font-family:ui-sans-serif,system-ui,sans-serif}.ds-header div{display:flex;align-items:center;gap:.5rem}.ds-header strong{font-size:1.125rem;font-weight:600}.ds-header span{color:#4b5563}.ds-header em{color:#9ca3af;font-style:normal}.ds-header button{border:0;border-radius:.375rem;background:#2563eb;color:#f3f4f6;padding:.25rem .75rem;font:600 .875rem/1.4 ui-sans-serif,system-ui,sans-serif}.ds-header button:hover{background:#1d4ed8}.ds-header button:focus-visible{outline:2px solid #3b82f6;outline-offset:2px}"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Focused Darkroom",
+    "overview": "Narrative is a dense, local-first editing surface for photographers who are sorting memory into structure. The interface should feel like a focused editing room: low ambient light, crisp operational controls, and photos as the brightest objects in the room. The system is dark because the physical scene is a post-trip curation session at a desk, often at night, where glare fights the photos and the user needs long-session comfort.",
+    "keyCharacteristics": [
+      "Dark slate workspace with strong photo contrast.",
+      "Blue reserved for action, progress, selection, and focus.",
+      "Bucket colors communicate story role, not brand flourish.",
+      "Compact controls, dense information, and visible keyboard affordance.",
+      "Flat at rest, lightly lifted on modals, media, and hover states."
+    ],
+    "rules": [
+      {
+        "name": "The Photo-First Rule",
+        "body": "UI surfaces stay in the slate range unless a control is actively communicating action, selection, status, or bucket meaning.",
+        "section": "colors"
+      },
+      {
+        "name": "The One Blue Rule",
+        "body": "Blue is for workflow momentum: open, import, download, selected, assigned, progress, and focus. Do not spend blue on decorative accents.",
+        "section": "colors"
+      },
+      {
+        "name": "The Bucket-Is-Data Rule",
+        "body": "Bucket colors may be saturated because they are classification data. Never use the bucket spectrum as generic brand decoration.",
+        "section": "colors"
+      },
+      {
+        "name": "The Operational Type Rule",
+        "body": "Use weight and compact scale before adding more visual chrome. If a label needs emphasis, make it clearer or heavier, not louder.",
+        "section": "typography"
+      },
+      {
+        "name": "The Mono-Only-For-Files Rule",
+        "body": "Mono means path, script, command, or file name. Do not use it as personality.",
+        "section": "typography"
+      },
+      {
+        "name": "The Flat Workspace Rule",
+        "body": "Sidebars, headers, bars, and cards are flat at rest. If every panel casts a shadow, the hierarchy has failed.",
+        "section": "elevation"
+      },
+      {
+        "name": "The Lift Means Temporary Rule",
+        "body": "Strong shadows belong to transient layers: dialogs, menus, overlays, and media in focus.",
+        "section": "elevation"
+      }
+    ],
+    "dos": [
+      "Do keep the workspace dark slate and restrained so photos dominate the screen.",
+      "Do reserve Action Blue for workflow momentum: focus, selection, import, export, progress, and active rows.",
+      "Do pair every bucket color with the bucket key and label.",
+      "Do use full borders and background shifts for status surfaces instead of ornamental accents.",
+      "Do make file operations explicit with concrete labels, visible status, and reversible language.",
+      "Do use mono for paths, file names, scripts, and commands."
+    ],
+    "donts": [
+      "Don't create generic cloud-gallery aesthetics, social-media album polish, or decorative SaaS dashboards.",
+      "Don't make local file operations feel casual or opaque.",
+      "Don't use oversized cards, repeated icon-heading-text tiles, vague progress language, or UI chrome that competes with photos.",
+      "Don't use border-left or border-right greater than 1px as a colored accent on cards, list items, callouts, or alerts.",
+      "Don't use gradient text, decorative glassmorphism, or the hero-metric template.",
+      "Don't use modals as the first design answer when inline status or progressive disclosure can explain the workflow."
+    ]
+  }
+}
