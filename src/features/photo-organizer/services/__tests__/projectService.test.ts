@@ -534,7 +534,7 @@ describe('calculateProjectStats', () => {
       { ...base, id: '1', filePath: 'Inbox/clip.mp4', day: null, originalName: 'clip.mp4' },
       { ...base, id: '2', filePath: '01_DAYS/Day 01/E_Transition/D01_E_001.MOV', day: 1, originalName: 'D01_E_001.MOV' },
     ] as ProjectPhoto[];
-    const stats = calculateProjectStats(photos);
+    const stats = calculateProjectStats(photos, undefined, 'multi_day');
     expect(stats.videoCount).toBe(2);
     expect(stats.assignedCount).toBe(1);
     expect(stats.inboxCount).toBe(1);
