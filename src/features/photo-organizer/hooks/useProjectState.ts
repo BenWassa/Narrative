@@ -870,8 +870,10 @@ export function useProjectState({
               const raw = safeLocalStorage.get(`${STATE_PREFIX}${project.projectId}`);
               if (!raw) return project;
               const stored = JSON.parse(raw);
-              if (!Array.isArray(stored.photos)) return project;
-              const stats = calculateProjectStats(stored.photos, stored.settings?.folderStructure);
+              // serializeState stores photos as `edits`, not `photos`
+              const photos = stored.edits ?? stored.photos;
+              if (!Array.isArray(photos)) return project;
+              const stats = calculateProjectStats(photos, stored.settings?.folderStructure);
               return { ...project, ...stats };
             } catch {
               return project;
