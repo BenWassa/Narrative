@@ -861,6 +861,24 @@ export function useProjectState({
             deduped.map(p => ({ id: p.projectId, cover: p.coverUrl ? 'has cover' : 'no cover' })),
           );
           setRecentProjects(deduped);
+
+          // Recompute stats for all projects from stored state in the background
+          // so the dashboard reflects current assigned/unassigned counts without
+          // requiring the user to open each project first.
+          const refreshed = deduped.map(project => {
+            try {
+              const raw = safeLocalStorage.get(`${STATE_PREFIX}${project.projectId}`);
+              if (!raw) return project;
+              const stored = JSON.parse(raw);
+              if (!Array.isArray(stored.photos)) return project;
+              const stats = calculateProjectStats(stored.photos, stored.settings?.folderStructure);
+              return { ...project, ...stats };
+            } catch {
+              return project;
+            }
+          });
+          setRecentProjects(refreshed);
+          safeLocalStorage.set(RECENT_PROJECTS_KEY, JSON.stringify(refreshed));
         } catch (err) {
           console.warn('Failed to parse recent projects from storage', err);
           setRecentProjects([]);
