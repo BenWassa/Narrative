@@ -20,9 +20,11 @@ export function useDashboardStats(recentProjects: RecentProject[]) {
     const totalProjects = recentProjects.length;
     const totalClassified = assignedCount + inboxCount + archivedCount;
     const assignedPercent =
-      totalClassified > 0 ? Math.round(((totalClassified - inboxCount) / totalClassified) * 100) : 0;
+      totalClassified > 0 ? Math.round((assignedCount / totalClassified) * 100) : 0;
     const archivedPercent =
       totalClassified > 0 ? Math.round((archivedCount / totalClassified) * 100) : 0;
+    const inboxPercent =
+      totalClassified > 0 ? Math.max(0, 100 - assignedPercent - archivedPercent) : 0;
 
     const mostRecentProject =
       totalProjects > 0
@@ -38,6 +40,7 @@ export function useDashboardStats(recentProjects: RecentProject[]) {
       archivedCount,
       assignedPercent,
       archivedPercent,
+      inboxPercent,
       mostRecentProject,
     };
   }, [recentProjects]);

@@ -217,28 +217,35 @@ export default function StartScreen({
               {/* Progress bar — only show if we have breakdown data */}
               {stats.inboxCount + stats.assignedCount + stats.archivedCount > 0 ? (
                 <div className="space-y-1.5">
-                  <div className="h-1.5 w-full bg-gray-800 rounded-full overflow-hidden flex">
+                  <div className="h-2 w-full bg-gray-800 rounded-full overflow-hidden flex">
                     <div
                       className="bg-blue-500 h-full transition-all duration-300"
                       style={{ width: `${stats.assignedPercent}%` }}
                     />
                     <div
-                      className="bg-gray-600 h-full transition-all duration-300"
+                      className="bg-amber-500 h-full transition-all duration-300"
+                      style={{ width: `${stats.inboxPercent}%` }}
+                    />
+                    <div
+                      className="bg-rose-500 h-full transition-all duration-300"
                       style={{ width: `${stats.archivedPercent}%` }}
                     />
                   </div>
-                  <div className="flex items-center gap-3 text-xs text-gray-500">
+                  <div className="flex items-center gap-3 text-xs text-gray-400">
                     <span className="flex items-center gap-1.5">
                       <span className="w-2 h-2 rounded-full bg-blue-500 inline-block" />
-                      <span className="text-gray-300">{stats.assignedPercent}%</span> assigned
+                      <span className="text-gray-200 font-medium">{stats.assignedPercent}%</span>
+                      <span>assigned ({stats.assignedCount.toLocaleString()})</span>
                     </span>
                     <span className="flex items-center gap-1.5">
-                      <span className="w-2 h-2 rounded-full bg-gray-700 inline-block" />
-                      {stats.inboxCount.toLocaleString()} inbox
+                      <span className="w-2 h-2 rounded-full bg-amber-500 inline-block" />
+                      <span className="text-gray-200 font-medium">{stats.inboxPercent}%</span>
+                      <span>inbox ({stats.inboxCount.toLocaleString()})</span>
                     </span>
                     <span className="flex items-center gap-1.5">
-                      <span className="w-2 h-2 rounded-full bg-gray-600 inline-block" />
-                      {stats.archivedCount.toLocaleString()} archived
+                      <span className="w-2 h-2 rounded-full bg-rose-500 inline-block" />
+                      <span className="text-gray-200 font-medium">{stats.archivedPercent}%</span>
+                      <span>archived ({stats.archivedCount.toLocaleString()})</span>
                     </span>
                   </div>
                 </div>
