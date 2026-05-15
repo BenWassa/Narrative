@@ -112,6 +112,7 @@ export default function PhotoOrganizer() {
     dayContainers,
     loadProject,
     retryProjectPermission,
+    bulkImportProjects,
     handleOnboardingComplete: handleOnboardingCompleteInternal,
     updateRecentProjects,
   } = useProjectState({
@@ -985,6 +986,7 @@ export default function PhotoOrganizer() {
             safeLocalStorage.set(ACTIVE_PROJECT_KEY, projectRootPath);
           }}
           onCreateComplete={handleOnboardingComplete}
+          onBulkImportProjects={bulkImportProjects}
           onOpenProject={async rootPath => {
             setProjectError(null);
             // Check if File System API is available before attempting to load (skip in test environment)

@@ -11,12 +11,19 @@ vi.mock('../services/projectService', () => ({
   deleteProject: vi.fn(),
   buildPhotosFromHandle: vi.fn(),
   saveHandle: vi.fn(),
+  inspectProjectFolder: vi.fn(),
 }));
 
 beforeEach(() => {
   vi.clearAllMocks();
   localStorage.clear();
   vi.mocked(projectService.saveState).mockResolvedValue(undefined);
+  vi.mocked(projectService.inspectProjectFolder).mockResolvedValue({
+    hasExistingContent: false,
+    hasCanonicalStructure: false,
+    inferredProjectMode: null,
+    recommendedAction: 'create',
+  });
 });
 
 afterEach(() => {

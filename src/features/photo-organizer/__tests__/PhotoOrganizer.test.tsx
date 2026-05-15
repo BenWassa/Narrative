@@ -13,6 +13,7 @@ vi.mock('../services/projectService', () => ({
   buildProjectTree: vi.fn(),
   getHandle: vi.fn(),
   saveHandle: vi.fn(),
+  inspectProjectFolder: vi.fn(),
 }));
 
 // Mock coverStorageService to avoid IndexedDB in tests
@@ -89,6 +90,12 @@ beforeEach(() => {
   vi.mocked(projectService.saveState).mockResolvedValue();
   vi.mocked(projectService.getHandle).mockResolvedValue({} as FileSystemDirectoryHandle);
   vi.mocked(projectService.buildProjectTree).mockResolvedValue([]);
+  vi.mocked(projectService.inspectProjectFolder).mockResolvedValue({
+    hasExistingContent: false,
+    hasCanonicalStructure: false,
+    inferredProjectMode: null,
+    recommendedAction: 'create',
+  });
 });
 
 afterEach(() => {

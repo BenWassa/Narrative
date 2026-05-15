@@ -9,6 +9,7 @@ vi.mock('../services/projectService', () => ({
   getState: vi.fn(),
   saveState: vi.fn(),
   initProject: vi.fn(),
+  inspectProjectFolder: vi.fn(),
 }));
 
 const ACTIVE_PROJECT_KEY = 'narrative:activeProject';

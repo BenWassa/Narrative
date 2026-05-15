@@ -1,5 +1,5 @@
 import React, { useMemo, useState, useEffect } from 'react';
-import { Plus, Play, ChevronDown, ChevronRight } from 'lucide-react';
+import { FolderPlus, Plus, Play, ChevronDown, ChevronRight } from 'lucide-react';
 import OnboardingModal, { OnboardingState, RecentProject } from './OnboardingModal';
 import ProjectTile from './ui/ProjectTile';
 import { versionManager } from '../../lib/versionManager';
@@ -23,6 +23,7 @@ interface StartScreenProps {
   onClose: () => void;
   onCreateComplete: (state: OnboardingState) => void;
   onOpenProject: (projectId: string) => void;
+  onBulkImportProjects?: (parentHandle: FileSystemDirectoryHandle) => Promise<unknown>;
   recentProjects?: RecentProject[];
   canClose?: boolean;
   errorMessage?: string | null;
@@ -33,6 +34,7 @@ export default function StartScreen({
   onClose,
   onCreateComplete,
   onOpenProject,
+  onBulkImportProjects,
   recentProjects = [],
   canClose = false,
   errorMessage = null,
@@ -40,6 +42,16 @@ export default function StartScreen({
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [currentVersion, setCurrentVersion] = useState(versionManager.getDisplayVersion());
   const stats = useDashboardStats(recentProjects);
+  const handleBulkImport = async () => {
+    if (!onBulkImportProjects) return;
+    try {
+      const handle = await (window as any).showDirectoryPicker();
+      await onBulkImportProjects(handle);
+    } catch (err) {
+      if (err instanceof DOMException && err.name === 'AbortError') return;
+      console.warn('Bulk import cancelled or failed:', err);
+    }
+  };
   const currentYear = new Date().getFullYear();
   const groupedByYear = useMemo(() => {
     const groups: Record<number, RecentProject[]> = {};
@@ -56,10 +68,15 @@ export default function StartScreen({
     // Sort projects within each group by lastOpened descending (most recent first)
     return Object.entries(groups)
       .sort(([a], [b]) => Number(b) - Number(a))
-      .map(([year, projects]) => [
-        year,
-        [...projects].sort((a, b) => (b.createdAt || b.lastOpened || 0) - (a.createdAt || a.lastOpened || 0)),
-      ] as [string, RecentProject[]]);
+      .map(
+        ([year, projects]) =>
+          [
+            year,
+            [...projects].sort(
+              (a, b) => (b.createdAt || b.lastOpened || 0) - (a.createdAt || a.lastOpened || 0),
+            ),
+          ] as [string, RecentProject[]],
+      );
   }, [recentProjects]);
   const [collapsedYears, setCollapsedYears] = useState<Record<string, boolean>>({});
 
@@ -117,24 +134,25 @@ export default function StartScreen({
   return (
     <div className="h-screen bg-gray-950 text-gray-100 flex flex-col">
       <div className="border-b border-gray-800 bg-gray-900/50 backdrop-blur-sm">
-          <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <img src={APP_ICON_SRC} alt="Narrative" className="w-8 h-8 rounded" />
-              <div>
-                <h1 className="text-xl font-bold flex items-center gap-2">
-                  Narrative
-                  <span className="text-gray-600 text-lg font-light">/</span>
-                  <span className="text-gray-400">Dashboard</span>
-                </h1>
-              </div>
-            </div>
-            <div className="flex items-center gap-4">
-              <div className="px-3 py-1 bg-gray-800 text-gray-300 rounded-md text-xs font-medium tracking-wide">
-                <span className="uppercase">{currentVersion}</span>
-              </div>
+        <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <img src={APP_ICON_SRC} alt="Narrative" className="w-8 h-8 rounded" />
+            <div>
+              <h1 className="text-xl font-bold flex items-center gap-2">
+                Narrative
+                <span className="text-gray-600 text-lg font-light">/</span>
+                <span className="text-gray-400">Dashboard</span>
+              </h1>
             </div>
           </div>
-        </div>      <div className="flex-1 flex flex-col items-center p-6 overflow-y-auto scrollbar-thin">
+          <div className="flex items-center gap-4">
+            <div className="px-3 py-1 bg-gray-800 text-gray-300 rounded-md text-xs font-medium tracking-wide">
+              <span className="uppercase">{currentVersion}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div className="flex-1 flex flex-col items-center p-6 overflow-y-auto scrollbar-thin">
         <div className="w-full max-w-7xl space-y-6">
           {errorMessage && (
             <div className="rounded-lg border border-red-800 bg-red-950/60 px-4 py-3 text-sm text-red-200">
@@ -176,6 +194,15 @@ export default function StartScreen({
                 </div>
                 {/* Actions */}
                 <div className="flex items-center gap-2 shrink-0">
+                  {onBulkImportProjects && hasFileSystemAPI && (
+                    <button
+                      onClick={handleBulkImport}
+                      className="inline-flex items-center gap-2 px-4 py-2 bg-gray-950 hover:bg-gray-800 text-gray-200 text-sm font-semibold rounded-lg border border-gray-700 transition-all active:scale-95"
+                    >
+                      <FolderPlus size={15} />
+                      Bulk Import
+                    </button>
+                  )}
                   {stats.mostRecentProject && (
                     <button
                       onClick={() => onOpenProject(stats.mostRecentProject!.projectId)}
@@ -216,7 +243,9 @@ export default function StartScreen({
                   </div>
                 </div>
               ) : (
-                <p className="text-xs text-gray-600">Open a project to track assignment progress.</p>
+                <p className="text-xs text-gray-600">
+                  Open a project to track assignment progress.
+                </p>
               )}
             </div>
           )}
@@ -269,7 +298,11 @@ export default function StartScreen({
                         END ARCHIVED */}
 
                         {projects.map(project => (
-                          <ProjectTile key={project.projectId} project={project} onOpen={onOpenProject} />
+                          <ProjectTile
+                            key={project.projectId}
+                            project={project}
+                            onOpen={onOpenProject}
+                          />
                         ))}
                       </div>
                     )}
@@ -278,13 +311,21 @@ export default function StartScreen({
               })}
             </div>
           ) : (
-            <div className="text-center py-12 text-gray-500">
+            <div className="text-center py-12 text-gray-500 space-y-4">
               <p className="text-sm">No recent projects. Use the + button to get started.</p>
+              {onBulkImportProjects && hasFileSystemAPI && (
+                <button
+                  onClick={handleBulkImport}
+                  className="inline-flex items-center gap-2 rounded-lg border border-gray-700 bg-gray-900 px-4 py-2 text-sm font-semibold text-gray-200 hover:bg-gray-800 active:scale-95"
+                >
+                  <FolderPlus size={15} />
+                  Bulk Import Projects
+                </button>
+              )}
             </div>
           )}
         </div>
       </div>
-
       {/* Floating action button — bottom right */}
       <button
         onClick={() => setShowOnboarding(true)}
@@ -294,7 +335,6 @@ export default function StartScreen({
         <Plus size={24} className="transition-transform group-hover:rotate-90" />
         <span className="font-bold tracking-wide">New Project</span>
       </button>
-
       <OnboardingModal
         isOpen={showOnboarding}
         onClose={() => setShowOnboarding(false)}

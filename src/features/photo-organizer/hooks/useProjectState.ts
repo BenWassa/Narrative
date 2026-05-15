@@ -14,6 +14,7 @@ import {
   getHandle,
   getState,
   initProject,
+  inspectProjectFolder,
   type ProjectMode,
   ProjectPhoto,
   ProjectSettings,
@@ -478,6 +479,124 @@ export function useProjectState({
     }
   }, [permissionRetryProjectId, loadProject, showToast]);
 
+  const bulkImportProjects = useCallback(
+    async (parentHandle: FileSystemDirectoryHandle) => {
+      setLoadingProject(true);
+      setLoadingProgress(0);
+      setLoadingMessage('Scanning project folders...');
+      setProjectError(null);
+
+      const importedProjects: RecentProject[] = [];
+      const failures: string[] = [];
+
+      try {
+        const childFolders: Array<{ name: string; handle: FileSystemDirectoryHandle }> = [];
+        // @ts-ignore - entries() is supported by Chromium's File System Access API.
+        for await (const [name, handle] of parentHandle.entries()) {
+          if (handle.kind === 'directory') {
+            childFolders.push({ name, handle: handle as FileSystemDirectoryHandle });
+          }
+        }
+
+        childFolders.sort((a, b) => a.name.localeCompare(b.name));
+
+        if (childFolders.length === 0) {
+          showToast('No project folders found in the selected folder.', 'info');
+          return { imported: 0, failed: 0 };
+        }
+
+        const existingRootPaths = new Set(
+          recentProjects.map(project => project.rootPath.toLowerCase()),
+        );
+
+        for (let index = 0; index < childFolders.length; index += 1) {
+          const child = childFolders[index];
+          const rootLabel = `${parentHandle.name}/${child.name}`;
+          const baseProgress = (index / childFolders.length) * 100;
+          const progressSpan = 100 / childFolders.length;
+
+          if (existingRootPaths.has(rootLabel.toLowerCase())) {
+            setLoadingProgress(baseProgress + progressSpan);
+            continue;
+          }
+
+          setLoadingMessage(`Importing ${child.name} (${index + 1} of ${childFolders.length})...`);
+
+          try {
+            const inspection = await inspectProjectFolder(child.handle);
+            const projectMode = inspection.inferredProjectMode || 'single_day';
+            const initResult = await initProject({
+              dirHandle: child.handle,
+              projectName: child.name,
+              rootLabel,
+              projectMode,
+              onProgress: progress => {
+                setLoadingProgress(baseProgress + (progress / 100) * progressSpan);
+              },
+            });
+
+            const projectStats = calculateProjectStats(
+              initResult.photos,
+              DEFAULT_SETTINGS.folderStructure,
+            );
+            importedProjects.push({
+              projectName: child.name,
+              projectId: initResult.projectId,
+              rootPath: rootLabel,
+              lastOpened: Date.now(),
+              ...projectStats,
+            });
+          } catch (err) {
+            console.warn(`Failed to import ${child.name}:`, err);
+            failures.push(child.name);
+          }
+        }
+
+        if (importedProjects.length > 0) {
+          const raw = safeLocalStorage.get(RECENT_PROJECTS_KEY);
+          const parsed = raw ? (JSON.parse(raw) as RecentProject[]) : [];
+          const normalized = parsed.map(project => ({
+            ...project,
+            projectId: project.projectId || project.rootPath,
+          }));
+          const importedIds = new Set(importedProjects.map(project => project.projectId));
+          const next = [
+            ...importedProjects.reverse(),
+            ...normalized.filter(project => !importedIds.has(project.projectId)),
+          ].slice(0, 20);
+          safeLocalStorage.set(RECENT_PROJECTS_KEY, JSON.stringify(next));
+          setRecentProjects(next);
+        }
+
+        setLoadingProgress(100);
+
+        if (importedProjects.length > 0 && failures.length > 0) {
+          showToast(
+            `Imported ${importedProjects.length} projects. ${failures.length} could not be imported.`,
+            'info',
+          );
+        } else if (importedProjects.length > 0) {
+          showToast(`Imported ${importedProjects.length} projects.`, 'info');
+        } else if (failures.length > 0) {
+          showToast('No projects were imported. Check folder permissions and try again.', 'error');
+        } else {
+          showToast('Those project folders are already on the dashboard.', 'info');
+        }
+
+        return { imported: importedProjects.length, failed: failures.length };
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Failed to bulk import projects';
+        setProjectError(message);
+        showToast(message, 'error');
+        return { imported: importedProjects.length, failed: failures.length || 1 };
+      } finally {
+        setLoadingProject(false);
+        setLoadingProgress(0);
+      }
+    },
+    [recentProjects, showToast],
+  );
+
   const handleOnboardingComplete = useCallback(
     async (state: OnboardingState, reselectionProjectId?: string | null) => {
       setLoadingProject(true);
@@ -904,6 +1023,7 @@ export function useProjectState({
     setDayContainers,
     loadProject,
     retryProjectPermission,
+    bulkImportProjects,
     handleOnboardingComplete,
     updateRecentProjects,
     applySuggestedDays,
