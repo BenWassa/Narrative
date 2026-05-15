@@ -37,6 +37,7 @@ interface ProjectHeaderProps {
   onDeleteProject: () => void;
   onExportScript: () => void;
   onExportVideoTimeline?: () => void;
+  onOrganizeMusic?: () => void;
   onDirectProcess?: () => void;
   onUndoExport?: () => void;
   onShowHelp: () => void;
@@ -70,6 +71,7 @@ export default function ProjectHeader({
   onDeleteProject,
   onExportScript,
   onExportVideoTimeline,
+  onOrganizeMusic,
   onDirectProcess,
   onUndoExport,
   onShowHelp,
@@ -331,6 +333,14 @@ export default function ProjectHeader({
                         className="w-full text-left px-2 py-1.5 rounded text-sm text-gray-200 hover:bg-gray-800 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
                       >
                         Export Video Timeline
+                      </button>
+                    )}
+                    {onOrganizeMusic && (
+                      <button
+                        onClick={() => { setShowSettingsMenu(false); onOrganizeMusic!(); }}
+                        className="w-full text-left px-2 py-1.5 rounded text-sm text-gray-200 hover:bg-gray-800 transition-colors"
+                      >
+                        Organize Music Files
                       </button>
                     )}
                     {onDirectProcess && (

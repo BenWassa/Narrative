@@ -2068,3 +2068,90 @@ export async function relocateRootMediaToInboxForTest(
 ): Promise<{ moved: string[]; skipped: string[] }> {
   return relocateRootMediaToInbox(rootHandle, inboxFolder);
 }
+
+const AUDIO_EXTENSIONS = new Set(['mp3', 'm4a', 'wav', 'flac', 'aac', 'ogg', 'opus']);
+const MUSIC_FOLDER = 'music';
+
+function isAudioFile(name: string) {
+  const ext = name.split('.').pop()?.toLowerCase() || '';
+  return AUDIO_EXTENSIONS.has(ext);
+}
+
+async function collectAudioFiles(
+  dirHandle: FileSystemDirectoryHandle,
+  relativePath: string,
+  results: Array<{ name: string; relativePath: string; handle: FileSystemFileHandle }>,
+) {
+  // @ts-ignore entries() supported in modern browsers
+  for await (const [name, entry] of dirHandle.entries()) {
+    if (shouldSkipFile(name)) continue;
+    if (name === MUSIC_FOLDER) continue; // don't recurse into existing music folder
+    if (entry.kind === 'file' && isAudioFile(name)) {
+      results.push({ name, relativePath, handle: entry as FileSystemFileHandle });
+    } else if (entry.kind === 'directory') {
+      await collectAudioFiles(
+        entry as FileSystemDirectoryHandle,
+        relativePath ? `${relativePath}/${name}` : name,
+        results,
+      );
+    }
+  }
+}
+
+export async function organizeMusicFiles(
+  rootHandle: FileSystemDirectoryHandle,
+): Promise<{ moved: string[]; skipped: string[]; alreadyPresent: string[] }> {
+  const found: Array<{ name: string; relativePath: string; handle: FileSystemFileHandle }> = [];
+  await collectAudioFiles(rootHandle, '', found);
+
+  // Also scan what's already in the music folder so we can report them
+  const alreadyPresent: string[] = [];
+  try {
+    const musicHandle = await rootHandle.getDirectoryHandle(MUSIC_FOLDER);
+    // @ts-ignore
+    for await (const [name, entry] of musicHandle.entries()) {
+      if (entry.kind === 'file' && isAudioFile(name)) alreadyPresent.push(name);
+    }
+  } catch (_err) {
+    // music folder doesn't exist yet — fine
+  }
+
+  if (found.length === 0) return { moved: [], skipped: [], alreadyPresent };
+
+  const musicHandle = await ensureDirectoryPath(rootHandle, MUSIC_FOLDER);
+  const moved: string[] = [];
+  const skipped: string[] = [];
+
+  for (const { name, relativePath, handle } of found) {
+    // Skip if a file with this name already exists in music/
+    let destinationExists = false;
+    try {
+      await musicHandle.getFileHandle(name);
+      destinationExists = true;
+    } catch (err: any) {
+      if (err?.name !== 'NotFoundError') throw err;
+    }
+    if (destinationExists) {
+      skipped.push(name);
+      continue;
+    }
+
+    const file = await handle.getFile();
+    const destHandle = await musicHandle.getFileHandle(name, { create: true });
+    const writable = await destHandle.createWritable();
+    try {
+      await writable.write(file);
+    } finally {
+      await writable.close();
+    }
+
+    // Remove from source directory
+    const sourceDir = relativePath
+      ? await getDirectoryHandleByPath(rootHandle, relativePath)
+      : rootHandle;
+    await sourceDir.removeEntry(name);
+    moved.push(name);
+  }
+
+  return { moved, skipped, alreadyPresent };
+}

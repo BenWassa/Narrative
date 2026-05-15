@@ -18,6 +18,7 @@ import {
   getHandle,
 } from './services/projectService';
 import { checkVideoTimelineReadiness, writeVideoTimeline } from './utils/videoTimeline';
+import { organizeMusicFiles } from './services/projectService';
 import { ACTIVE_PROJECT_KEY, RECENT_PROJECTS_KEY } from './constants/projectKeys';
 import { MECE_BUCKETS, isMeceBucketLabel } from './constants/meceBuckets';
 import { usePhotoSelection } from './hooks/usePhotoSelection';
@@ -52,7 +53,11 @@ export default function PhotoOrganizer() {
   const debugEnabled = import.meta.env.DEV && safeLocalStorage.get('narrative:debug') === '1';
   const [coverSelectionMode, setCoverSelectionMode] = useState(false);
   const [debugOverlayEnabled, setDebugOverlayEnabled] = useState(false);
-  const [videoTimelineExportedDayCount, setVideoTimelineExportedDayCount] = useState<number | null>(null);
+  const [videoTimelineExported, setVideoTimelineExported] = useState<{
+    dayCount: number;
+    movedMusicFiles: string[];
+    existingMusicFiles: string[];
+  } | null>(null);
 
   // Hooks for state management
   const { toast, showToast, clearToast } = useToast();
@@ -665,13 +670,46 @@ export default function PhotoOrganizer() {
         );
         return;
       }
-      const timeline = await writeVideoTimeline(handle, currentProjectState);
-      setVideoTimelineExportedDayCount(timeline.days.length);
+      const [timeline, music] = await Promise.all([
+        writeVideoTimeline(handle, currentProjectState),
+        organizeMusicFiles(handle),
+      ]);
+      setVideoTimelineExported({
+        dayCount: timeline.days.length,
+        movedMusicFiles: music.moved,
+        existingMusicFiles: music.alreadyPresent,
+      });
     } catch (error) {
       console.warn('Failed to export video timeline:', error);
       showToast('Failed to export timeline.json.', 'error');
     }
   }, [currentProjectState, projectRootPath, showToast]);
+
+  const handleOrganizeMusic = useCallback(async () => {
+    if (!projectRootPath) return;
+    try {
+      const handle = await getHandle(projectRootPath);
+      if (!handle) {
+        showToast('Project folder access is missing. Reopen the project and try again.', 'error');
+        return;
+      }
+      const result = await organizeMusicFiles(handle);
+      const total = result.moved.length + result.alreadyPresent.length;
+      if (result.moved.length > 0) {
+        showToast(
+          `Moved ${result.moved.length} audio file${result.moved.length !== 1 ? 's' : ''} into music/`,
+          'info',
+        );
+      } else if (total > 0) {
+        showToast(`music/ already has ${total} audio file${total !== 1 ? 's' : ''} — nothing to move.`, 'info');
+      } else {
+        showToast('No audio files found in this project.', 'info');
+      }
+    } catch (error) {
+      console.warn('Failed to organize music files:', error);
+      showToast('Failed to organize music files.', 'error');
+    }
+  }, [projectRootPath, showToast]);
 
   const isViewerOpen = galleryViewPhoto !== null;
 
@@ -805,6 +843,7 @@ export default function PhotoOrganizer() {
         }}
         onExportScript={openExportScriptModal}
         onExportVideoTimeline={handleExportVideoTimeline}
+        onOrganizeMusic={handleOrganizeMusic}
         onDirectProcess={openDirectProcessing}
         onUndoExport={handleUndoProcessing}
         onShowHelp={() => setShowHelp(true)}
@@ -940,9 +979,11 @@ export default function PhotoOrganizer() {
 
       {/* Video Timeline Exported Modal */}
       <VideoTimelineExportedModal
-        isOpen={videoTimelineExportedDayCount !== null}
-        dayCount={videoTimelineExportedDayCount ?? 0}
-        onClose={() => setVideoTimelineExportedDayCount(null)}
+        isOpen={videoTimelineExported !== null}
+        dayCount={videoTimelineExported?.dayCount ?? 0}
+        movedMusicFiles={videoTimelineExported?.movedMusicFiles ?? []}
+        existingMusicFiles={videoTimelineExported?.existingMusicFiles ?? []}
+        onClose={() => setVideoTimelineExported(null)}
       />
 
       {/* Undo Script Modal */}

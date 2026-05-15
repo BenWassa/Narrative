@@ -1,9 +1,11 @@
-import React, { useState } from 'react';
-import { X, Copy, Check, Terminal } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { X, Copy, Check, Terminal, Music } from 'lucide-react';
 
 interface VideoTimelineExportedModalProps {
   isOpen: boolean;
   dayCount: number;
+  movedMusicFiles: string[];
+  existingMusicFiles: string[];
   onClose: () => void;
 }
 
@@ -45,15 +47,32 @@ function CommandBlock({ label, command }: { label: string; command: string }) {
   );
 }
 
+function defaultSongPath(movedMusicFiles: string[], existingMusicFiles: string[]): string {
+  const all = [...movedMusicFiles, ...existingMusicFiles];
+  if (all.length === 1) return `music/${all[0]}`;
+  if (all.length > 1) return `music/${all[0]}`;
+  return '~/Music/track.mp3';
+}
+
 export default function VideoTimelineExportedModal({
   isOpen,
   dayCount,
+  movedMusicFiles,
+  existingMusicFiles,
   onClose,
 }: VideoTimelineExportedModalProps) {
-  const [songPath, setSongPath] = useState('~/Music/track.mp3');
+  const [songPath, setSongPath] = useState(() =>
+    defaultSongPath(movedMusicFiles, existingMusicFiles),
+  );
+
+  useEffect(() => {
+    if (isOpen) setSongPath(defaultSongPath(movedMusicFiles, existingMusicFiles));
+  }, [isOpen, movedMusicFiles, existingMusicFiles]);
 
   if (!isOpen) return null;
 
+  const allMusicFiles = [...movedMusicFiles, ...existingMusicFiles];
+  const hasMusicFolder = allMusicFiles.length > 0;
   const beatSyncCmd = `python tools/beat-sync/run.py timeline.json --song ${songPath}`;
   const renderCmd = `python tools/render/recap-v1/render_ffmpeg.py timeline.beat-locked.json --out recap.mp4`;
 
@@ -64,7 +83,9 @@ export default function VideoTimelineExportedModal({
         <div className="px-6 py-4 border-b border-gray-800 flex items-center justify-between bg-gray-800/50">
           <div>
             <h2 className="text-lg font-bold text-gray-100">timeline.json exported</h2>
-            <p className="text-sm text-gray-400 mt-0.5">{dayCount} day{dayCount !== 1 ? 's' : ''} — run these two commands to render your video</p>
+            <p className="text-sm text-gray-400 mt-0.5">
+              {dayCount} day{dayCount !== 1 ? 's' : ''} — run these two commands to render your video
+            </p>
           </div>
           <button
             onClick={onClose}
@@ -76,24 +97,72 @@ export default function VideoTimelineExportedModal({
         </div>
 
         <div className="px-6 py-5 space-y-5">
+          {/* Music folder notice */}
+          {movedMusicFiles.length > 0 && (
+            <div className="flex items-start gap-2.5 bg-green-950/40 border border-green-900/50 rounded-lg px-3 py-2.5">
+              <Music className="w-4 h-4 text-green-400 flex-shrink-0 mt-0.5" />
+              <p className="text-xs text-green-200">
+                Moved {movedMusicFiles.length} audio file{movedMusicFiles.length !== 1 ? 's' : ''} into{' '}
+                <span className="font-mono text-green-100">music/</span>
+                {movedMusicFiles.length <= 3 && (
+                  <span className="text-green-400"> ({movedMusicFiles.join(', ')})</span>
+                )}
+              </p>
+            </div>
+          )}
+
           {/* Step 1 */}
           <div className="space-y-3">
             <div className="flex items-center gap-2">
-              <span className="w-5 h-5 rounded-full bg-blue-600 text-white text-xs font-bold flex items-center justify-center flex-shrink-0">1</span>
-              <p className="text-sm font-semibold text-gray-200">Beat-sync (set your song path first)</p>
+              <span className="w-5 h-5 rounded-full bg-blue-600 text-white text-xs font-bold flex items-center justify-center flex-shrink-0">
+                1
+              </span>
+              <p className="text-sm font-semibold text-gray-200">Beat-sync</p>
             </div>
-            <div className="space-y-1.5">
-              <label className="text-xs text-gray-400">Song path</label>
-              <input
-                type="text"
-                value={songPath}
-                onChange={e => setSongPath(e.target.value)}
-                placeholder="~/Music/track.mp3"
-                className="w-full px-3 py-2 rounded-lg border border-gray-700 bg-gray-950 text-gray-100 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              />
-            </div>
+
+            {hasMusicFolder && allMusicFiles.length > 1 ? (
+              <div className="space-y-1.5">
+                <label className="text-xs text-gray-400">Select song from music/</label>
+                <select
+                  value={songPath}
+                  onChange={e => setSongPath(e.target.value)}
+                  className="w-full px-3 py-2 rounded-lg border border-gray-700 bg-gray-950 text-gray-100 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                >
+                  {allMusicFiles.map(f => (
+                    <option key={f} value={`music/${f}`}>
+                      music/{f}
+                    </option>
+                  ))}
+                  <option value="custom">Custom path…</option>
+                </select>
+                {songPath === 'custom' && (
+                  <input
+                    type="text"
+                    autoFocus
+                    placeholder="~/Music/track.mp3"
+                    className="w-full px-3 py-2 rounded-lg border border-gray-700 bg-gray-950 text-gray-100 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    onChange={e => setSongPath(e.target.value)}
+                  />
+                )}
+              </div>
+            ) : (
+              <div className="space-y-1.5">
+                <label className="text-xs text-gray-400">Song path</label>
+                <input
+                  type="text"
+                  value={songPath}
+                  onChange={e => setSongPath(e.target.value)}
+                  placeholder="~/Music/track.mp3"
+                  className="w-full px-3 py-2 rounded-lg border border-gray-700 bg-gray-950 text-gray-100 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+              </div>
+            )}
+
             <CommandBlock label="Run from your project folder" command={beatSyncCmd} />
-            <p className="text-xs text-gray-500">Outputs <span className="font-mono text-gray-400">timeline.beat-locked.json</span>. Open it and tweak durations if needed.</p>
+            <p className="text-xs text-gray-500">
+              Outputs <span className="font-mono text-gray-400">timeline.beat-locked.json</span>.
+              Open it and tweak durations if needed.
+            </p>
           </div>
 
           <div className="border-t border-gray-800" />
@@ -101,17 +170,26 @@ export default function VideoTimelineExportedModal({
           {/* Step 2 */}
           <div className="space-y-3">
             <div className="flex items-center gap-2">
-              <span className="w-5 h-5 rounded-full bg-blue-600 text-white text-xs font-bold flex items-center justify-center flex-shrink-0">2</span>
+              <span className="w-5 h-5 rounded-full bg-blue-600 text-white text-xs font-bold flex items-center justify-center flex-shrink-0">
+                2
+              </span>
               <p className="text-sm font-semibold text-gray-200">Render</p>
             </div>
             <CommandBlock label="Run from your project folder" command={renderCmd} />
-            <p className="text-xs text-gray-500">Outputs <span className="font-mono text-gray-400">recap.mp4</span> — import into CapCut to finish.</p>
+            <p className="text-xs text-gray-500">
+              Outputs <span className="font-mono text-gray-400">recap.mp4</span> — import into
+              CapCut to finish.
+            </p>
           </div>
 
           {/* Terminal hint */}
           <div className="flex items-start gap-2 bg-gray-800/50 rounded-lg px-3 py-2.5">
             <Terminal className="w-4 h-4 text-gray-500 flex-shrink-0 mt-0.5" />
-            <p className="text-xs text-gray-400">Open Terminal, <code className="font-mono text-gray-300">cd</code> to your project folder, then run the commands above in order.</p>
+            <p className="text-xs text-gray-400">
+              Open Terminal,{' '}
+              <code className="font-mono text-gray-300">cd</code> to your project folder, then run
+              the commands above in order.
+            </p>
           </div>
         </div>
 
