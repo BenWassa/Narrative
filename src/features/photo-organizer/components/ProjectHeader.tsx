@@ -122,26 +122,32 @@ export default function ProjectHeader({
           {projectRootPath && (
             <button
               onClick={onStartCoverSelection}
-              className={`px-3 py-1 rounded text-sm font-medium ${
+              className={`px-3 py-1.5 rounded text-xs font-semibold tracking-wide uppercase transition-colors ${
                 coverSelectionMode
-                  ? 'bg-yellow-200 text-yellow-900'
-                  : 'bg-gray-800 hover:bg-gray-700 text-gray-100'
+                  ? 'bg-amber-500/20 border border-amber-500/50 text-amber-300 cursor-default'
+                  : 'bg-gray-800 hover:bg-gray-700 text-gray-300 hover:text-gray-100 border border-transparent'
               }`}
               title="Set cover from selected photo"
             >
-              {coverSelectionMode ? 'Selecting…' : 'Set Cover'}
+              {coverSelectionMode ? 'Picking Cover…' : 'Set Cover'}
             </button>
           )}
 
           {coverSelectionMode && (
-            <div className="px-3 py-1 bg-yellow-50 text-yellow-900 rounded text-sm flex items-center gap-3">
-              <span>Select a photo to set as cover</span>
+            <div className="flex items-center gap-2 px-3 py-1.5 bg-amber-500/10 border border-amber-500/30 rounded-lg">
+              <span className="text-xs text-amber-300/80">Click a photo to set as cover</span>
               {selectedPhotosCount === 1 && (
-                <button onClick={onUseCoverSelection} className="underline">
-                  Use selection
+                <button
+                  onClick={onUseCoverSelection}
+                  className="px-2 py-0.5 bg-amber-500 hover:bg-amber-400 text-amber-950 text-xs font-semibold rounded transition-colors"
+                >
+                  Use Selected
                 </button>
               )}
-              <button onClick={onCancelCoverSelection} className="underline">
+              <button
+                onClick={onCancelCoverSelection}
+                className="px-2 py-0.5 bg-gray-700 hover:bg-gray-600 text-gray-300 text-xs font-medium rounded transition-colors"
+              >
                 Cancel
               </button>
             </div>
