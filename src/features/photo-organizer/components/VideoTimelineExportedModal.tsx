@@ -6,6 +6,7 @@ interface VideoTimelineExportedModalProps {
   dayCount: number;
   movedMusicFiles: string[];
   existingMusicFiles: string[];
+  projectRootPath: string | null;
   onClose: () => void;
 }
 
@@ -135,6 +136,7 @@ export default function VideoTimelineExportedModal({
   dayCount,
   movedMusicFiles,
   existingMusicFiles,
+  projectRootPath,
   onClose,
 }: VideoTimelineExportedModalProps) {
   const [songPath, setSongPath] = useState(() =>
@@ -263,12 +265,21 @@ export default function VideoTimelineExportedModal({
 
           {/* Terminal hint */}
           {!bothDone && (
-            <div className="flex items-start gap-2 bg-gray-800/40 rounded-lg px-3 py-2.5">
-              <Terminal className="w-4 h-4 text-gray-500 shrink-0 mt-0.5" />
-              <p className="text-xs text-gray-400">
-                Open Terminal, <code className="font-mono text-gray-300">cd</code> to your project
-                folder, then run each command and mark it done.
-              </p>
+            <div className="space-y-2 bg-gray-800/40 rounded-lg px-3 py-2.5">
+              <div className="flex items-center gap-2">
+                <Terminal className="w-4 h-4 text-gray-500 shrink-0" />
+                <p className="text-xs text-gray-400">
+                  Open Terminal and run from your project folder:
+                </p>
+              </div>
+              {projectRootPath && (
+                <div className="flex items-center gap-2 bg-gray-950 border border-gray-800 rounded-lg px-3 py-2">
+                  <code className="flex-1 text-xs text-gray-100 font-mono break-all">
+                    cd &quot;{projectRootPath}&quot;
+                  </code>
+                  <CopyButton text={`cd "${projectRootPath}"`} />
+                </div>
+              )}
             </div>
           )}
 

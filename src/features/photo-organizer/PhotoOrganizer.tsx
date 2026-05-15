@@ -527,7 +527,6 @@ export default function PhotoOrganizer() {
     setCoverSelectionMode,
   });
 
-
   const { handleOnboardingComplete } = useOnboardingHandlers({
     handleOnboardingCompleteInternal,
     clearPhotoHistory,
@@ -697,11 +696,16 @@ export default function PhotoOrganizer() {
       const total = result.moved.length + result.alreadyPresent.length;
       if (result.moved.length > 0) {
         showToast(
-          `Moved ${result.moved.length} audio file${result.moved.length !== 1 ? 's' : ''} into music/`,
+          `Moved ${result.moved.length} audio file${
+            result.moved.length !== 1 ? 's' : ''
+          } into music/`,
           'info',
         );
       } else if (total > 0) {
-        showToast(`music/ already has ${total} audio file${total !== 1 ? 's' : ''} — nothing to move.`, 'info');
+        showToast(
+          `music/ already has ${total} audio file${total !== 1 ? 's' : ''} — nothing to move.`,
+          'info',
+        );
       } else {
         showToast('No audio files found in this project.', 'info');
       }
@@ -983,6 +987,7 @@ export default function PhotoOrganizer() {
         dayCount={videoTimelineExported?.dayCount ?? 0}
         movedMusicFiles={videoTimelineExported?.movedMusicFiles ?? []}
         existingMusicFiles={videoTimelineExported?.existingMusicFiles ?? []}
+        projectRootPath={projectRootPath}
         onClose={() => setVideoTimelineExported(null)}
       />
 
