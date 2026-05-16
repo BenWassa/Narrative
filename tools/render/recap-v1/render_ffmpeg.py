@@ -120,13 +120,18 @@ def main() -> None:
     resolution = tuple(timeline.get("render", {}).get("resolution", [1920, 1080]))
     music_path = timeline.get("music", {}).get("path")
 
-    if music_path and not Path(music_path).expanduser().exists():
-        print(
-            f"render: music file not found: {music_path}\n"
-            "  Make sure the path in timeline.beat-locked.json is correct.",
-            file=sys.stderr,
-        )
-        sys.exit(1)
+    if music_path:
+        resolved_music = Path(music_path).expanduser()
+        if not resolved_music.is_absolute():
+            resolved_music = base_dir / resolved_music
+        if not resolved_music.exists():
+            print(
+                f"render: music file not found: {music_path}\n"
+                "  Make sure the path in timeline.beat-locked.json is correct.",
+                file=sys.stderr,
+            )
+            sys.exit(1)
+        music_path = str(resolved_music)
 
     all_media = [item for day in timeline.get("days", []) for item in day.get("media", [])]
     missing = [item["path"] for item in all_media if not (base_dir / item["path"]).exists()]
@@ -162,7 +167,7 @@ def main() -> None:
               "-i",
               str(silent),
               "-i",
-              str(Path(music_path).expanduser()),
+              music_path,
               "-shortest",
               "-c:v",
               "copy",
