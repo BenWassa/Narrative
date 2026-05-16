@@ -18,6 +18,16 @@ from pathlib import Path
 from typing import Any
 
 
+def check_ffmpeg() -> None:
+    if subprocess.run(["which", "ffmpeg"], capture_output=True).returncode != 0:
+        print(
+            "render: ffmpeg not found — install it first:\n"
+            "  brew install ffmpeg",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+
+
 def run(command: list[str]) -> None:
     subprocess.run(command, check=True)
 
@@ -92,6 +102,7 @@ def find_beat_locked_timeline() -> Path:
 
 
 def main() -> None:
+    check_ffmpeg()
     parser = argparse.ArgumentParser(description="Render a draft recap MP4 from timeline.beat-locked.json")
     parser.add_argument("timeline", type=Path, nargs="?", default=None,
                         help="Path to timeline.beat-locked.json (auto-discovered if omitted)")
@@ -108,6 +119,27 @@ def main() -> None:
     out = args.out or base_dir / "recap.mp4"
     resolution = tuple(timeline.get("render", {}).get("resolution", [1920, 1080]))
     music_path = timeline.get("music", {}).get("path")
+
+    if music_path and not Path(music_path).expanduser().exists():
+        print(
+            f"render: music file not found: {music_path}\n"
+            "  Make sure the path in timeline.beat-locked.json is correct.",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+
+    all_media = [item for day in timeline.get("days", []) for item in day.get("media", [])]
+    missing = [item["path"] for item in all_media if not (base_dir / item["path"]).exists()]
+    if missing:
+        print(
+            f"render: {len(missing)} media file(s) not found under {base_dir}:",
+            file=sys.stderr,
+        )
+        for m in missing[:5]:
+            print(f"  {m}", file=sys.stderr)
+        if len(missing) > 5:
+            print(f"  … and {len(missing) - 5} more", file=sys.stderr)
+        sys.exit(1)
 
     with tempfile.TemporaryDirectory() as tmp:
       tmp_path = Path(tmp)

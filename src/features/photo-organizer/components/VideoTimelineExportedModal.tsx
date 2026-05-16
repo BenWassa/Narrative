@@ -282,7 +282,9 @@ export default function VideoTimelineExportedModal({
               <Terminal className="w-4 h-4 text-gray-500 shrink-0" />
               <p className="text-xs text-gray-400">
                 Open any Terminal window — no need to{' '}
-                <code className="font-mono text-gray-300">cd</code> first.
+                <code className="font-mono text-gray-300">cd</code> first. Requires{' '}
+                <code className="font-mono text-gray-300">ffmpeg</code> (
+                <code className="font-mono text-gray-300">brew install ffmpeg</code>).
               </p>
             </div>
           )}
