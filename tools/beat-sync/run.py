@@ -13,6 +13,8 @@ import argparse
 import copy
 import json
 import math
+import os
+import sys
 from pathlib import Path
 from typing import Any
 
@@ -154,18 +156,50 @@ def beat_lock(
     return result
 
 
+def find_timeline() -> Path:
+    """Return the most recently modified timeline.json under the home directory.
+
+    Skips beat-locked outputs and anything inside node_modules / .venv.
+    Exits with an error message if none are found.
+    """
+    home = Path.home()
+    candidates: list[tuple[float, Path]] = []
+    skip_parts = {"node_modules", ".venv", "__pycache__"}
+    for root, dirs, files in os.walk(home):
+        dirs[:] = [d for d in dirs if d not in skip_parts and not d.startswith(".")]
+        if "timeline.json" in files:
+            p = Path(root) / "timeline.json"
+            candidates.append((p.stat().st_mtime, p))
+
+    if not candidates:
+        print("beat-sync: no timeline.json found under ~/ — export one from Narrative first", file=sys.stderr)
+        sys.exit(1)
+
+    candidates.sort(reverse=True)
+    chosen = candidates[0][1]
+    if len(candidates) > 1:
+        print(f"beat-sync: found {len(candidates)} timeline files, using most recent: {chosen}")
+    return chosen
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Beat-lock a Narrative timeline.json")
-    parser.add_argument("timeline", type=Path)
+    parser.add_argument("timeline", type=Path, nargs="?", default=None,
+                        help="Path to timeline.json (auto-discovered if omitted)")
     parser.add_argument("--song", required=True, type=Path)
     parser.add_argument("--target", type=float)
     parser.add_argument("--out", type=Path)
     args = parser.parse_args()
 
-    timeline = load_json(args.timeline)
+    timeline_path: Path = args.timeline if args.timeline is not None else find_timeline()
+    if not timeline_path.exists():
+        print(f"beat-sync: file not found: {timeline_path}", file=sys.stderr)
+        sys.exit(1)
+
+    timeline = load_json(timeline_path)
     target = args.target or float(timeline.get("music", {}).get("target_duration_sec") or 360)
-    result = beat_lock(timeline, args.timeline.parent, args.song.expanduser(), target)
-    out = args.out or args.timeline.with_name("timeline.beat-locked.json")
+    result = beat_lock(timeline, timeline_path.parent, args.song.expanduser(), target)
+    out = args.out or timeline_path.with_name("timeline.beat-locked.json")
     with out.open("w", encoding="utf-8") as handle:
         json.dump(result, handle, indent=2)
         handle.write("\n")

@@ -6,7 +6,6 @@ interface VideoTimelineExportedModalProps {
   dayCount: number;
   movedMusicFiles: string[];
   existingMusicFiles: string[];
-  projectRootPath: string | null;
   onClose: () => void;
 }
 
@@ -136,7 +135,6 @@ export default function VideoTimelineExportedModal({
   dayCount,
   movedMusicFiles,
   existingMusicFiles,
-  projectRootPath,
   onClose,
 }: VideoTimelineExportedModalProps) {
   const [songPath, setSongPath] = useState(() =>
@@ -157,7 +155,7 @@ export default function VideoTimelineExportedModal({
 
   const allMusicFiles = [...movedMusicFiles, ...existingMusicFiles];
   const hasMusicFolder = allMusicFiles.length > 0;
-  const beatSyncCmd = `python tools/beat-sync/run.py timeline.json --song ${songPath}`;
+  const beatSyncCmd = `beat-sync --song ${songPath}`;
   const renderCmd = `python tools/render/recap-v1/render_ffmpeg.py timeline.beat-locked.json --out recap.mp4`;
 
   const bothDone = step1 === 'done' && step2 === 'done';
@@ -207,7 +205,7 @@ export default function VideoTimelineExportedModal({
             index={1}
             label="Beat-sync"
             command={beatSyncCmd}
-            note={`Outputs timeline.beat-locked.json — open it and tweak durations if needed.`}
+            note="Auto-finds your timeline.json and outputs timeline.beat-locked.json next to it."
             state={step1}
             active={step1 === 'idle'}
             onToggleDone={() => setStep1(s => (s === 'done' ? 'idle' : 'done'))}
@@ -265,21 +263,12 @@ export default function VideoTimelineExportedModal({
 
           {/* Terminal hint */}
           {!bothDone && (
-            <div className="space-y-2 bg-gray-800/40 rounded-lg px-3 py-2.5">
-              <div className="flex items-center gap-2">
-                <Terminal className="w-4 h-4 text-gray-500 shrink-0" />
-                <p className="text-xs text-gray-400">
-                  Open Terminal and run from your project folder:
-                </p>
-              </div>
-              {projectRootPath && (
-                <div className="flex items-center gap-2 bg-gray-950 border border-gray-800 rounded-lg px-3 py-2">
-                  <code className="flex-1 text-xs text-gray-100 font-mono break-all">
-                    cd &quot;{projectRootPath}&quot;
-                  </code>
-                  <CopyButton text={`cd "${projectRootPath}"`} />
-                </div>
-              )}
+            <div className="flex items-center gap-2 bg-gray-800/40 rounded-lg px-3 py-2.5">
+              <Terminal className="w-4 h-4 text-gray-500 shrink-0" />
+              <p className="text-xs text-gray-400">
+                Open any Terminal window — no need to{' '}
+                <code className="font-mono text-gray-300">cd</code> first.
+              </p>
             </div>
           )}
 
