@@ -14,6 +14,7 @@ import copy
 import json
 import math
 import os
+import subprocess
 import sys
 from pathlib import Path
 from typing import Any
@@ -33,6 +34,17 @@ PHOTO_BEATS_BY_BUCKET = {
 def load_json(path: Path) -> dict[str, Any]:
     with path.open("r", encoding="utf-8") as handle:
         return json.load(handle)
+
+
+def get_song_duration(song_path: Path) -> float | None:
+    try:
+        result = subprocess.run(
+            ["ffprobe", "-v", "quiet", "-print_format", "json", "-show_format", str(song_path)],
+            capture_output=True, text=True, check=True,
+        )
+        return float(json.loads(result.stdout)["format"]["duration"])
+    except Exception:
+        return None
 
 
 def detect_beats(song_path: Path, target_duration: float) -> tuple[float, list[float]]:
@@ -210,7 +222,16 @@ def main() -> None:
 
     song_path = resolve_song(args.song, timeline_path.parent)
     timeline = load_json(timeline_path)
-    target = args.target or float(timeline.get("music", {}).get("target_duration_sec") or 360)
+    if args.target:
+        target = args.target
+    else:
+        song_dur = get_song_duration(song_path)
+        if song_dur:
+            target = song_dur
+            print(f"beat-sync: song duration {song_dur:.1f}s — using as target")
+        else:
+            target = float(timeline.get("music", {}).get("target_duration_sec") or 360)
+            print(f"beat-sync: could not read song duration, using {target:.0f}s target")
     result = beat_lock(timeline, timeline_path.parent, song_path, target)
     out = args.out or timeline_path.with_name("timeline.beat-locked.json")
     with out.open("w", encoding="utf-8") as handle:
