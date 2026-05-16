@@ -133,16 +133,23 @@ export default function ProjectHeader({
       <div className="flex items-center justify-between px-6 py-3">
         {/* Left: identity */}
         <div className="flex items-center gap-4">
-          <img src={APP_ICON_SRC} alt="Narrative" className="w-8 h-8 rounded" />
-          <div>
-            <h1 className="text-lg font-semibold text-gray-100 flex items-center gap-2">
-              Narrative <span className="text-gray-600 font-light">/</span>{' '}
-              <span className="text-gray-400 font-normal">{projectName}</span>
-            </h1>
-            <p className="text-xs text-gray-400">
-              {stats.sorted} sorted · {stats.root} root media · {stats.archived} archived
-            </p>
-          </div>
+          <button
+            onClick={onMainMenu}
+            className="flex items-center gap-3 group"
+            title="Back to Dashboard"
+          >
+            <img src={APP_ICON_SRC} alt="Narrative" className="w-8 h-8 rounded" />
+            <div>
+              <h1 className="text-lg font-semibold text-gray-100 flex items-center gap-2">
+                <span className="group-hover:text-blue-400 transition-colors">Narrative</span>
+                <span className="text-gray-600 font-light">/</span>
+                <span className="text-gray-400 font-normal">{projectName}</span>
+              </h1>
+              <p className="text-xs text-gray-400">
+                {stats.sorted} sorted · {stats.root} root media · {stats.archived} archived
+              </p>
+            </div>
+          </button>
         </div>
 
         {/* Right: actions */}
