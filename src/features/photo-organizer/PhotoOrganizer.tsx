@@ -987,6 +987,7 @@ export default function PhotoOrganizer() {
         dayCount={videoTimelineExported?.dayCount ?? 0}
         movedMusicFiles={videoTimelineExported?.movedMusicFiles ?? []}
         existingMusicFiles={videoTimelineExported?.existingMusicFiles ?? []}
+        projectRootPath={projectRootPath ?? null}
         onClose={() => setVideoTimelineExported(null)}
       />
 

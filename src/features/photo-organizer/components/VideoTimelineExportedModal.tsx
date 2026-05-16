@@ -1,11 +1,13 @@
-import React, { useState, useEffect } from 'react';
-import { X, Copy, Check, Terminal, Music, ChevronRight } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { X, Copy, Check, Terminal, Music, Loader2 } from 'lucide-react';
+import { getHandle } from '../services/projectService';
 
 interface VideoTimelineExportedModalProps {
   isOpen: boolean;
   dayCount: number;
   movedMusicFiles: string[];
   existingMusicFiles: string[];
+  projectRootPath: string | null;
   onClose: () => void;
 }
 
@@ -39,22 +41,27 @@ function defaultSongPath(movedMusicFiles: string[], existingMusicFiles: string[]
   return '~/Music/track.mp3';
 }
 
-type StepState = 'idle' | 'done';
+async function fileExists(handle: FileSystemDirectoryHandle, name: string): Promise<boolean> {
+  try {
+    await handle.getFileHandle(name);
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 interface StepProps {
   index: number;
   label: string;
   command: string;
   note: string;
-  state: StepState;
+  done: boolean;
   active: boolean;
-  onToggleDone: () => void;
+  waiting: boolean;
   children?: React.ReactNode;
 }
 
-function Step({ index, label, command, note, state, active, onToggleDone, children }: StepProps) {
-  const done = state === 'done';
-
+function Step({ index, label, command, note, done, active, waiting, children }: StepProps) {
   return (
     <div
       className={`rounded-xl border transition-all duration-200 ${
@@ -86,6 +93,12 @@ function Step({ index, label, command, note, state, active, onToggleDone, childr
           {label}
         </span>
         {done && <span className="ml-auto text-xs text-green-500 font-medium">Complete</span>}
+        {waiting && (
+          <span className="ml-auto flex items-center gap-1 text-xs text-blue-400">
+            <Loader2 className="w-3 h-3 animate-spin" />
+            Waiting…
+          </span>
+        )}
       </div>
 
       {/* Step body — only visible when active or done */}
@@ -102,28 +115,6 @@ function Step({ index, label, command, note, state, active, onToggleDone, childr
           </div>
 
           <p className="text-xs text-gray-500">{note}</p>
-
-          {/* Mark done / undo button */}
-          <button
-            onClick={onToggleDone}
-            className={`flex items-center gap-2 text-xs font-medium px-3 py-2 rounded-lg transition-colors w-full justify-center ${
-              done
-                ? 'bg-green-900/40 hover:bg-green-900/60 text-green-300 border border-green-800/50'
-                : 'bg-blue-700 hover:bg-blue-600 text-white'
-            }`}
-          >
-            {done ? (
-              <>
-                <Check className="w-3.5 h-3.5" />
-                Done — undo
-              </>
-            ) : (
-              <>
-                <ChevronRight className="w-3.5 h-3.5" />
-                Mark as done
-              </>
-            )}
-          </button>
         </div>
       )}
     </div>
@@ -135,21 +126,45 @@ export default function VideoTimelineExportedModal({
   dayCount,
   movedMusicFiles,
   existingMusicFiles,
+  projectRootPath,
   onClose,
 }: VideoTimelineExportedModalProps) {
   const [songPath, setSongPath] = useState(() =>
     defaultSongPath(movedMusicFiles, existingMusicFiles),
   );
-  const [step1, setStep1] = useState<StepState>('idle');
-  const [step2, setStep2] = useState<StepState>('idle');
+  const [step1Done, setStep1Done] = useState(false);
+  const [step2Done, setStep2Done] = useState(false);
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
     if (isOpen) {
       setSongPath(defaultSongPath(movedMusicFiles, existingMusicFiles));
-      setStep1('idle');
-      setStep2('idle');
+      setStep1Done(false);
+      setStep2Done(false);
     }
   }, [isOpen, movedMusicFiles, existingMusicFiles]);
+
+  // Poll for output files every 2s while modal is open
+  useEffect(() => {
+    if (!isOpen || !projectRootPath) return;
+
+    const poll = async () => {
+      const handle = await getHandle(projectRootPath);
+      if (!handle) return;
+      const [beatLocked, recap] = await Promise.all([
+        fileExists(handle, 'timeline.beat-locked.json'),
+        fileExists(handle, 'recap.mp4'),
+      ]);
+      setStep1Done(beatLocked);
+      setStep2Done(recap);
+    };
+
+    poll();
+    intervalRef.current = setInterval(poll, 2000);
+    return () => {
+      if (intervalRef.current) clearInterval(intervalRef.current);
+    };
+  }, [isOpen, projectRootPath]);
 
   if (!isOpen) return null;
 
@@ -158,12 +173,12 @@ export default function VideoTimelineExportedModal({
   const beatSyncCmd = `beat-sync --song ${songPath}`;
   const renderCmd = `render`;
 
-  const bothDone = step1 === 'done' && step2 === 'done';
-  const step2Active = step1 === 'done';
+  const bothDone = step1Done && step2Done;
+  const step2Active = step1Done;
 
-  let statusText = 'Run these two commands from your project folder';
+  let statusText = 'Run these two commands from any terminal window';
   if (bothDone) statusText = 'All done — recap.mp4 is ready';
-  else if (step2Active) statusText = 'Step 1 complete — now run the render';
+  else if (step2Active) statusText = 'Beat-sync done — now run the render';
 
   return (
     <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-6">
@@ -206,9 +221,9 @@ export default function VideoTimelineExportedModal({
             label="Beat-sync"
             command={beatSyncCmd}
             note="Auto-finds your timeline.json and outputs timeline.beat-locked.json next to it."
-            state={step1}
-            active={step1 === 'idle'}
-            onToggleDone={() => setStep1(s => (s === 'done' ? 'idle' : 'done'))}
+            done={step1Done}
+            active={!step1Done}
+            waiting={!step1Done}
           >
             {/* Song selector inside step body */}
             {hasMusicFolder && allMusicFiles.length > 1 ? (
@@ -256,9 +271,9 @@ export default function VideoTimelineExportedModal({
             label="Render"
             command={renderCmd}
             note="Auto-finds the beat-locked timeline and writes recap.mp4 next to it."
-            state={step2}
-            active={step2Active}
-            onToggleDone={() => setStep2(s => (s === 'done' ? 'idle' : 'done'))}
+            done={step2Done}
+            active={step2Active && !step2Done}
+            waiting={step2Active && !step2Done}
           />
 
           {/* Terminal hint */}
