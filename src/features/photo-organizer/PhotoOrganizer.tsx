@@ -55,6 +55,7 @@ export default function PhotoOrganizer() {
   const [debugOverlayEnabled, setDebugOverlayEnabled] = useState(false);
   const [videoTimelineExported, setVideoTimelineExported] = useState<{
     dayCount: number;
+    clipCount: number;
     movedMusicFiles: string[];
     existingMusicFiles: string[];
   } | null>(null);
@@ -675,6 +676,7 @@ export default function PhotoOrganizer() {
       ]);
       setVideoTimelineExported({
         dayCount: timeline.days.length,
+        clipCount: timeline.days.reduce((sum, d) => sum + d.media.length, 0),
         movedMusicFiles: music.moved,
         existingMusicFiles: music.alreadyPresent,
       });
@@ -985,6 +987,7 @@ export default function PhotoOrganizer() {
       <VideoTimelineExportedModal
         isOpen={videoTimelineExported !== null}
         dayCount={videoTimelineExported?.dayCount ?? 0}
+        clipCount={videoTimelineExported?.clipCount ?? 0}
         movedMusicFiles={videoTimelineExported?.movedMusicFiles ?? []}
         existingMusicFiles={videoTimelineExported?.existingMusicFiles ?? []}
         projectRootPath={projectRootPath ?? null}

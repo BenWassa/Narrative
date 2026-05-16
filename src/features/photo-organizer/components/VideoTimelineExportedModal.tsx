@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { X, Copy, Check, Terminal, Music, Loader2 } from 'lucide-react';
+import { X, Copy, Check, Terminal, Music, Loader2, AlertTriangle } from 'lucide-react';
 import { getHandle } from '../services/projectService';
 
 interface VideoTimelineExportedModalProps {
   isOpen: boolean;
   dayCount: number;
+  clipCount: number;
   movedMusicFiles: string[];
   existingMusicFiles: string[];
   projectRootPath: string | null;
@@ -48,6 +49,45 @@ async function fileExists(handle: FileSystemDirectoryHandle, name: string): Prom
   } catch {
     return false;
   }
+}
+
+function formatMmSs(seconds: number): string {
+  const m = Math.floor(seconds / 60);
+  const s = Math.round(seconds - m * 60);
+  return `${m}:${s.toString().padStart(2, '0')}`;
+}
+
+interface Pacing {
+  verdict: 'rushed' | 'fast' | 'good' | 'slow';
+  label: string;
+  perClip: number;
+}
+
+function getPacing(songDuration: number, clipCount: number): Pacing | null {
+  if (clipCount <= 0 || songDuration <= 0) return null;
+  const perClip = songDuration / clipCount;
+  if (perClip < 1.0) return { verdict: 'rushed', label: 'too rushed', perClip };
+  if (perClip < 2.0) return { verdict: 'fast', label: 'fast montage', perClip };
+  if (perClip <= 6.0) return { verdict: 'good', label: 'good pacing', perClip };
+  return { verdict: 'slow', label: 'slow pace', perClip };
+}
+
+async function loadAudioDuration(file: File): Promise<number | null> {
+  return new Promise(resolve => {
+    const url = URL.createObjectURL(file);
+    const audio = new Audio();
+    audio.preload = 'metadata';
+    audio.onloadedmetadata = () => {
+      const d = audio.duration;
+      URL.revokeObjectURL(url);
+      resolve(isFinite(d) ? d : null);
+    };
+    audio.onerror = () => {
+      URL.revokeObjectURL(url);
+      resolve(null);
+    };
+    audio.src = url;
+  });
 }
 
 interface StepProps {
@@ -101,12 +141,10 @@ function Step({ index, label, command, note, done, active, waiting, children }: 
         )}
       </div>
 
-      {/* Step body — only visible when active or done */}
       {(active || done) && (
         <div className="px-4 pb-4 space-y-3">
           {children}
 
-          {/* Command block */}
           <div className="flex items-start gap-2 bg-gray-950 border border-gray-800 rounded-lg px-4 py-3">
             <code className="flex-1 text-xs text-gray-100 font-mono break-all leading-relaxed">
               {command}
@@ -124,6 +162,7 @@ function Step({ index, label, command, note, done, active, waiting, children }: 
 export default function VideoTimelineExportedModal({
   isOpen,
   dayCount,
+  clipCount,
   movedMusicFiles,
   existingMusicFiles,
   projectRootPath,
@@ -132,6 +171,7 @@ export default function VideoTimelineExportedModal({
   const [songPath, setSongPath] = useState(() =>
     defaultSongPath(movedMusicFiles, existingMusicFiles),
   );
+  const [songDurations, setSongDurations] = useState<Record<string, number>>({});
   const [step1Done, setStep1Done] = useState(false);
   const [step2Done, setStep2Done] = useState(false);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -143,6 +183,42 @@ export default function VideoTimelineExportedModal({
       setStep2Done(false);
     }
   }, [isOpen, movedMusicFiles, existingMusicFiles]);
+
+  // Load durations for music files when modal opens
+  useEffect(() => {
+    if (!isOpen || !projectRootPath) return;
+    const files = [...movedMusicFiles, ...existingMusicFiles];
+    if (files.length === 0) return;
+
+    let cancelled = false;
+    (async () => {
+      const handle = await getHandle(projectRootPath);
+      if (!handle) return;
+      let musicDir: FileSystemDirectoryHandle;
+      try {
+        musicDir = await handle.getDirectoryHandle('music');
+      } catch {
+        return;
+      }
+      const next: Record<string, number> = {};
+      for (const name of files) {
+        if (cancelled) return;
+        try {
+          const fileHandle = await musicDir.getFileHandle(name);
+          const file = await fileHandle.getFile();
+          const dur = await loadAudioDuration(file);
+          if (dur !== null) next[name] = dur;
+        } catch {
+          // skip
+        }
+      }
+      if (!cancelled) setSongDurations(next);
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isOpen, projectRootPath, movedMusicFiles, existingMusicFiles]);
 
   // Poll for output files every 2s while modal is open
   useEffect(() => {
@@ -173,6 +249,17 @@ export default function VideoTimelineExportedModal({
   const beatSyncCmd = `beat-sync --song ${songPath}`;
   const renderCmd = `render`;
 
+  const selectedSongName = songPath.startsWith('music/') ? songPath.slice('music/'.length) : null;
+  const selectedDuration = selectedSongName ? songDurations[selectedSongName] : undefined;
+  const pacing = selectedDuration ? getPacing(selectedDuration, clipCount) : null;
+
+  const pacingColors = {
+    rushed: 'text-red-300 bg-red-950/40 border-red-900/50',
+    fast: 'text-amber-300 bg-amber-950/40 border-amber-900/50',
+    good: 'text-green-300 bg-green-950/40 border-green-900/50',
+    slow: 'text-amber-300 bg-amber-950/40 border-amber-900/50',
+  };
+
   const bothDone = step1Done && step2Done;
   const step2Active = step1Done;
 
@@ -180,15 +267,23 @@ export default function VideoTimelineExportedModal({
   if (bothDone) statusText = 'All done — recap.mp4 is ready';
   else if (step2Active) statusText = 'Beat-sync done — now run the render';
 
+  const songOptionLabel = (name: string) => {
+    const d = songDurations[name];
+    if (!d) return `music/${name}`;
+    const pace = getPacing(d, clipCount);
+    if (!pace) return `music/${name} (${formatMmSs(d)})`;
+    return `music/${name} (${formatMmSs(d)} — ${pace.perClip.toFixed(1)}s/clip, ${pace.label})`;
+  };
+
   return (
     <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-6">
       <div className="bg-gray-900 rounded-xl max-w-xl w-full border border-gray-800 shadow-2xl">
-        {/* Header */}
         <div className="px-6 py-4 border-b border-gray-800 flex items-center justify-between">
           <div>
             <h2 className="text-lg font-bold text-gray-100">timeline.json exported</h2>
             <p className="text-sm text-gray-400 mt-0.5">
-              {dayCount} day{dayCount !== 1 ? 's' : ''} — {statusText}
+              {dayCount} day{dayCount !== 1 ? 's' : ''}, {clipCount} clip
+              {clipCount !== 1 ? 's' : ''} — {statusText}
             </p>
           </div>
           <button
@@ -201,7 +296,6 @@ export default function VideoTimelineExportedModal({
         </div>
 
         <div className="px-6 py-5 space-y-3">
-          {/* Music moved notice */}
           {movedMusicFiles.length > 0 && (
             <div className="flex items-start gap-2.5 bg-green-950/40 border border-green-900/50 rounded-lg px-3 py-2.5">
               <Music className="w-4 h-4 text-green-400 shrink-0 mt-0.5" />
@@ -215,7 +309,6 @@ export default function VideoTimelineExportedModal({
             </div>
           )}
 
-          {/* Step 1 */}
           <Step
             index={1}
             label="Beat-sync"
@@ -225,7 +318,6 @@ export default function VideoTimelineExportedModal({
             active={!step1Done}
             waiting={!step1Done}
           >
-            {/* Song selector inside step body */}
             {hasMusicFolder && allMusicFiles.length > 1 ? (
               <div className="space-y-1.5">
                 <label className="text-xs text-gray-400">Select song from music/</label>
@@ -236,7 +328,7 @@ export default function VideoTimelineExportedModal({
                 >
                   {allMusicFiles.map(f => (
                     <option key={f} value={`music/${f}`}>
-                      music/{f}
+                      {songOptionLabel(f)}
                     </option>
                   ))}
                   <option value="custom">Custom path…</option>
@@ -253,7 +345,15 @@ export default function VideoTimelineExportedModal({
               </div>
             ) : (
               <div className="space-y-1.5">
-                <label className="text-xs text-gray-400">Song path</label>
+                <label className="text-xs text-gray-400">
+                  Song path
+                  {selectedDuration && (
+                    <span className="text-gray-500 ml-2">
+                      ({formatMmSs(selectedDuration)}
+                      {pacing && ` — ${pacing.perClip.toFixed(1)}s/clip`})
+                    </span>
+                  )}
+                </label>
                 <input
                   type="text"
                   value={songPath}
@@ -263,9 +363,30 @@ export default function VideoTimelineExportedModal({
                 />
               </div>
             )}
+
+            {pacing && (
+              <div
+                className={`flex items-start gap-2 border rounded-lg px-3 py-2 ${
+                  pacingColors[pacing.verdict]
+                }`}
+              >
+                {pacing.verdict === 'good' ? (
+                  <Check className="w-4 h-4 shrink-0 mt-0.5" />
+                ) : (
+                  <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
+                )}
+                <p className="text-xs">
+                  {clipCount} clips ÷ {formatMmSs(selectedDuration!)} ={' '}
+                  <span className="font-semibold">{pacing.perClip.toFixed(1)}s per clip</span> —{' '}
+                  {pacing.label}
+                  {pacing.verdict === 'rushed' && ' — pick a longer song or fewer clips.'}
+                  {pacing.verdict === 'slow' && ' — pick a shorter song or add more clips.'}
+                  {pacing.verdict === 'fast' && ' — fine for montage style.'}
+                </p>
+              </div>
+            )}
           </Step>
 
-          {/* Step 2 */}
           <Step
             index={2}
             label="Render"
@@ -276,7 +397,6 @@ export default function VideoTimelineExportedModal({
             waiting={step2Active && !step2Done}
           />
 
-          {/* Terminal hint */}
           {!bothDone && (
             <div className="flex items-center gap-2 bg-gray-800/40 rounded-lg px-3 py-2.5">
               <Terminal className="w-4 h-4 text-gray-500 shrink-0" />
@@ -289,7 +409,6 @@ export default function VideoTimelineExportedModal({
             </div>
           )}
 
-          {/* All done banner */}
           {bothDone && (
             <div className="flex items-center gap-2.5 bg-green-950/40 border border-green-800/60 rounded-xl px-4 py-3">
               <Check className="w-5 h-5 text-green-400 shrink-0" />

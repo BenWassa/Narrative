@@ -233,6 +233,20 @@ def main() -> None:
             target = float(timeline.get("music", {}).get("target_duration_sec") or 360)
             print(f"beat-sync: could not read song duration, using {target:.0f}s target")
     result = beat_lock(timeline, timeline_path.parent, song_path, target)
+
+    clip_count = sum(len(day.get("media", [])) for day in result.get("days", []))
+    if clip_count > 0:
+        per_clip = target / clip_count
+        if per_clip < 1.0:
+            verdict = "too rushed — pick a longer song"
+        elif per_clip < 2.0:
+            verdict = "fast montage pace"
+        elif per_clip <= 6.0:
+            verdict = "good pacing"
+        else:
+            verdict = "slow pace — pick a shorter song or add more clips"
+        print(f"beat-sync: {clip_count} clips / {target:.0f}s = {per_clip:.1f}s per clip — {verdict}")
+
     out = args.out or timeline_path.with_name("timeline.beat-locked.json")
     with out.open("w", encoding="utf-8") as handle:
         json.dump(result, handle, indent=2)
