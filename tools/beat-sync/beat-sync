@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Beat-sync wrapper — activates the Narrative venv and runs run.py.
 # Add tools/beat-sync to PATH (via .zshrc) so this is callable from anywhere.
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REAL_SCRIPT="$(perl -MCwd -e 'print Cwd::realpath($ARGV[0])' "${BASH_SOURCE[0]}")"
+SCRIPT_DIR="$(dirname "$REAL_SCRIPT")"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 VENV="$REPO_ROOT/.venv/bin/activate"
 
