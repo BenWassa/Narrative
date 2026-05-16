@@ -182,6 +182,18 @@ def find_timeline() -> Path:
     return chosen
 
 
+def resolve_song(song_arg: Path, timeline_dir: Path) -> Path:
+    """Resolve song path: try as-is (with ~), then relative to timeline dir."""
+    expanded = song_arg.expanduser()
+    if expanded.exists():
+        return expanded
+    relative = (timeline_dir / song_arg).expanduser()
+    if relative.exists():
+        return relative
+    print(f"beat-sync: warning: song not found at {expanded} or {relative}; beat detection will fail")
+    return expanded
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Beat-lock a Narrative timeline.json")
     parser.add_argument("timeline", type=Path, nargs="?", default=None,
@@ -196,9 +208,10 @@ def main() -> None:
         print(f"beat-sync: file not found: {timeline_path}", file=sys.stderr)
         sys.exit(1)
 
+    song_path = resolve_song(args.song, timeline_path.parent)
     timeline = load_json(timeline_path)
     target = args.target or float(timeline.get("music", {}).get("target_duration_sec") or 360)
-    result = beat_lock(timeline, timeline_path.parent, args.song.expanduser(), target)
+    result = beat_lock(timeline, timeline_path.parent, song_path, target)
     out = args.out or timeline_path.with_name("timeline.beat-locked.json")
     with out.open("w", encoding="utf-8") as handle:
         json.dump(result, handle, indent=2)

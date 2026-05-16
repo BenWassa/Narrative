@@ -156,7 +156,7 @@ export default function VideoTimelineExportedModal({
   const allMusicFiles = [...movedMusicFiles, ...existingMusicFiles];
   const hasMusicFolder = allMusicFiles.length > 0;
   const beatSyncCmd = `beat-sync --song ${songPath}`;
-  const renderCmd = `python tools/render/recap-v1/render_ffmpeg.py timeline.beat-locked.json --out recap.mp4`;
+  const renderCmd = `render`;
 
   const bothDone = step1 === 'done' && step2 === 'done';
   const step2Active = step1 === 'done';
@@ -255,7 +255,7 @@ export default function VideoTimelineExportedModal({
             index={2}
             label="Render"
             command={renderCmd}
-            note="Outputs recap.mp4 — import into CapCut to finish."
+            note="Auto-finds the beat-locked timeline and writes recap.mp4 next to it."
             state={step2}
             active={step2Active}
             onToggleDone={() => setStep2(s => (s === 'done' ? 'idle' : 'done'))}

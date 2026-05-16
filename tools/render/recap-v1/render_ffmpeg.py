@@ -10,7 +10,9 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import subprocess
+import sys
 import tempfile
 from pathlib import Path
 from typing import Any
@@ -67,14 +69,43 @@ def render_clip(item: dict[str, Any], base_dir: Path, out: Path, resolution: tup
     )
 
 
+def find_beat_locked_timeline() -> Path:
+    """Return the most recently modified timeline.beat-locked.json under ~/."""
+    home = Path.home()
+    candidates: list[tuple[float, Path]] = []
+    skip_parts = {"node_modules", ".venv", "__pycache__"}
+    for root, dirs, files in os.walk(home):
+        dirs[:] = [d for d in dirs if d not in skip_parts and not d.startswith(".")]
+        if "timeline.beat-locked.json" in files:
+            p = Path(root) / "timeline.beat-locked.json"
+            candidates.append((p.stat().st_mtime, p))
+
+    if not candidates:
+        print("render: no timeline.beat-locked.json found under ~/ — run beat-sync first", file=sys.stderr)
+        sys.exit(1)
+
+    candidates.sort(reverse=True)
+    chosen = candidates[0][1]
+    if len(candidates) > 1:
+        print(f"render: found {len(candidates)} beat-locked timelines, using most recent: {chosen}")
+    return chosen
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Render a draft recap MP4 from timeline.beat-locked.json")
-    parser.add_argument("timeline", type=Path)
-    parser.add_argument("--out", type=Path, default=Path("recap.mp4"))
+    parser.add_argument("timeline", type=Path, nargs="?", default=None,
+                        help="Path to timeline.beat-locked.json (auto-discovered if omitted)")
+    parser.add_argument("--out", type=Path, default=None)
     args = parser.parse_args()
 
-    timeline = json.loads(args.timeline.read_text(encoding="utf-8"))
-    base_dir = args.timeline.parent
+    timeline_path: Path = args.timeline if args.timeline is not None else find_beat_locked_timeline()
+    if not timeline_path.exists():
+        print(f"render: file not found: {timeline_path}", file=sys.stderr)
+        sys.exit(1)
+
+    timeline = json.loads(timeline_path.read_text(encoding="utf-8"))
+    base_dir = timeline_path.parent
+    out = args.out or base_dir / "recap.mp4"
     resolution = tuple(timeline.get("render", {}).get("resolution", [1920, 1080]))
     music_path = timeline.get("music", {}).get("path")
 
@@ -105,11 +136,11 @@ def main() -> None:
               "copy",
               "-c:a",
               "aac",
-              str(args.out),
+              str(out),
           ])
       else:
-          args.out.write_bytes(silent.read_bytes())
-    print(f"render: wrote {args.out}")
+          out.write_bytes(silent.read_bytes())
+    print(f"render: wrote {out}")
 
 
 if __name__ == "__main__":
